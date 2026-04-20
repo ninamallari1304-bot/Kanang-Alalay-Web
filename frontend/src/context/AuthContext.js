@@ -25,13 +25,11 @@ export const AuthProvider = ({ children }) => {
             const token      = localStorage.getItem('token');
             const storedUser = localStorage.getItem('user');
 
-            // Nothing stored → not logged in
             if (!token || !storedUser) {
                 setLoading(false);
                 return;
             }
 
-            // Quick local check: reject invalid/removed roles immediately
             let parsed;
             try {
                 parsed = JSON.parse(storedUser);
@@ -42,6 +40,7 @@ export const AuthProvider = ({ children }) => {
                 return;
             }
 
+            // Reject stale/removed roles immediately
             if (!VALID_ROLES.includes(parsed.role)) {
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
@@ -49,28 +48,25 @@ export const AuthProvider = ({ children }) => {
                 return;
             }
 
-            // ── Backend validation: check token hasn't expired ─────────────
+            // Validate token with backend
             try {
-                const res = await fetch(`${API_BASE_URL}/auth/validate-token`, {
+                const res  = await fetch(`${API_BASE_URL}/auth/validate-token`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 const data = await res.json();
 
                 if (!res.ok || !data.success) {
-                    // Token expired or user deactivated/role changed on backend
                     localStorage.removeItem('token');
                     localStorage.removeItem('user');
                     setLoading(false);
                     return;
                 }
 
-                // Update stored user with fresh data from backend
-                // (catches ward/shift/name changes made by admin)
+                // Refresh stored user with latest data from backend
                 localStorage.setItem('user', JSON.stringify(data.user));
                 setUser(data.user);
             } catch {
-                // Network error during validation — fall back to stored user
-                // so the app still works offline/slow connections
+                // Network error — fall back to stored user so app still works offline
                 setUser(parsed);
             }
 
@@ -90,10 +86,13 @@ export const AuthProvider = ({ children }) => {
         const data = await res.json();
 
         if (!res.ok || !data.success) {
-            return { success: false, message: data.message || 'Login failed.', userId: data.userId };
+            return {
+                success: false,
+                message: data.message || 'Login failed.',
+                userId:  data.userId
+            };
         }
 
-        // Block invalid roles even if backend returns them
         if (!VALID_ROLES.includes(data.user?.role)) {
             return {
                 success: false,

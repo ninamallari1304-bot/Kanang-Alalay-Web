@@ -5,15 +5,19 @@ import { useAuth } from '../context/AuthContext';
 const VALID_ROLES = ['admin', 'nurse', 'caregiver'];
 
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
-    const { user, loading, logout } = useAuth();
+    const { user, loading } = useAuth();
 
     if (loading) {
         return (
             <div style={{
-                minHeight: '100vh', display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center',
-                fontFamily: 'DM Sans, system-ui, sans-serif',
-                color: '#7A5C4E', gap: 12,
+                minHeight:      '100vh',
+                display:        'flex',
+                flexDirection:  'column',
+                alignItems:     'center',
+                justifyContent: 'center',
+                fontFamily:     'DM Sans, system-ui, sans-serif',
+                color:          '#7A5C4E',
+                gap:            12,
             }}>
                 <div className="spinner-border text-primary" role="status">
                     <span className="visually-hidden">Loading...</span>
@@ -23,18 +27,17 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
         );
     }
 
-    // Not logged in → go to login
+    // Not logged in → always go to /login
     if (!user) {
         return <Navigate to="/login" replace />;
     }
 
-    // Role no longer valid (e.g. old 'staff' token in localStorage) → force logout
+    // Stale/invalid role → go to /login (AuthContext will clear storage)
     if (!VALID_ROLES.includes(user.role)) {
-        logout(); // clears localStorage
         return <Navigate to="/login" replace />;
     }
 
-    // Logged in but wrong role for this route → redirect to their correct dashboard
+    // Logged in but wrong role for this route → redirect to their own dashboard
     if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
         const fallback = user.role === 'admin' ? '/admin' : '/nurse';
         return <Navigate to={fallback} replace />;

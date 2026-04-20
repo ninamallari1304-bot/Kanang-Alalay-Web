@@ -1,9 +1,9 @@
-const express   = require('express');
-const router    = express.Router();
-const Resident  = require('../models/Resident');
-const Medication = require('../models/Medication');
+const express      = require('express');
+const router       = express.Router();
+const Resident     = require('../models/Resident');
+const Medication   = require('../models/Medication');
 const MedicationLog = require('../models/MedicationLog');
-const Inventory = require('../models/Inventory');
+const Inventory    = require('../models/Inventory');
 const VitalsLog    = require('../models/VitalsLog');
 const StockRequest = require('../models/StockRequest');
 const { protect }  = require('../middleware/authMiddleware');
@@ -12,29 +12,28 @@ router.use(protect);
 
 // ── Helper: shape a MedicationLog doc for the frontend ───────────────────────
 function shapeLog(l) {
-    // Support both populated and plain docs
     const r = l.residentId;
     const m = l.medicationId;
     const isPopulated = r && typeof r === 'object';
 
     return {
-        _id:            l._id,
-        logId:          l.logId,
-        residentId:     isPopulated ? r._id : l.residentId,
-        residentName:   l.residentName || (isPopulated ? `${r.firstName} ${r.lastName}` : '—'),
-        medicationId:   isPopulated && m ? m._id : l.medicationId,
-        medicationName: l.medicationName || (isPopulated && m ? m.name : '—'),
-        room:           l.room  || (isPopulated ? r.roomNumber || '' : ''),
-        floor:          l.floor || (isPopulated ? r.floor      || '' : ''),
-        bed:            l.bed   || (isPopulated ? r.bed        || '' : ''),
-        condition:      l.condition  || (isPopulated && m ? m.purpose || '' : ''),
-        dosage:         l.dosage     || (isPopulated && m && m.dosage ? `${m.dosage.value}${m.dosage.unit}` : ''),
-        frequency:      l.frequency  || '',
-        nextDose:       l.nextDose   || '',
-        scheduledTime:  l.scheduledTime,
+        _id:              l._id,
+        logId:            l.logId,
+        residentId:       isPopulated ? r._id : l.residentId,
+        residentName:     l.residentName || (isPopulated ? `${r.firstName} ${r.lastName}` : '—'),
+        medicationId:     isPopulated && m ? m._id : l.medicationId,
+        medicationName:   l.medicationName || (isPopulated && m ? m.name : '—'),
+        room:             l.room  || (isPopulated ? r.roomNumber || '' : ''),
+        floor:            l.floor || (isPopulated ? r.floor      || '' : ''),
+        bed:              l.bed   || (isPopulated ? r.bed        || '' : ''),
+        condition:        l.condition  || (isPopulated && m ? m.purpose || '' : ''),
+        dosage:           l.dosage     || (isPopulated && m && m.dosage ? `${m.dosage.value}${m.dosage.unit}` : ''),
+        frequency:        l.frequency  || '',
+        nextDose:         l.nextDose   || '',
+        scheduledTime:    l.scheduledTime,
         administeredTime: l.administeredTime,
-        status:         l.status,
-        notes:          l.notes || '',
+        status:           l.status,
+        notes:            l.notes || '',
         verificationMethod: l.verificationMethod,
     };
 }
@@ -100,15 +99,12 @@ router.post('/residents', async (req, res) => {
         const resident   = new Resident({
             residentId, firstName, lastName, age, gender,
             roomNumber, floor: floor || '', bed: bed || '',
-            alertLevel: alertLevel || 'stable',
+            alertLevel:    alertLevel || 'stable',
             admissionDate: admissionDate ? new Date(admissionDate) : new Date(),
             medicalConditions: (conditions || []).map(c => ({ name: c })),
             assignedNurse: primaryNurse || `${req.user.firstName} ${req.user.lastName}`,
         });
         await resident.save();
-
-        const io = req.app.get('io');
-        if (io) io.emit('resident_added', { residentId: resident._id });
 
         const shaped = {
             _id:               resident._id,
@@ -156,7 +152,6 @@ router.post('/residents/:id/vitals', async (req, res) => {
     try {
         const { bloodPressure, heartRate, temperature, oxygenSat, weight, notes } = req.body;
 
-        // Ensure resident exists
         const resident = await Resident.findById(req.params.id);
         if (!resident) return res.status(404).json({ success: false, message: 'Resident not found.' });
 
@@ -177,32 +172,23 @@ router.post('/residents/:id/vitals', async (req, res) => {
         if ((+temperature > 38.5) || (+heartRate > 100) || (+oxygenSat < 94)) {
             alertLevel = 'alert';
         }
-        if ((+temperature > 39.5) || (+heartRate > 130) || (+oxygenSat < 88)) {
+        if ((+temperature > 39.5) || (+heartRate > 120) || (+oxygenSat < 90)) {
             alertLevel = 'critical';
         }
         if (alertLevel !== resident.alertLevel) {
             await Resident.findByIdAndUpdate(req.params.id, { alertLevel });
         }
 
-        // Emit real-time update
-        const io = req.app.get('io');
-        if (io) io.emit('vitals_logged', { residentId: req.params.id, alertLevel });
-
-        res.json({
-            success: true,
-            message: `Vital signs logged for ${resident.firstName} ${resident.lastName}.`,
-            data: vitals,
-        });
+        res.status(201).json({ success: true, data: vitals });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
 });
 
-// GET /api/nurse/residents/:id/vitals  — recent vitals history
+// GET /api/nurse/residents/:id/vitals
 router.get('/residents/:id/vitals', async (req, res) => {
     try {
         const vitals = await VitalsLog.find({ residentId: req.params.id })
-            .populate('loggedBy', 'firstName lastName role')
             .sort({ createdAt: -1 })
             .limit(20);
         res.json({ success: true, data: vitals });
@@ -211,21 +197,8 @@ router.get('/residents/:id/vitals', async (req, res) => {
     }
 });
 
-// GET /api/nurse/residents/:id/history
-router.get('/residents/:id/history', async (req, res) => {
-    try {
-        const logs = await MedicationLog.find({ residentId: req.params.id })
-            .populate('medicationId', 'name dosage form purpose')
-            .sort({ scheduledTime: -1 })
-            .limit(50);
-        res.json({ success: true, data: logs.map(shapeLog) });
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
-
 // ─────────────────────────────────────────────────────────────────────────────
-//  MEDICATIONS (master list)
+//  MEDICATIONS
 // ─────────────────────────────────────────────────────────────────────────────
 
 // GET /api/nurse/medications
@@ -238,70 +211,52 @@ router.get('/medications', async (req, res) => {
     }
 });
 
-// POST /api/nurse/medications
-router.post('/medications', async (req, res) => {
+// ─────────────────────────────────────────────────────────────────────────────
+//  MEDICATION SCHEDULE
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/nurse/schedule
+router.get('/schedule', async (req, res) => {
     try {
-        const { name, genericName, dosageValue, dosageUnit, form, purpose, stock, expiryDate } = req.body;
-        if (!name) return res.status(400).json({ success: false, message: 'Medication name is required.' });
-        const medicationId = 'MED' + Date.now().toString().slice(-6);
-        const med = new Medication({
-            medicationId, name, genericName,
-            dosage: { value: dosageValue, unit: dosageUnit },
-            form, purpose,
-            stock: { current: stock || 0, minimum: 10, maximum: 100, unit: dosageUnit || 'pcs' },
-            expiryDate: expiryDate || null,
-        });
-        await med.save();
-        res.status(201).json({ success: true, data: med });
+        const { date, residentId } = req.query;
+        const target = date ? new Date(date) : new Date();
+        target.setHours(0, 0, 0, 0);
+        const nextDay = new Date(target);
+        nextDay.setDate(nextDay.getDate() + 1);
+
+        const query = {
+            caregiverId:   req.user._id,
+            scheduledTime: { $gte: target, $lt: nextDay },
+        };
+        if (residentId) query.residentId = residentId;
+
+        let logs = await MedicationLog.find(query)
+            .populate('residentId',   'firstName lastName roomNumber floor bed')
+            .populate('medicationId', 'name dosage form purpose')
+            .sort({ scheduledTime: 1 });
+
+        logs = await autoMarkOverdue(logs);
+        res.json({ success: true, data: logs.map(shapeLog), count: logs.length });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  MEDICATION SCHEDULE
-// ─────────────────────────────────────────────────────────────────────────────
-
-// GET /api/nurse/schedule?date=YYYY-MM-DD
-router.get('/schedule', async (req, res) => {
+// GET /api/nurse/schedule/all  — all logs (admin / nurse overview)
+router.get('/schedule/all', async (req, res) => {
     try {
-        const dateStr = req.query.date;
-        const base    = dateStr ? new Date(dateStr) : new Date();
-        base.setHours(0, 0, 0, 0);
-        const end = new Date(base); end.setDate(end.getDate() + 1);
+        const { date } = req.query;
+        const target = date ? new Date(date) : new Date();
+        target.setHours(0, 0, 0, 0);
+        const nextDay = new Date(target);
+        nextDay.setDate(nextDay.getDate() + 1);
 
-        let logs = await MedicationLog.find({
-            caregiverId:   req.user._id,
-            scheduledTime: { $gte: base, $lt: end },
-        })
-        .populate('residentId',   'firstName lastName roomNumber floor bed')
-        .populate('medicationId', 'name dosage form purpose')
-        .sort({ scheduledTime: 1 });
+        let logs = await MedicationLog.find({ scheduledTime: { $gte: target, $lt: nextDay } })
+            .populate('residentId',   'firstName lastName roomNumber floor bed')
+            .populate('medicationId', 'name dosage form purpose')
+            .sort({ scheduledTime: 1 });
 
         logs = await autoMarkOverdue(logs);
-
-        // Also update Resident.medicationOverdue flags
-        const overdueByResident = {};
-        logs.forEach(l => {
-            if (l.status === 'overdue') {
-                const rId = l.residentId?._id?.toString() || l.residentId?.toString();
-                if (rId && !overdueByResident[rId]) {
-                    overdueByResident[rId] = {
-                        overdueMed: l.medicationName || l.medicationId?.name || '',
-                        overdueAt:  l.scheduledTime,
-                    };
-                }
-            }
-        });
-        // Bulk update overdue flags on residents
-        for (const [rId, data] of Object.entries(overdueByResident)) {
-            await Resident.findByIdAndUpdate(rId, {
-                medicationOverdue: true,
-                overdueMed:  data.overdueMed,
-                overdueAt:   data.overdueAt,
-            });
-        }
-
         res.json({ success: true, data: logs.map(shapeLog), count: logs.length });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -311,43 +266,42 @@ router.get('/schedule', async (req, res) => {
 // POST /api/nurse/schedule
 router.post('/schedule', async (req, res) => {
     try {
-        const { residentId, medicationId, scheduledTime, dosage, notes, frequency, nextDose } = req.body;
-        if (!residentId || !medicationId || !scheduledTime)
-            return res.status(400).json({ success: false, message: 'residentId, medicationId, scheduledTime are required.' });
+        const {
+            residentId, medicationId, scheduledTime,
+            dosage, frequency, nextDose, notes
+        } = req.body;
 
-        // Fetch resident and medication to denormalize display fields
+        if (!residentId || !medicationId || !scheduledTime)
+            return res.status(400).json({ success: false, message: 'residentId, medicationId, and scheduledTime are required.' });
+
         const [resident, medication] = await Promise.all([
             Resident.findById(residentId),
             Medication.findById(medicationId),
         ]);
-
-        if (!resident)  return res.status(404).json({ success: false, message: 'Resident not found.' });
+        if (!resident)   return res.status(404).json({ success: false, message: 'Resident not found.' });
         if (!medication) return res.status(404).json({ success: false, message: 'Medication not found.' });
 
-        const logId = 'LOG' + Date.now().toString().slice(-8);
-        const log   = new MedicationLog({
+        const logId = `LOG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+        const log = new MedicationLog({
             logId,
-            residentId,
-            medicationId,
-            caregiverId:    req.user._id,
-            scheduledTime:  new Date(scheduledTime),
-            // ── Denormalized display fields ──
-            residentName:   `${resident.firstName} ${resident.lastName}`,
+            residentId:    resident._id,
+            medicationId:  medication._id,
+            caregiverId:   req.user._id,
+            residentName:  `${resident.firstName} ${resident.lastName}`,
             medicationName: medication.name,
-            room:           resident.roomNumber || '',
-            floor:          resident.floor      || '',
-            bed:            resident.bed        || '',
-            condition:      medication.purpose  || '',
-            dosage:         dosage || (medication.dosage ? `${medication.dosage.value}${medication.dosage.unit}` : ''),
-            frequency:      frequency  || '',
-            nextDose:       nextDose   || '',
-            notes:          notes      || '',
-            status:         'scheduled',
+            room:          resident.roomNumber || '',
+            floor:         resident.floor      || '',
+            bed:           resident.bed        || '',
+            condition:     medication.purpose  || '',
+            dosage:        dosage || (medication.dosage ? `${medication.dosage.value}${medication.dosage.unit}` : ''),
+            frequency:     frequency || '',
+            nextDose:      nextDose  || '',
+            scheduledTime: new Date(scheduledTime),
+            notes:         notes     || '',
+            status:        'scheduled',
         });
         await log.save();
-
-        const io = req.app.get('io');
-        if (io) io.emit('schedule_added', { logId: log._id });
 
         res.status(201).json({ success: true, data: shapeLog(log) });
     } catch (err) {
@@ -371,12 +325,10 @@ router.put('/schedule/:id/status', async (req, res) => {
             log.administeredTime = new Date();
             // Decrement inventory stock for this medication
             await Inventory.findOneAndUpdate(
-                { $or: [
-                    { name: { $regex: new RegExp(log.medicationName, 'i') } },
-                ] },
+                { name: { $regex: new RegExp(log.medicationName, 'i') } },
                 { $inc: { quantity: -1 } }
             );
-            // Clear overdue flag on resident if resolved
+            // Clear overdue flag on resident if no more overdue logs
             if (log.residentId) {
                 const stillOverdue = await MedicationLog.findOne({
                     residentId: log.residentId,
@@ -392,12 +344,9 @@ router.put('/schedule/:id/status', async (req, res) => {
                 }
             }
         }
-        if (notes !== undefined)             log.notes = notes;
+        if (notes              !== undefined) log.notes              = notes;
         if (verificationMethod !== undefined) log.verificationMethod = verificationMethod;
         await log.save();
-
-        const io = req.app.get('io');
-        if (io) io.emit('schedule_updated', { logId: log._id, status });
 
         res.json({ success: true, data: shapeLog(log), message: `Medication marked as ${status}.` });
     } catch (err) {
@@ -428,7 +377,7 @@ router.put('/schedule/:id', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  INVENTORY (read-only for nurses, request stock)
+//  INVENTORY (read-only for nurses; stock requests)
 // ─────────────────────────────────────────────────────────────────────────────
 
 // GET /api/nurse/inventory
@@ -459,16 +408,11 @@ router.post('/inventory/request', async (req, res) => {
         });
         await request.save();
 
-        // Real-time notify admin
-        const io = req.app.get('io');
-        if (io) io.emit('stock_request', {
-            _id: request._id,
-            itemName, quantity, reason,
-            requestedBy: `${req.user.firstName} ${req.user.lastName}`,
-            requestedAt: new Date()
+        res.json({
+            success: true,
+            message: `Stock request for ${quantity} units of "${itemName}" submitted. Admin has been notified.`,
+            data: request
         });
-
-        res.json({ success: true, message: `Stock request for ${quantity} units of "${itemName}" submitted. Admin has been notified.`, data: request });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -493,13 +437,13 @@ router.post('/voice-note', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/stats', async (req, res) => {
     try {
-        const today    = new Date(); today.setHours(0,0,0,0);
-        const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate()+1);
+        const today    = new Date(); today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
 
         const [totalResidents, todayLogs, invItems] = await Promise.all([
             Resident.countDocuments({ status: 'active' }),
             MedicationLog.find({ caregiverId: req.user._id, scheduledTime: { $gte: today, $lt: tomorrow } }),
-            Inventory.find({ category: { $in: ['medication','medical_supplies'] } }, { quantity:1, minThreshold:1 }),
+            Inventory.find({ category: { $in: ['medication', 'medical_supplies'] } }, { quantity: 1, minThreshold: 1 }),
         ]);
 
         const total   = todayLogs.length;

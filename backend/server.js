@@ -2,10 +2,8 @@ require('dotenv').config();
 const express   = require('express');
 const mongoose  = require('mongoose');
 const cors      = require('cors');
-const http      = require('http');
 const path      = require('path');
 const fs        = require('fs');
-const { Server } = require('socket.io');
 
 // ── Models ────────────────────────────────────────────────────────────────────
 const Donation  = require('./models/Donation');
@@ -13,38 +11,17 @@ const Booking   = require('./models/Booking');
 const Inventory = require('./models/Inventory');
 
 // ── Route Files ───────────────────────────────────────────────────────────────
-const authRoutes     = require('./routes/authRoutes');
-const adminRoutes    = require('./routes/adminRoutes');
-const alertRoutes    = require('./routes/alertRoutes');
-const bookingRoutes  = require('./routes/bookingRoutes');
-const donationRoutes = require('./routes/donationRoutes');
-const paymentRoutes  = require('./routes/PaymentRoutes');
-const nurseRoutes       = require('./routes/nurseRoutes');
-const residentRoutes    = require('./routes/residentRoutes');
-const medicationRoutes  = require('./routes/medicationRoutes');
+const authRoutes       = require('./routes/authRoutes');
+const adminRoutes      = require('./routes/adminRoutes');
+const alertRoutes      = require('./routes/alertRoutes');
+const bookingRoutes    = require('./routes/bookingRoutes');
+const donationRoutes   = require('./routes/donationRoutes');
+const paymentRoutes    = require('./routes/PaymentRoutes');
+const nurseRoutes      = require('./routes/nurseRoutes');
+const residentRoutes   = require('./routes/residentRoutes');
+const medicationRoutes = require('./routes/medicationRoutes');
 
 const app = express();
-
-// ==================== SOCKET.IO SETUP ========================================
-const server = http.createServer(app);
-const io = new Server(server, {
-    cors: {
-        origin: [
-            process.env.FRONTEND_URL || 'https://kanang-alalay.vercel.app',
-            'https://lsae-kanangalalay.online',
-            'http://localhost:3000'
-        ],
-        methods:     ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-        credentials: true
-    }
-});
-
-app.set('io', io);
-
-io.on('connection', (socket) => {
-    console.log(`⚡ Socket.io connected: ${socket.id}`);
-    socket.on('disconnect', () => console.log(`❌ Socket.io disconnected: ${socket.id}`));
-});
 
 // ==================== MIDDLEWARE =============================================
 const allowedOrigins = [
@@ -98,15 +75,18 @@ app.get('/', (req, res) => {
         status:    'active',
         version:   '2.0',
         endpoints: {
-            health:    '/api/health',
-            auth:      '/api/auth',
-            bookings:  '/api/bookings',
-            donations: '/api/donations',
-            payments:  '/api/payments',
-            alerts:    '/api/alerts',
-            admin:     '/api/admin',
-            stats:     '/api/stats',
-            inventory: '/api/inventory'
+            health:     '/api/health',
+            auth:       '/api/auth',
+            bookings:   '/api/bookings',
+            donations:  '/api/donations',
+            payments:   '/api/payments',
+            alerts:     '/api/alerts',
+            admin:      '/api/admin',
+            stats:      '/api/stats',
+            inventory:  '/api/inventory',
+            nurse:      '/api/nurse',
+            residents:  '/api/residents',
+            medications:'/api/medications'
         }
     });
 });
@@ -120,17 +100,17 @@ app.get('/api/health', (req, res) => {
 });
 
 // ==================== MOUNT API ROUTES =======================================
-app.use('/api/auth',      authRoutes);
-app.use('/api/admin',     adminRoutes);
-app.use('/api/alerts',    alertRoutes);
-app.use('/api/bookings',  bookingRoutes);
-app.use('/api/donations', donationRoutes);
-app.use('/api/payments',  paymentRoutes);
-app.use('/api/nurse',     nurseRoutes);
-app.use('/api/residents', residentRoutes);
+app.use('/api/auth',        authRoutes);
+app.use('/api/admin',       adminRoutes);
+app.use('/api/alerts',      alertRoutes);
+app.use('/api/bookings',    bookingRoutes);
+app.use('/api/donations',   donationRoutes);
+app.use('/api/payments',    paymentRoutes);
+app.use('/api/nurse',       nurseRoutes);
+app.use('/api/residents',   residentRoutes);
 app.use('/api/medications', medicationRoutes);
 
-// ==================== STATS (FIXED: lowStockItems from real DB) ==============
+// ==================== STATS ==================================================
 app.get('/api/stats', async (req, res) => {
     try {
         const [totalDonations, pendingBookings, donationAgg, inventoryItems] = await Promise.all([
@@ -143,19 +123,17 @@ app.get('/api/stats', async (req, res) => {
             Inventory.find({}, { quantity: 1, minThreshold: 1 })
         ]);
 
-        // FIXED: was hardcoded 5, now computed from real inventory data
         const lowStockItems = inventoryItems.filter(
             i => i.quantity <= (i.minThreshold ?? 10)
         ).length;
 
-        const totalDonationAmount = donationAgg[0]?.total || 0;
         res.json({
             success: true,
             data: {
                 totalResidents: 71,
                 pendingBookings,
                 totalDonations,
-                totalDonationAmount,
+                totalDonationAmount: donationAgg[0]?.total || 0,
                 lowStockItems
             }
         });
@@ -237,6 +215,6 @@ app.use((err, req, res, next) =>
 
 // ==================== START SERVER ===========================================
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
+app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
 });

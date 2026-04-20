@@ -1,12 +1,13 @@
-const express = require('express');
-const router = express.Router();
-const User = require('../models/User');
-const Booking = require('../models/Booking');
+const express  = require('express');
+const router   = express.Router();
+const User     = require('../models/User');
+const Booking  = require('../models/Booking');
 const Donation = require('../models/Donation');
 const Inventory = require('../models/Inventory');
 const RegistrationCode = require('../models/VerificationCode');
-const StockRequest = require('../models/StockRequest');
-const VitalsLog    = require('../models/VitalsLog');
+const StockRequest     = require('../models/StockRequest');
+const VitalsLog        = require('../models/VitalsLog');
+const ActivityLog      = require('../models/ActivityLog');
 const { protect, adminOnly } = require('../middleware/authMiddleware');
 const { sendEmail, generateOtpTemplate } = require('../models/mailer');
 
@@ -21,7 +22,6 @@ async function generateStaffId(role) {
     };
     const prefix = prefixMap[role] || 'NURSE';
 
-    // Find highest existing ID for this prefix
     const latest = await User.findOne(
         { staffId: new RegExp(`^${prefix}-\\d+$`) },
         { staffId: 1 },
@@ -29,17 +29,16 @@ async function generateStaffId(role) {
     );
 
     let next = 1;
-    if (latest && latest.staffId) {
+    if (latest?.staffId) {
         const parts = latest.staffId.split('-');
-        const num = parseInt(parts[parts.length - 1], 10);
+        const num   = parseInt(parts[parts.length - 1], 10);
         if (!isNaN(num)) next = num + 1;
     }
 
     return `${prefix}-${String(next).padStart(4, '0')}`;
 }
 
-// ==================== ADMIN CREATE USER (no registration code needed) ====================
-
+// ==================== CREATE USER ============================================
 router.post('/create-user', async (req, res) => {
     try {
         const {
@@ -48,7 +47,6 @@ router.post('/create-user', async (req, res) => {
             activateImmediately = true
         } = req.body;
 
-        // Validate required fields
         if (!firstName || !lastName || !email || !password) {
             return res.status(400).json({ success: false, message: 'First name, last name, email, and password are required.' });
         }
@@ -59,8 +57,7 @@ router.post('/create-user', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Password must be at least 8 characters.' });
         }
 
-        // Prevent duplicate email/username
-        const derived = username?.trim() || email.split('@')[0];
+        const derived  = username?.trim() || email.split('@')[0];
         const existing = await User.findOne({ $or: [{ email }, { username: derived }] });
         if (existing) {
             return res.status(400).json({
@@ -71,7 +68,6 @@ router.post('/create-user', async (req, res) => {
             });
         }
 
-        // Auto-generate staff ID
         const staffId = await generateStaffId(role);
 
         const user = new User({
@@ -84,7 +80,7 @@ router.post('/create-user', async (req, res) => {
             password,
             phone:      phone.trim(),
             role,
-            ward:       ward || undefined,
+            ward:       ward       || undefined,
             department: department || undefined,
             isVerified: activateImmediately,
             isActive:   activateImmediately,
@@ -92,8 +88,6 @@ router.post('/create-user', async (req, res) => {
 
         await user.save();
 
-        // Send welcome/OTP email if not immediately activated
-        let userId = user._id;
         if (!activateImmediately) {
             const otpCode   = Math.floor(100000 + Math.random() * 900000).toString();
             user.otpCode    = otpCode;
@@ -125,8 +119,7 @@ router.post('/create-user', async (req, res) => {
     }
 });
 
-// ==================== STAFF MANAGEMENT ====================
-
+// ==================== STAFF MANAGEMENT =======================================
 router.get('/staff', async (req, res) => {
     try {
         const staff = await User.find({
@@ -135,7 +128,6 @@ router.get('/staff', async (req, res) => {
 
         res.json({ success: true, count: staff.length, staff });
     } catch (error) {
-        console.error('Get staff error:', error);
         res.status(500).json({ success: false, message: 'Server error fetching staff' });
     }
 });
@@ -162,10 +154,7 @@ router.put('/staff/:id/status', async (req, res) => {
         user.isActive = req.body.status === 'active';
         await user.save();
 
-        res.json({
-            success: true,
-            message: `Staff status updated to ${user.isActive ? 'active' : 'inactive'}.`
-        });
+        res.json({ success: true, message: `Staff status updated to ${user.isActive ? 'active' : 'inactive'}.` });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Server error updating status' });
     }
@@ -211,8 +200,7 @@ router.delete('/staff/:id', async (req, res) => {
     }
 });
 
-// ==================== REGISTRATION CODES ====================
-
+// ==================== REGISTRATION CODES =====================================
 router.get('/registration-codes', async (req, res) => {
     try {
         const codes = await RegistrationCode.find().sort({ createdAt: -1 });
@@ -224,7 +212,7 @@ router.get('/registration-codes', async (req, res) => {
 
 router.post('/generate-codes', async (req, res) => {
     try {
-        const { count = 1, role = 'staff' } = req.body;
+        const { count = 1, role = 'nurse' } = req.body;
         const codes = [];
 
         for (let i = 0; i < count; i++) {
@@ -246,8 +234,7 @@ router.post('/generate-codes', async (req, res) => {
     }
 });
 
-// ==================== DASHBOARD STATS (FIXED: lowStockItems from real DB) ====================
-
+// ==================== DASHBOARD STATS ========================================
 router.get('/stats', async (req, res) => {
     try {
         const [
@@ -264,11 +251,9 @@ router.get('/stats', async (req, res) => {
             ]),
             Booking.countDocuments(),
             User.countDocuments({ isActive: true, role: { $ne: 'admin' } }),
-            // FIX: fetch inventory to compute real low-stock count
             Inventory.find({}, { quantity: 1, minThreshold: 1 })
         ]);
 
-        // FIXED: compute lowStockItems from real data (was hardcoded 5)
         const lowStockItems = inventoryItems.filter(
             i => i.quantity <= (i.minThreshold ?? 10)
         ).length;
@@ -276,12 +261,12 @@ router.get('/stats', async (req, res) => {
         res.json({
             success: true,
             data: {
-                totalResidents: 71,
+                totalResidents:      71,
                 staffOnDuty,
                 pendingBookings,
                 totalDonations,
                 totalDonationAmount: donationAmount[0]?.total || 0,
-                lowStockItems,           // ← now real
+                lowStockItems,
                 totalBookings,
                 activeStaff
             }
@@ -292,12 +277,11 @@ router.get('/stats', async (req, res) => {
     }
 });
 
-// ==================== INVENTORY ROUTES ====================
-
+// ==================== INVENTORY ROUTES =======================================
 router.get('/inventory', async (req, res) => {
     try {
         const { category, status, limit = 100 } = req.query;
-        let query = {};
+        const query = {};
         if (category) query.category = category;
         if (status)   query.status   = status;
 
@@ -348,18 +332,16 @@ router.delete('/inventory/:id', async (req, res) => {
     }
 });
 
-
-// ==================== ATTENDANCE ====================
+// ==================== ATTENDANCE ==============================================
 router.post('/staff/:id/attendance', async (req, res) => {
     try {
         const user = await User.findById(req.params.id).select('-password');
         if (!user) return res.status(404).json({ success: false, message: 'Staff not found.' });
-        // Log attendance as an activity
-        const ActivityLog = require('../models/ActivityLog');
+
         await ActivityLog.create({
-            action:  'ATTENDANCE',
-            details: `Attendance logged for ${user.firstName} ${user.lastName} at ${new Date().toLocaleTimeString()}`,
-            user:    req.user._id,
+            action:   'ATTENDANCE',
+            details:  `Attendance logged for ${user.firstName} ${user.lastName} at ${new Date().toLocaleTimeString()}`,
+            user:     req.user._id,
             targetId: user._id,
         });
         res.json({ success: true, message: `Attendance logged for ${user.firstName} ${user.lastName}.` });
@@ -368,7 +350,7 @@ router.post('/staff/:id/attendance', async (req, res) => {
     }
 });
 
-// ==================== STOCK REQUESTS ====================
+// ==================== STOCK REQUESTS =========================================
 router.get('/stock-requests', async (req, res) => {
     try {
         const requests = await StockRequest.find()
@@ -384,18 +366,20 @@ router.get('/stock-requests', async (req, res) => {
 router.put('/stock-requests/:id', async (req, res) => {
     try {
         const { status, adminNote } = req.body;
-        const req_ = await StockRequest.findByIdAndUpdate(
+        const stockReq = await StockRequest.findByIdAndUpdate(
             req.params.id,
-            { status, adminNote: adminNote || '', resolvedBy: req.user._id, resolvedAt: new Date() },
+            {
+                status,
+                adminNote:  adminNote || '',
+                resolvedBy: req.user._id,
+                resolvedAt: new Date()
+            },
             { new: true }
         ).populate('requestedBy', 'firstName lastName');
-        if (!req_) return res.status(404).json({ success: false, message: 'Request not found.' });
 
-        // Notify nurse via socket
-        const io = req.app.get('io');
-        if (io) io.emit('stock_request_updated', { requestId: req_._id, status, itemName: req_.itemName });
+        if (!stockReq) return res.status(404).json({ success: false, message: 'Request not found.' });
 
-        res.json({ success: true, data: req_, message: `Stock request ${status}.` });
+        res.json({ success: true, data: stockReq, message: `Stock request ${status}.` });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
