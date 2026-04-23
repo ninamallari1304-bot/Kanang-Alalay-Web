@@ -14,12 +14,12 @@ const transporter = nodemailer.createTransport({
 // Verify SMTP on startup — prints a clear error if credentials are misconfigured
 transporter.verify((error) => {
     if (error) {
-        console.error('❌ SMTP CONNECTION FAILED:', error.message);
+        console.error('SMTP CONNECTION FAILED:', error.message);
         console.error('   → Check EMAIL_USER and EMAIL_PASS in your .env file');
         console.error('   → Gmail requires an App Password, NOT your account password');
         console.error('   → Steps: Enable 2FA on Gmail → myaccount.google.com/apppasswords → create App Password');
     } else {
-        console.log('✅ SMTP connection verified. Mailer is ready.');
+        console.log('SMTP connection verified. Mailer is ready.');
     }
 });
 
@@ -32,10 +32,10 @@ const sendEmail = async (to, subject, htmlContent) => {
             html: htmlContent
         };
         await transporter.sendMail(mailOptions);
-        console.log('📧 Email sent successfully to:', to);
+        console.log('Email sent successfully to:', to);
         return true;
     } catch (error) {
-        console.error('❌ Error sending email:', error);
+        console.error('Error sending email:', error);
         throw error;
     }
 };
@@ -126,7 +126,7 @@ const generateDonationTemplate = (donation) => `
 const generateBookingConfirmationTemplate = (booking) => `
 <div style="background-color: #fcf8f5; padding: 40px 20px; font-family: 'Helvetica Neue', Arial, sans-serif;">
     <div style="max-width: 550px; margin: 0 auto; background-color: #ffffff; padding: 40px; border-radius: 8px; border-top: 5px solid #28a745; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
-        <h2 style="color: #28a745; margin-top: 0;">Booking Confirmed! ✅</h2>
+        <h2 style="color: #28a745; margin-top: 0;">Booking Confirmed!</h2>
         <p style="color: #444; font-size: 16px;">Hi ${booking.name},</p>
         <p style="color: #444; font-size: 16px;">Great news! Your booking has been <strong>approved and confirmed</strong>. We look forward to welcoming you to Kanang-Alalay.</p>
         
