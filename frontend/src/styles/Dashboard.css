@@ -1097,3 +1097,51 @@ body {
   .custom-table th:nth-child(n+4),
   .custom-table td:nth-child(n+4) { display: none; }
 }
+@media (max-width: 768px) {
+  .stat-card {
+      padding: 18px 16px;
+      gap: 12px;
+  }
+  
+  .stat-icon {
+      width: 45px;
+      height: 45px;
+      font-size: 1.1rem;
+  }
+  
+  .stat-info h3 {
+      font-size: 1.5rem;
+      word-break: break-word;
+      overflow-wrap: break-word;
+  }
+  
+  .stat-info p {
+      font-size: .72rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .stat-card {
+      flex-direction: column;
+      text-align: center;
+      padding: 16px 12px;
+      gap: 10px;
+  }
+  
+  .stat-icon {
+      width: 48px;
+      height: 48px;
+      font-size: 1.2rem;
+      margin: 0 auto;
+  }
+  
+  .stat-info h3 {
+      font-size: 1.4rem;
+      text-align: center;
+  }
+  
+  .stat-info p {
+      text-align: center;
+      font-size: .7rem;
+  }
+}

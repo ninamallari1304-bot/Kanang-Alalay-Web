@@ -1,5 +1,3 @@
-// AdminDashboard.js - Fix search bar to work consistently
-
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -31,11 +29,11 @@ const API_BASE_URL =
 
 // ── Notification helpers ─────────────────────────────────────────────────────
 const NOTIF_TYPES = {
-    booking:   { color: '#17a2b8', icon: <FaCalendarAlt />, label: 'Booking', section: 'booking' },
-    donation:  { color: '#28a745', icon: <FaMoneyBillWave />, label: 'Donation', section: 'donation' },
+    booking: { color: '#17a2b8', icon: <FaCalendarAlt />, label: 'Booking', section: 'booking' },
+    donation: { color: '#28a745', icon: <FaMoneyBillWave />, label: 'Donation', section: 'donation' },
     personnel: { color: '#b85c2d', icon: <FaUsers />, label: 'Personnel', section: 'roster' },
     inventory: { color: '#dc3545', icon: <FaExclamationTriangle />, label: 'Inventory', section: 'inventory' },
-    system:    { color: '#6c757d', icon: <FaInfoCircle />, label: 'System', section: null },
+    system: { color: '#6c757d', icon: <FaInfoCircle />, label: 'System', section: null },
 };
 
 const buildNotifications = (bookings, donations, staff, inventory) => {
@@ -69,11 +67,12 @@ const buildNotifications = (bookings, donations, staff, inventory) => {
 
 const timeAgo = (iso) => {
     const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
-    if (diff < 60)    return `${diff}s ago`;
-    if (diff < 3600)  return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 60) return `${diff}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
     return `${Math.floor(diff / 86400)}d ago`;
 };
+
 
 // ── Confirmation Modal ────────────────────────────────────────────────────────
 const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel, confirmLabel = 'Confirm', danger = false }) => {
@@ -127,12 +126,12 @@ const DetailsModal = ({ data, type, onClose }) => {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                     {type === 'booking' ? (<>
-                        <InfoRow label="Visitor"  value={data.name} />
-                        <InfoRow label="Email"    value={data.email} />
-                        <InfoRow label="Phone"    value={data.phone} />
+                        <InfoRow label="Visitor" value={data.name} />
+                        <InfoRow label="Email" value={data.email} />
+                        <InfoRow label="Phone" value={data.phone} />
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, background: 'var(--d-cream)', padding: 14, borderRadius: 8 }}>
-                            <InfoMini label="Date"     value={new Date(data.visitDate).toLocaleDateString()} />
-                            <InfoMini label="Time"     value={data.visitTime} />
+                            <InfoMini label="Date" value={new Date(data.visitDate).toLocaleDateString()} />
+                            <InfoMini label="Time" value={data.visitTime} />
                             <InfoMini label="Visitors" value={`${data.numberOfVisitors} pax`} />
                         </div>
                         <InfoRow label="Purpose" value={data.purpose} highlight />
@@ -145,7 +144,7 @@ const DetailsModal = ({ data, type, onClose }) => {
                         <InfoRow label="Phone" value={data.phone || '—'} />
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, background: 'var(--d-cream)', padding: 14, borderRadius: 8 }}>
                             <InfoMini label="Amount" value={`₱${data.amount?.toLocaleString()}`} accent="#28a745" />
-                            <InfoMini label="Type"   value={data.donationType} />
+                            <InfoMini label="Type" value={data.donationType} />
                         </div>
                         {/* Appointment info for cash/in-person donations */}
                         {data.donationType === 'cash' && (data.appointmentDate || data.appointmentTime) && (
@@ -245,28 +244,28 @@ const AdminDashboard = () => {
     const navigate = useNavigate();
     const notifRef = useRef(null);
 
-    const [activeSection, setActiveSection]     = useState('overview');
-    const [searchQuery, setSearchQuery]         = useState('');
+    const [activeSection, setActiveSection] = useState('overview');
+    const [searchQuery, setSearchQuery] = useState('');
     const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-    const [notifOpen, setNotifOpen]             = useState(false);
-    const [notifications, setNotifications]     = useState([]);
-    const [readIds, setReadIds]                 = useState(new Set());
+    const [notifOpen, setNotifOpen] = useState(false);
+    const [notifications, setNotifications] = useState([]);
+    const [readIds, setReadIds] = useState(new Set());
 
-    const [currentPage, setCurrentPage]     = useState(1);
-    const [bookingPage, setBookingPage]     = useState(1);
-    const [donationPage, setDonationPage]   = useState(1);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [bookingPage, setBookingPage] = useState(1);
+    const [donationPage, setDonationPage] = useState(1);
     const [inventoryPage, setInventoryPage] = useState(1);
     const itemsPerPage = 10;
 
-    const [bookings, setBookings]   = useState([]);
+    const [bookings, setBookings] = useState([]);
     const [donations, setDonations] = useState([]);
-    const [staff, setStaff]         = useState([]);
+    const [staff, setStaff] = useState([]);
     const [inventory, setInventory] = useState([]);
-    const [loading, setLoading]     = useState(true);
-    const [apiError, setApiError]   = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [apiError, setApiError] = useState(null);
 
     const [showRegistrationModal, setShowRegistrationModal] = useState(false);
-    const [showAddInventory, setShowAddInventory]           = useState(false);
+    const [showAddInventory, setShowAddInventory] = useState(false);
     const [detailsModal, setDetailsModal] = useState({ isOpen: false, type: '', data: null });
 
     const [confirmModal, setConfirmModal] = useState({
@@ -277,12 +276,12 @@ const AdminDashboard = () => {
     };
     const closeConfirm = () => setConfirmModal(p => ({ ...p, isOpen: false }));
 
-    const [otpSent, setOtpSent]                   = useState(false);
-    const [otpCode, setOtpCode]                   = useState('');
-    const [otpMessage, setOtpMessage]             = useState('');
+    const [otpSent, setOtpSent] = useState(false);
+    const [otpCode, setOtpCode] = useState('');
+    const [otpMessage, setOtpMessage] = useState('');
     const [registeredUserId, setRegisteredUserId] = useState(null);
-    const [registeredEmail, setRegisteredEmail]   = useState('');
-    const [registeredName, setRegisteredName]     = useState('');
+    const [registeredEmail, setRegisteredEmail] = useState('');
+    const [registeredName, setRegisteredName] = useState('');
 
     const [stats, setStats] = useState({
         totalResidents: 0, staffOnDuty: 0, pendingBookings: 0,
@@ -292,6 +291,12 @@ const AdminDashboard = () => {
 
     const [editStatusModal, setEditStatusModal] = useState({ isOpen: false, booking: null, newStatus: '' });
     const [stockRequests, setStockRequests] = useState([]);
+
+    const [rejectionModal, setRejectionModal] = useState({
+        isOpen: false,
+        bookingId: null,
+        reason: ''
+    });
 
     // ── Real-time socket listeners ─────────────────────────────────────────
     const { on, off } = useSocket();
@@ -304,15 +309,15 @@ const AdminDashboard = () => {
         const handleStockRequest = (req) => {
             setStockRequests(prev => [req, ...prev]);
         };
-        const handleInventoryUpdate = () => { fetchApi('/admin/inventory?limit=500').then(d => { if(d.success) setInventory(d.data||[]); }); };
+        const handleInventoryUpdate = () => { fetchApi('/admin/inventory?limit=500').then(d => { if (d.success) setInventory(d.data || []); }); };
 
-        on('new_booking',    handleNewBooking);
-        on('stock_request',  handleStockRequest);
+        on('new_booking', handleNewBooking);
+        on('stock_request', handleStockRequest);
         on('inventory_update', handleInventoryUpdate);
 
         return () => {
-            off('new_booking',    handleNewBooking);
-            off('stock_request',  handleStockRequest);
+            off('new_booking', handleNewBooking);
+            off('stock_request', handleStockRequest);
             off('inventory_update', handleInventoryUpdate);
         };
     }, [on, off]);
@@ -336,14 +341,14 @@ const AdminDashboard = () => {
 
     const unreadCount = useMemo(() =>
         notifications.filter(n => !readIds.has(n.id)).length,
-    [notifications, readIds]);
+        [notifications, readIds]);
 
     const markAllRead = () => setReadIds(new Set(notifications.map(n => n.id)));
-    const markRead    = (id) => setReadIds(prev => new Set([...prev, id]));
+    const markRead = (id) => setReadIds(prev => new Set([...prev, id]));
 
     // ==================== FIXED SEARCH FILTERS ====================
     // These now properly filter based on searchQuery and activeSection context
-    
+
     const filteredStaff = useMemo(() => {
         const q = searchQuery.toLowerCase().trim();
         if (!q) return staff;
@@ -462,7 +467,7 @@ const AdminDashboard = () => {
 
     const realLowStockCount = useMemo(() =>
         inventory.filter(i => i.quantity <= (i.minThreshold || 10)).length,
-    [inventory]);
+        [inventory]);
 
     const handleRefresh = async () => {
         setApiError(null);
@@ -517,7 +522,7 @@ const AdminDashboard = () => {
         });
         if (d.success && d.codes?.length) {
             const code = d.codes[0].code;
-            navigator.clipboard.writeText(code).catch(() => {});
+            navigator.clipboard.writeText(code).catch(() => { });
             showConfirm(
                 `Code Generated for ${role.toUpperCase()}`,
                 `Registration code: ${code}\n\nThis code has been copied to your clipboard. Share it with the new staff member — they will use it to self-register their account on the Staff Registration page. Each code is single-use and expires in 72 hours.`,
@@ -566,8 +571,8 @@ const AdminDashboard = () => {
 
     const handleRegisterSuccess = async (data) => {
         const userId = data.userId || data.data?.userId;
-        const email  = data.email  || data.data?.email;
-        const first  = data.firstName || data.data?.firstName;
+        const email = data.email || data.data?.email;
+        const first = data.firstName || data.data?.firstName;
         if (userId && email) {
             setRegisteredUserId(userId);
             await sendOtp(email, userId, first);
@@ -614,7 +619,7 @@ const AdminDashboard = () => {
     const updateBookingStatus = async (id, status, rejectionReason = '') => {
         const booking = bookings.find(b => b._id === id);
         const actionLabel = status === 'approved' ? 'Approve' : status === 'rejected' ? 'Reject' : 'Complete';
-        
+
         showConfirm(
             `${actionLabel} Booking`,
             `Are you sure you want to ${actionLabel.toLowerCase()} the booking for "${booking?.name}"?${status === 'rejected' ? '\n\nThe visitor will be notified via email.' : ''}`,
@@ -624,7 +629,7 @@ const AdminDashboard = () => {
                 await fetchApi(`/bookings/${id}/status`, {
                     method: 'PUT', body: JSON.stringify({ status, rejectionReason })
                 });
-                
+
                 if (status !== 'pending') {
                     setStats(p => ({ ...p, pendingBookings: Math.max(0, p.pendingBookings - 1) }));
                 }
@@ -632,6 +637,18 @@ const AdminDashboard = () => {
             status === 'rejected',
             actionLabel
         );
+    };
+    const handleRejectWithReason = (bookingId) => {
+        setRejectionModal({ isOpen: true, bookingId, reason: '' });
+    };
+
+    const confirmRejection = async () => {
+        if (!rejectionModal.reason.trim() || rejectionModal.reason.trim().length < 5) {
+            alert('Please provide a rejection reason (minimum 5 characters)');
+            return;
+        }
+        await updateBookingStatus(rejectionModal.bookingId, 'rejected', rejectionModal.reason);
+        setRejectionModal({ isOpen: false, bookingId: null, reason: '' });
     };
 
     const updateDonationStatus = async (id, paymentStatus) => {
@@ -661,13 +678,13 @@ const AdminDashboard = () => {
                     ...(token && { Authorization: `Bearer ${token}` }),
                 },
                 body: JSON.stringify({
-                    name:          item.name,
-                    category:      item.category || 'General',
-                    quantity:      Number(item.quantity),
-                    unit:          item.unit || 'pcs',
-                    minThreshold:  Number(item.minThreshold) || 10,
+                    name: item.name,
+                    category: item.category || 'General',
+                    quantity: Number(item.quantity),
+                    unit: item.unit || 'pcs',
+                    minThreshold: Number(item.minThreshold) || 10,
                     expirationDate: item.expirationDate || undefined,
-                    notes:         item.notes || '',
+                    notes: item.notes || '',
                 }),
             });
             const data = await res.json();
@@ -801,10 +818,10 @@ const AdminDashboard = () => {
 
             <div className="stats-grid">
                 {[
-                    { bg: '#b85c2d', icon: <FaUsers />,        val: stats.totalResidents,                              label: 'Total Residents',    section: null },
-                    { bg: '#28a745', icon: <FaUserMd />,        val: stats.staffOnDuty,                                 label: 'Staff on Duty',      section: 'roster' },
-                    { bg: '#ffc107', icon: <FaCalendarCheck />, val: stats.pendingBookings,                             label: 'Pending Bookings',   section: 'booking' },
-                    { bg: '#17a2b8', icon: <FaChartBar />,      val: `₱${(stats.totalDonationAmount || 0).toLocaleString()}`, label: 'Total Donations', section: 'donation' },
+                    { bg: '#b85c2d', icon: <FaUsers />, val: stats.totalResidents, label: 'Total Residents', section: null },
+                    { bg: '#28a745', icon: <FaUserMd />, val: stats.staffOnDuty, label: 'Staff on Duty', section: 'roster' },
+                    { bg: '#ffc107', icon: <FaCalendarCheck />, val: stats.pendingBookings, label: 'Pending Bookings', section: 'booking' },
+                    { bg: '#17a2b8', icon: <FaChartBar />, val: `₱${(stats.totalDonationAmount || 0).toLocaleString()}`, label: 'Total Donations', section: 'donation' },
                 ].map((s, i) => (
                     <div key={i} className={`stat-card ${s.section ? 'clickable' : ''}`}
                         onClick={() => s.section && setActiveSection(s.section)}
@@ -872,7 +889,7 @@ const AdminDashboard = () => {
                 <div className="card-white">
                     <div className="card-header">
                         <h5>
-                            Personnel Management 
+                            Personnel Management
                             {getSearchBadge(filteredStaff, staff, 'staff')}
                         </h5>
                         <button className="btn-primary-sm" onClick={() => setShowRegistrationModal(true)}>
@@ -906,7 +923,7 @@ const AdminDashboard = () => {
                                     </td>
                                     <td>
                                         {/* Role is now permanent/read-only - no dropdown */}
-                                        <span 
+                                        <span
                                             className="role-badge"
                                             style={{
                                                 display: 'inline-block',
@@ -926,7 +943,7 @@ const AdminDashboard = () => {
                                         <span title="Mark Attendance" className="edit" onClick={() => handleMarkAttendance(m._id, `${m.firstName} ${m.lastName}`)}><FaClock /></span>
                                         {m.isActive
                                             ? <span title="Deactivate" className="deactivate" onClick={() => toggleStaffStatus(m._id, 'active')}><FaBan /></span>
-                                            : <span title="Activate"   className="activate"   onClick={() => toggleStaffStatus(m._id, 'inactive')}><FaCheckCircle /></span>
+                                            : <span title="Activate" className="activate" onClick={() => toggleStaffStatus(m._id, 'inactive')}><FaCheckCircle /></span>
                                         }
                                         <span title="Delete" className="delete" onClick={() => deleteStaff(m._id)}><FaTrash /></span>
                                     </td>
@@ -994,9 +1011,9 @@ const AdminDashboard = () => {
         }, {});
 
         const STATUS_STYLE = {
-            approved:  { bg: '#e0faf4', border: '#20c997', text: '#0d6b4f', label: 'Booked' },
-            pending:   { bg: '#fff8e1', border: '#ffc107', text: '#7c5a00', label: 'Pending' },
-            rejected:  { bg: '#fdecea', border: '#e57373', text: '#b71c1c', label: 'Urgent' },
+            approved: { bg: '#e0faf4', border: '#20c997', text: '#0d6b4f', label: 'Booked' },
+            pending: { bg: '#fff8e1', border: '#ffc107', text: '#7c5a00', label: 'Pending' },
+            rejected: { bg: '#fdecea', border: '#e57373', text: '#b71c1c', label: 'Urgent' },
             completed: { bg: '#e8eaf6', border: '#5c6bc0', text: '#2c3494', label: 'Done' },
         };
 
@@ -1075,7 +1092,7 @@ const AdminDashboard = () => {
                 <div className="card-white">
                     <div className="card-header">
                         <h5>
-                            All Bookings 
+                            All Bookings
                             {getSearchBadge(filteredBookings, bookings, 'bookings')}
                         </h5>
                         {searchQuery && filteredBookings.length === 0 && (
@@ -1110,8 +1127,7 @@ const AdminDashboard = () => {
                                             <td className="actions">
                                                 {b.status === 'pending' && <>
                                                     <button className="btn-success-sm" onClick={() => updateBookingStatus(b._id, 'approved')}>Approve</button>
-                                                    <button className="btn-danger-sm" onClick={() => updateBookingStatus(b._id, 'rejected')}>Reject</button>
-                                                </>}
+                                                    <button className="btn-danger-sm" onClick={() => handleRejectWithReason(b._id)}>Reject</button>                                                </>}
                                                 {b.status === 'approved' && (
                                                     <button className="btn-primary-sm" onClick={() => updateBookingStatus(b._id, 'completed')}>Complete</button>
                                                 )}
@@ -1136,7 +1152,7 @@ const AdminDashboard = () => {
             <div className="card-white">
                 <div className="card-header">
                     <h5>
-                        Donation Management 
+                        Donation Management
                         {getSearchBadge(filteredDonations, donations, 'donations')}
                     </h5>
                     <button className="btn-primary-sm" onClick={() => handleExportPDF('donations')}>
@@ -1334,16 +1350,16 @@ const AdminDashboard = () => {
             </div>
         );
         switch (activeSection) {
-            case 'overview':   return renderOverview();
-            case 'staff':      return renderStaffManagement();
-            case 'roster':     return <StaffRosterTab staff={staff} onRefresh={fetchStaffList} />;
-            case 'booking':    return renderBookingManagement();
-            case 'donation':   return renderDonationManagement();
-            case 'alerts':     return renderAlerts();
-            case 'inventory':  return renderInventory();
+            case 'overview': return renderOverview();
+            case 'staff': return renderStaffManagement();
+            case 'roster': return <StaffRosterTab staff={staff} onRefresh={fetchStaffList} />;
+            case 'booking': return renderBookingManagement();
+            case 'donation': return renderDonationManagement();
+            case 'alerts': return renderAlerts();
+            case 'inventory': return renderInventory();
             case 'compliance': return renderCompliance();
-            case 'reports':    return renderReports();
-            default:           return renderOverview();
+            case 'reports': return renderReports();
+            default: return renderOverview();
         }
     };
 
@@ -1603,6 +1619,67 @@ const AdminDashboard = () => {
                                     setEditStatusModal({ isOpen: false, booking: null, newStatus: '' });
                                 }}
                             >Save</button>
+                        </div>
+                    </div>
+
+                </div>
+            )}
+            {rejectionModal.isOpen && (
+                <div className="modal-overlay" style={{ zIndex: 9999 }}>
+                    <div className="registration-modal" style={{ maxWidth: 450, padding: 32 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18, borderBottom: '1.5px solid var(--d-border)', paddingBottom: 14 }}>
+                            <h4 style={{ margin: 0, color: 'var(--d-ink)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <FaExclamationTriangle color="#dc3545" />
+                                Reject Booking
+                            </h4>
+                            <button onClick={() => setRejectionModal({ isOpen: false, bookingId: null, reason: '' })}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--d-muted)', fontSize: '1.2rem' }}>
+                                <FaTimes />
+                            </button>
+                        </div>
+
+                        <p style={{ fontSize: '.88rem', color: 'var(--d-muted)', marginBottom: 16 }}>
+                            Please provide a reason for rejecting this booking. The visitor will be notified via email.
+                        </p>
+
+                        <label style={{ fontSize: '.82rem', fontWeight: 700, color: 'var(--d-muted)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6, display: 'block' }}>
+                            Rejection Reason <span style={{ color: '#dc3545' }}>*</span>
+                        </label>
+                        <textarea
+                            value={rejectionModal.reason}
+                            onChange={e => setRejectionModal(p => ({ ...p, reason: e.target.value }))}
+                            placeholder="e.g., Time slot is fully booked, Facility maintenance, No available staff, etc."
+                            rows={4}
+                            style={{
+                                width: '100%',
+                                padding: '12px 14px',
+                                border: '1.5px solid var(--d-border)',
+                                borderRadius: 9,
+                                fontFamily: 'var(--d-font-body)',
+                                fontSize: '.88rem',
+                                background: 'var(--d-cream)',
+                                color: 'var(--d-ink)',
+                                outline: 'none',
+                                resize: 'vertical',
+                                marginBottom: 22,
+                            }}
+                        />
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                            <button className="btn-outline-sm" onClick={() => setRejectionModal({ isOpen: false, bookingId: null, reason: '' })}>
+                                Cancel
+                            </button>
+                            <button
+                                className="btn-danger-sm"
+                                onClick={confirmRejection}
+                                disabled={!rejectionModal.reason.trim() || rejectionModal.reason.trim().length < 5}
+                                style={{
+                                    opacity: (!rejectionModal.reason.trim() || rejectionModal.reason.trim().length < 5) ? 0.5 : 1,
+                                    cursor: (!rejectionModal.reason.trim() || rejectionModal.reason.trim().length < 5) ? 'not-allowed' : 'pointer'
+                                }}
+                            >
+                                Confirm Rejection
+                            </button>
                         </div>
                     </div>
                 </div>

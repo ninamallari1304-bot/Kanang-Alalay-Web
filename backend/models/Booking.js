@@ -56,10 +56,13 @@ const bookingSchema = new mongoose.Schema({
     },
     status: { 
         type: String, 
-        enum: ['pending', 'approved', 'cancelled', 'completed'], 
+        enum: ['pending', 'approved', 'rejected', 'cancelled', 'completed'], 
         default: 'pending' 
     },
-    
+    rejectionReason: {
+        type: String,
+        default: ''
+    },
     assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, { timestamps: true });
 
