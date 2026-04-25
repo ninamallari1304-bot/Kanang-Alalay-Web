@@ -11,7 +11,6 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-// Verify SMTP on startup — prints a clear error if credentials are misconfigured
 transporter.verify((error) => {
     if (error) {
         console.error('SMTP CONNECTION FAILED:', error.message);
