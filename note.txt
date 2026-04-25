@@ -1,211 +1,645 @@
-KANANG-ALALAY SYSTEM
-## Complete User + Staff + Admin Interaction Guide (Public to Internal Flow) ---
-# SYSTEM OVERVIEW
-The **Kanang-Alalay System** has **3 main user levels**:
-1. **Public Users (Visitors / Donors / Organizations)** 2. **Staff (Nurse / Caregiver)**
-3. **Admin (Management System)**
-The system starts from a **public homepage** and transitions into **secure internal dashboards**. ---
-# **PUBLIC WEBSITE (HOME PAGE)** ## When Opened:
-* Displays:
-* Facility background (image/video) * Welcome message
-* Mission/Vision of Kanang-Alalay
----
-## Main Sections:
-### Home
-* Overview of facility
-* About services (elderly care, outreach, etc.)
----
-### Booking
-For scheduling:
-* Outreach programs * Facility visits
-* Medical missions
----
-### Donation
-For:
-* Food donations
-* Financial support * Supplies
----
-## BOOKING (Public User)
-➕
-👉 🎁
-👉 📅
-🏠 📌
-🖱 🌐
-🔰
-👉
- ### Click “Book Now” Opens Booking Form
-#### Fields:
-* Full Name
-* Email
-* Contact Number
-* Organization (optional) * Type of Request:
-* Outreach
-* Visit
-* Medical Mission
-* Preferred Date
-* Time Slot
-* Number of Participants * Notes
----
-### Submit:
-* Status = **Pending** * Saved in system
-* Admin will review
----
-## DONATION (Public User) ### Click “Donate”
-Opens Donation Form #### Fields:
-* Donor Name
-* Email
-* Contact Number * Donation Type:
-* Food
-* Money
-* Supplies
-* Description
-* Preferred Delivery Date
----
-### Submit:
-* Stored in system * Admin notified
----
-# **HIDDEN STAFF ACCESS (SMART LOGIN TRIGGER)**
-🖱
-🔐
-👉 🖱
-➕
-🖱
-👉 🖱
+// DonationPage.js
+import React, { useState, useRef } from 'react';
+import axios from 'axios';
+import '../styles/DonationPage.css';
 
- ## Special Feature: When user types:
-``` staff ```
-(on keyboard anywhere on homepage)
----
-### Behavior:
-* A **hidden “Staff Login” button appears** ---
-## Clicking “Staff Login” Opens Login Modal
-### Fields:
-* Username * Password
---- # ##
-**STAFF SYSTEM (Based on Your Dashboard Image)** After Login:
-Redirects to **Staff Dashboard** ---
-#
-##
-Displays:
-### Header:
-**STAFF DASHBOARD** When Opened:
-* Staff Name
-* Role (Nurse / Caregiver)
-* Shift Schedule
-* Assigned Ward
-* Status (On Duty / Off Duty)
----
-## SECTIONS:
----
-### Today’s Schedule
-📅 📊
-🔝
-🖱 🏠
-👉 🖱
-⚙
-󰟻
-👉 🖱
-👉 🖱
+// ── helpers ───────────────────────────────────────────────────────────────────
+const fmt = (n) => `₱${Number(n).toLocaleString()}`;
+const today = () => new Date().toISOString().split('T')[0];
+const API_BASE = (() => {
+  const raw =
+    process.env.REACT_APP_API_BASE_URL ||
+    process.env.REACT_APP_API_URL ||
+    (process.env.NODE_ENV === 'production'
+      ? 'https://kanang-alalay-backend.onrender.com/api'
+      : 'http://localhost:5000/api');
+  return raw.replace(/\/api\/?$/, '');
+})();
 
- * List of assigned medications * Shows:
-* Patient name
-* Medicine
-* Time
-* Status
----
-### Behavior:
-* Completed → marked ✔ * Overdue → highlighted ⚠
----
-### Today’s Status
-* Total meds * On Time
-* Delayed
-* Missed
-* Pending
----
-### My Assigned Residents
-* List of assigned patients * Shows:
-* Name
-* Age
-* Condition
-* Next medication time
----
-### Quick Actions Buttons:
-* Add Medication
-* Search Residents
-* Log Vitals
-* Check Scanner (RFID) * Report Incident
-* Sync App
-* View Report
----
-### Voice Reminder System
-* Shows current reminder playing * Displays:
-* Patient name * Medicine
-🔊
-⚡
-👵
-📊
-⚠
+const PRESETS = [500, 1000, 2000, 5000, 10000];
+const TIMES   = ['9:00 AM - 11:00 AM', '3:00 PM - 5:00 PM'];
 
- * Language ---
-### Actions:
-* Test Voice System * Adjust Volume
----
-## STAFF SYSTEM LOGIC
-* Medication marked → updates compliance * Missed dose → triggers alert
-* RFID mismatch → critical alert
-* All actions → logged in system
----
-# **ADMIN ACCESS (FROM STAFF LOGIN OR DIRECT URL)**
-## Admin Login:
-* Uses same login page
-* Role detected automatically
----
-## Behavior: * If role = Admin
-Redirect to **Admin Dashboard** ---
-# **ADMIN SYSTEM (SUMMARY)** ## Features:
-* Dashboard monitoring
-* User Management (with OTP activation) * Booking & Donation approvals
-* Inventory tracking
-* Reports & analytics
-* AI Help Center
----
-# **COMPLETE SYSTEM FLOW**
-## Public Flow:
-1. User visits homepage 2. Chooses:
-* Booking
-* Donation
-3. Submits request 4. Status = Pending
-🌐 🔄
-🖥
-👉 ⚙
-🖱 🔐
-⚙
-🖱
+// ── Philippine Mobile Number Validation ──────────────────────────────────────
+const validatePhilippineNumber = (raw) => {
+  const cleaned = raw.replace(/\D/g, '');
+  if (cleaned.length === 10 && cleaned.startsWith('9'))   return { isValid: true, e164: `+63${cleaned}` };
+  if (cleaned.length === 11 && cleaned.startsWith('09'))  return { isValid: true, e164: `+63${cleaned.slice(1)}` };
+  if (cleaned.length === 12 && cleaned.startsWith('639')) return { isValid: true, e164: `+63${cleaned.slice(2)}` };
+  return { isValid: false, e164: '' };
+};
 
----
-## Staff Flow:
-1. Types “staff” 2. Login appears 3. Logs in
-4. Manages:
-* Medication * Residents * Reports
----
-## Admin Flow:
-1. Logs in 2. Reviews:
-* Bookings
-* Donations
-3. Manages system 4. Monitors activity
----
-# SECURITY FEATURES
-* Hidden staff login trigger
-* Role-based access
-* OTP activation (admin side)
-* Activity logging
----
-# FINAL RESULT
-The system now supports:
---- ##
-Public interaction (Booking & Donation) Hidden secure staff access
-Full staff dashboard (medical operations) Complete admin control system
-READY FOR:
-* Capstone documentation * System defense
-* UI/UX explanation
-* Technical presentation
+const formatPhoneDisplay = (digits) => {
+  if (digits.startsWith('09')) {
+    if (digits.length <= 4) return digits;
+    if (digits.length <= 7) return `${digits.slice(0, 4)} ${digits.slice(4)}`;
+    return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7, 11)}`;
+  }
+  if (digits.startsWith('9')) {
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+    return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 10)}`;
+  }
+  return digits;
+};
+
+// ── Confirmation Modal ────────────────────────────────────────────────────────
+const ConfirmModal = ({ data, onConfirm, onCancel, loading }) => (
+  <div className="dp-modal-overlay">
+    <div className="dp-modal">
+      <h3 className="dp-modal-title">Review Your Donation</h3>
+      <p className="dp-modal-subtitle">Please confirm your donation details before submitting.</p>
+      <div className="dp-modal-rows">
+        {[
+          ['Donor',       data.donorName],
+          ['Email',       data.email],
+          ['Phone',       data.phone],
+          ['Type',        data.typeLabel],
+          ...(data.donationType === 'online' ? [
+            ['Amount',    fmt(data.amount)],
+            ['Payment',   'QRPH'],
+            ['Proof',     data.proofName || '—'],
+          ] : [
+            ['Date',      data.appointmentDate],
+            ['Time',      data.appointmentTime],
+          ]),
+          ...(data.notes ? [['Notes', data.notes]] : []),
+          ['Anonymous',   data.anonymous ? 'Yes' : 'No'],
+        ].map(([label, value]) => (
+          <div className="dp-modal-row" key={label}>
+            <span className="dp-modal-label">{label}</span>
+            <span className="dp-modal-value">{value}</span>
+          </div>
+        ))}
+      </div>
+      <div className="dp-modal-actions">
+        <button className="dp-modal-cancel" onClick={onCancel} disabled={loading}>
+          Go Back
+        </button>
+        <button className="dp-modal-confirm" onClick={onConfirm} disabled={loading}>
+          {loading
+            ? <><div className="dp-spin" /> Processing…</>
+            : data.donationType === 'online' ? 'Confirm Donation' : 'Confirm Appointment'}
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+// ── Main Component ────────────────────────────────────────────────────────────
+export default function DonationPage() {
+  const fileInputRef = useRef(null);
+
+  const [form, setForm] = useState({
+    firstName: '', middleName: '', lastName: '', email: '', phone: '',
+    amount: '', donationType: 'online',
+    notes: '', anonymous: false, appointmentDate: '', appointmentTime: ''
+  });
+  const [proofFile, setProofFile]       = useState(null);
+  const [proofPreview, setProofPreview] = useState(null);
+  const [errors, setErrors]             = useState({});
+  const [apiError, setApiError]         = useState('');
+  const [loading, setLoading]           = useState(false);
+  const [submitted, setSubmitted]       = useState(false);
+  const [receipt, setReceipt]           = useState(null);
+  const [showModal, setShowModal]       = useState(false);
+  const [modalData, setModalData]       = useState(null);
+
+  const setFormField = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const setAmt = v => { setFormField('amount', v.toString()); setErrors(p => ({ ...p, amount: '' })); };
+
+  const handleChange = e => {
+    const { name, value, type, checked } = e.target;
+    if (name === 'phone') {
+      const digits = value.replace(/\D/g, '');
+      if (digits.length > 12) return;
+      setFormField('phone', formatPhoneDisplay(digits));
+      setErrors(p => ({ ...p, phone: '' }));
+      return;
+    }
+    setFormField(name, type === 'checkbox' ? checked : value);
+    setErrors(p => ({ ...p, [name]: '' }));
+  };
+
+  const handleProofUpload = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+    if (!allowed.includes(file.type)) {
+      setErrors(p => ({ ...p, proof: 'Only JPG, PNG, GIF, WEBP, or PDF files are allowed.' }));
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors(p => ({ ...p, proof: 'File must be under 5 MB.' }));
+      return;
+    }
+    setErrors(p => ({ ...p, proof: '' }));
+    setProofFile(file);
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = ev => setProofPreview(ev.target.result);
+      reader.readAsDataURL(file);
+    } else {
+      setProofPreview('pdf');
+    }
+  };
+
+  const removeProof = () => {
+    setProofFile(null);
+    setProofPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const validate = () => {
+    const e = {};
+    if (!form.firstName.trim()) e.firstName = 'Required';
+    if (!form.lastName.trim())  e.lastName  = 'Required';
+    if (!form.email.trim())     e.email     = 'Required';
+    else if (!/^\S+@\S+\.\S+$/.test(form.email)) e.email = 'Invalid email';
+
+    if (!form.phone) {
+      e.phone = 'Mobile number is required';
+    } else {
+      const { isValid } = validatePhilippineNumber(form.phone);
+      if (!isValid) e.phone = 'Enter a valid PH mobile number (e.g. 09123456789 or 9123456789)';
+    }
+
+    // Amount and proof only required for online
+    if (form.donationType === 'online') {
+      if (!form.amount || Number(form.amount) < 100) e.amount = 'Minimum ₱100';
+      if (!proofFile) e.proof = 'Please upload your QRPH payment screenshot or receipt.';
+    }
+
+    if (form.donationType === 'cash') {
+      if (!form.appointmentDate) e.appointmentDate = 'Required';
+      if (!form.appointmentTime) e.appointmentTime = 'Required';
+    }
+
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleSubmit = e => {
+    e.preventDefault();
+    setApiError('');
+    if (!validate()) return;
+
+    const fullName = `${form.firstName}${form.middleName ? ' ' + form.middleName : ''} ${form.lastName}`.trim();
+    const { e164: formattedPhone } = validatePhilippineNumber(form.phone);
+
+    setModalData({
+      firstName:       form.firstName.trim(),
+      middleName:      form.middleName?.trim() || '',
+      lastName:        form.lastName.trim(),
+      donorName:       form.anonymous ? 'Anonymous Donor' : fullName,
+      email:           form.email.trim().toLowerCase(),
+      phone:           formattedPhone || form.phone.replace(/\D/g, ''),
+      donationType:    form.donationType,
+      typeLabel:       form.donationType === 'online' ? 'QRPH (Online)' : 'Cash (In-person)',
+      amount:          Number(form.amount),
+      appointmentDate: form.appointmentDate,
+      appointmentTime: form.appointmentTime,
+      notes:           form.notes?.trim() || '',
+      anonymous:       form.anonymous,
+      proofName:       proofFile ? proofFile.name : null,
+    });
+    setShowModal(true);
+  };
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    setApiError('');
+    try {
+      const formData = new FormData();
+
+      formData.append('firstName',    modalData.firstName);
+      formData.append('lastName',     modalData.lastName);
+      formData.append('donorName',    `${modalData.firstName}${modalData.middleName ? ' ' + modalData.middleName : ''} ${modalData.lastName}`.trim());
+      formData.append('email',        modalData.email);
+      formData.append('phone',        modalData.phone);
+      formData.append('donationType', modalData.donationType);
+      formData.append('middleName',   modalData.middleName);
+      formData.append('notes',        modalData.notes);
+      formData.append('anonymous',    modalData.anonymous ? 'true' : 'false');
+
+      if (modalData.donationType === 'online') {
+        formData.append('amount',        String(modalData.amount));
+        formData.append('paymentMethod', 'qrph');
+        if (proofFile) formData.append('proofOfPayment', proofFile);
+      }
+
+      if (modalData.donationType === 'cash') {
+        // Cash donations have no amount/proof; backend defaults or handles accordingly
+        formData.append('amount', '0');
+        if (modalData.appointmentDate) formData.append('appointmentDate', modalData.appointmentDate);
+        if (modalData.appointmentTime) formData.append('appointmentTime', modalData.appointmentTime);
+      }
+
+      const response = await axios.post(`${API_BASE}/api/donations`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 30000,
+      });
+
+      if (response.data.success) {
+        setReceipt({
+          donationId:      response.data.donationId,
+          donorName:       modalData.donorName,
+          email:           modalData.email,
+          amount:          modalData.amount,
+          donationType:    modalData.donationType,
+          appointmentDate: modalData.appointmentDate,
+          appointmentTime: modalData.appointmentTime,
+          anonymous:       modalData.anonymous,
+        });
+        setShowModal(false);
+        setSubmitted(true);
+      } else {
+        throw new Error(response.data.message || 'Donation submission failed.');
+      }
+    } catch (err) {
+      console.error('Donation error:', err);
+      setApiError(
+        err.response?.data?.message ||
+        err.message ||
+        'Unable to process donation. Please try again.'
+      );
+      setShowModal(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Success Screen ────────────────────────────────────────────────────────
+  if (submitted && receipt) {
+    return (
+      <div className="dp-success">
+        <div className="dp-success-card">
+          <div className="dp-checkmark">&#10003;</div>
+          <h2>Thank You for Your Generosity!</h2>
+          <p>
+            Your {receipt.donationType === 'cash' ? 'in-person donation appointment' : 'donation'} has been received.
+            {' '}A confirmation email has been sent to <strong>{receipt.email}</strong>.
+          </p>
+          <div className="dp-receipt">
+            <div className="dp-receipt-row">
+              <span>Donation ID</span>
+              <strong>{receipt.donationId}</strong>
+            </div>
+            <div className="dp-receipt-row">
+              <span>Donor</span>
+              <strong>{receipt.donorName}</strong>
+            </div>
+            {receipt.donationType === 'online' && (
+              <div className="dp-receipt-row">
+                <span>Amount</span>
+                <strong>{fmt(receipt.amount)}</strong>
+              </div>
+            )}
+            <div className="dp-receipt-row">
+              <span>Type</span>
+              <strong>{receipt.donationType === 'online' ? 'QRPH (Online)' : 'Cash (In-person)'}</strong>
+            </div>
+            {receipt.donationType === 'cash' && receipt.appointmentDate && (
+              <div className="dp-receipt-row">
+                <span>Appointment</span>
+                <strong>{receipt.appointmentDate} · {receipt.appointmentTime}</strong>
+              </div>
+            )}
+          </div>
+          <div className="dp-btn-row">
+            <button className="dp-btn-primary" onClick={() => window.location.href = '/'}>
+              Back to Home
+            </button>
+            <button className="dp-btn-secondary" onClick={() => window.print()}>
+              Print Receipt
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Main Form ─────────────────────────────────────────────────────────────
+  return (
+    <div className="dp-shell">
+      {/* Modal */}
+      {showModal && modalData && (
+        <ConfirmModal
+          data={modalData}
+          onConfirm={handleConfirm}
+          onCancel={() => setShowModal(false)}
+          loading={loading}
+        />
+      )}
+
+      {/* Hero */}
+      <div className="dp-hero">
+        <button className="dp-back" onClick={() => window.location.href = '/'}>&#8592;</button>
+        <div className="dp-hero-inner">
+          <div className="dp-hero-badge">
+            <span />
+            Make a Donation
+          </div>
+          <h1>Support Our Mission</h1>
+          <p>
+            Your generosity helps us continue caring for our elderly community. Every
+            contribution makes a meaningful difference in their lives.
+          </p>
+        </div>
+      </div>
+
+      {/* Main Body */}
+      <div className="dp-body">
+        <div className="dp-form-container">
+          {apiError && (
+            <div className="dp-alert danger">
+              <div>{apiError}</div>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit}>
+            {/* Personal Information */}
+            <div className="dp-section">
+              <div className="dp-section-title">Personal Information</div>
+
+              <div className="dp-row">
+                <div className="dp-group">
+                  <label>First Name<span className="req">*</span></label>
+                  <input
+                    className={`dp-input${errors.firstName ? ' err' : ''}`}
+                    name="firstName"
+                    value={form.firstName}
+                    onChange={handleChange}
+                    placeholder="Juan"
+                    disabled={loading}
+                  />
+                  {errors.firstName && <div className="dp-err-msg">{errors.firstName}</div>}
+                </div>
+                <div className="dp-group">
+                  <label>Middle Name (Optional)</label>
+                  <input
+                    className="dp-input"
+                    name="middleName"
+                    value={form.middleName}
+                    onChange={handleChange}
+                    placeholder="Santos"
+                    disabled={loading}
+                  />
+                </div>
+                <div className="dp-group">
+                  <label>Last Name<span className="req">*</span></label>
+                  <input
+                    className={`dp-input${errors.lastName ? ' err' : ''}`}
+                    name="lastName"
+                    value={form.lastName}
+                    onChange={handleChange}
+                    placeholder="Dela Cruz"
+                    disabled={loading}
+                  />
+                  {errors.lastName && <div className="dp-err-msg">{errors.lastName}</div>}
+                </div>
+              </div>
+
+              <div className="dp-row">
+                <div className="dp-group">
+                  <label>Email Address<span className="req">*</span></label>
+                  <input
+                    className={`dp-input${errors.email ? ' err' : ''}`}
+                    type="email"
+                    name="email"
+                    value={form.email}
+                    onChange={handleChange}
+                    placeholder="juan@example.com"
+                    disabled={loading}
+                  />
+                  {errors.email && <div className="dp-err-msg">{errors.email}</div>}
+                </div>
+                <div className="dp-group">
+                  <label>Phone Number<span className="req">*</span></label>
+                  <input
+                    className={`dp-input${errors.phone ? ' err' : ''}`}
+                    name="phone"
+                    value={form.phone}
+                    onChange={handleChange}
+                    placeholder="09123456789"
+                    maxLength={15}
+                    disabled={loading}
+                  />
+                  {errors.phone && <div className="dp-err-msg">{errors.phone}</div>}
+                  <div className="dp-hint phone-hint">Format: 09XXXXXXXXX or 9XXXXXXXXX (PH mobile)</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Donation Method */}
+            <div className="dp-section">
+              <div className="dp-section-title">Donation Method</div>
+              <div className="dp-tabs">
+                <button
+                  type="button"
+                  className={`dp-tab${form.donationType === 'online' ? ' active' : ''}`}
+                  onClick={() => setFormField('donationType', 'online')}
+                  disabled={loading}
+                >
+                  QRPH (Online)
+                </button>
+                <button
+                  type="button"
+                  className={`dp-tab${form.donationType === 'cash' ? ' active' : ''}`}
+                  onClick={() => setFormField('donationType', 'cash')}
+                  disabled={loading}
+                >
+                  Cash (In-person)
+                </button>
+              </div>
+              <div className="dp-hint">
+                {form.donationType === 'online'
+                  ? 'Pay via QRPH and upload proof of payment'
+                  : 'Schedule an appointment to donate in person'}
+              </div>
+            </div>
+
+            {/* QRPH Code — Online only */}
+            {form.donationType === 'online' && (
+              <div className="dp-section">
+                <div className="dp-qrph-box">
+                  <div className="dp-qrph-label">Scan to Pay via QRPH</div>
+                  <img
+                    src="/qrph.png"
+                    alt="QRPH Code"
+                    className="dp-qrph-img"
+                    onError={(e) => { e.target.src = 'https://via.placeholder.com/220x220?text=QRPH+Code'; }}
+                  />
+                  <div className="dp-qrph-hint">
+                    Scan this QR code with your mobile banking app (GCash, Maya, etc.) to complete payment.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Cash — Appointment Scheduling */}
+            {form.donationType === 'cash' && (
+              <div className="dp-section">
+                <div className="dp-appt-box">
+                  <h6>Schedule Your Appointment</h6>
+                  <div className="dp-row">
+                    <div className="dp-group">
+                      <label>Date<span className="req">*</span></label>
+                      <input
+                        className={`dp-input${errors.appointmentDate ? ' err' : ''}`}
+                        type="date"
+                        name="appointmentDate"
+                        value={form.appointmentDate}
+                        onChange={handleChange}
+                        min={today()}
+                        disabled={loading}
+                      />
+                      {errors.appointmentDate && <div className="dp-err-msg">{errors.appointmentDate}</div>}
+                    </div>
+                    <div className="dp-group">
+                      <label>Time<span className="req">*</span></label>
+                      <select
+                        className={`dp-select${errors.appointmentTime ? ' err' : ''}`}
+                        name="appointmentTime"
+                        value={form.appointmentTime}
+                        onChange={handleChange}
+                        disabled={loading}
+                      >
+                        <option value="">Select time</option>
+                        {TIMES.map(t => <option key={t}>{t}</option>)}
+                      </select>
+                      {errors.appointmentTime && <div className="dp-err-msg">{errors.appointmentTime}</div>}
+                      <div className="dp-hint">Choose between morning or afternoon visit</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Donation Amount — Online only */}
+            {form.donationType === 'online' && (
+              <div className="dp-section">
+                <div className="dp-section-title">Donation Amount</div>
+                <div className="dp-amounts">
+                  {PRESETS.map(a => (
+                    <button
+                      key={a}
+                      type="button"
+                      className={`dp-amount-btn${form.amount === a.toString() ? ' active' : ''}`}
+                      onClick={() => setAmt(a)}
+                      disabled={loading}
+                    >
+                      {fmt(a)}
+                    </button>
+                  ))}
+                </div>
+                <div className="dp-group">
+                  <label>Custom Amount (PHP)<span className="req">*</span></label>
+                  <input
+                    className={`dp-input${errors.amount ? ' err' : ''}`}
+                    type="number"
+                    name="amount"
+                    value={form.amount}
+                    onChange={handleChange}
+                    min="100"
+                    placeholder="Enter amount (min ₱100)"
+                    disabled={loading}
+                  />
+                  {errors.amount && <div className="dp-err-msg">{errors.amount}</div>}
+                  <div className="dp-hint">Minimum donation: ₱100</div>
+                </div>
+              </div>
+            )}
+
+            {/* Proof of Payment — Online only */}
+            {form.donationType === 'online' && (
+              <div className="dp-section">
+                <div className="dp-section-title">
+                  Proof of Payment<span className="req" style={{ marginLeft: 4 }}>*</span>
+                </div>
+                <div className={`dp-upload-box${errors.proof ? ' dp-upload-box--err' : ''}`}>
+                  {!proofFile ? (
+                    <label className="dp-upload-label" htmlFor="proofInput">
+                      <div className="dp-upload-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+                        </svg>
+                      </div>
+                      <div className="dp-upload-text">
+                        <strong>Upload receipt or screenshot</strong>
+                        <span>JPG, PNG, PDF — max 5 MB</span>
+                      </div>
+                      <input
+                        id="proofInput"
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+                        onChange={handleProofUpload}
+                        disabled={loading}
+                        className="dp-upload-input"
+                      />
+                    </label>
+                  ) : (
+                    <div className="dp-upload-preview">
+                      {proofPreview === 'pdf' ? (
+                        <div className="dp-upload-pdf-icon">
+                          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />
+                          </svg>
+                        </div>
+                      ) : (
+                        <img src={proofPreview} alt="Proof preview" className="dp-upload-preview-img" />
+                      )}
+                      <div className="dp-upload-file-info">
+                        <strong>{proofFile.name}</strong>
+                        <span>{(proofFile.size / 1024).toFixed(0)} KB</span>
+                      </div>
+                      <button type="button" className="dp-upload-remove" onClick={removeProof} disabled={loading}>
+                        &#10005;
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {errors.proof
+                  ? <div className="dp-err-msg" style={{ marginTop: 6 }}>{errors.proof}</div>
+                  : <div className="dp-hint" style={{ marginTop: 6 }}>Required — attach your QRPH payment screenshot.</div>
+                }
+              </div>
+            )}
+
+            {/* Notes & Anonymous */}
+            <div className="dp-section">
+              <div className="dp-group">
+                <label>Message / Notes (Optional)</label>
+                <textarea
+                  className="dp-textarea"
+                  name="notes"
+                  value={form.notes}
+                  onChange={handleChange}
+                  placeholder="Leave an encouraging message..."
+                  disabled={loading}
+                  rows="3"
+                />
+              </div>
+
+              <div
+                className="dp-toggle-row"
+                onClick={() => !loading && setFormField('anonymous', !form.anonymous)}
+                style={{ cursor: loading ? 'not-allowed' : 'pointer' }}
+              >
+                <div className="dp-toggle-content">
+                  <div className="dp-toggle-text">Donate Anonymously</div>
+                  <div className="dp-toggle-sub">Your name will not appear on public records</div>
+                </div>
+                <div className={`dp-toggle${form.anonymous ? ' on' : ''}`} />
+              </div>
+
+              <button type="submit" className="dp-submit" disabled={loading}>
+                {form.donationType === 'online' ? 'Review Donation' : 'Review Appointment'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

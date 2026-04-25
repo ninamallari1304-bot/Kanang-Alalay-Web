@@ -59,6 +59,7 @@ const ConfirmModal = ({ data, onConfirm, onCancel, loading }) => (
             ['Payment',   'QRPH'],
             ['Proof',     data.proofName || '—'],
           ] : [
+            ['Amount',    data.amount > 0 ? fmt(data.amount) : 'To be specified'],
             ['Date',      data.appointmentDate],
             ['Time',      data.appointmentTime],
           ]),
@@ -169,9 +170,14 @@ export default function DonationPage() {
       if (!proofFile) e.proof = 'Please upload your QRPH payment screenshot or receipt.';
     }
 
+    // Cash: appointment required (amount is optional)
     if (form.donationType === 'cash') {
       if (!form.appointmentDate) e.appointmentDate = 'Required';
       if (!form.appointmentTime) e.appointmentTime = 'Required';
+      // Amount is optional for cash, but if provided must be positive
+      if (form.amount && Number(form.amount) < 0) {
+        e.amount = 'Amount must be positive';
+      }
     }
 
     setErrors(e);
@@ -186,6 +192,12 @@ export default function DonationPage() {
     const fullName = `${form.firstName}${form.middleName ? ' ' + form.middleName : ''} ${form.lastName}`.trim();
     const { e164: formattedPhone } = validatePhilippineNumber(form.phone);
 
+    // For cash donations, amount can be 0 if not specified
+    let donationAmount = Number(form.amount);
+    if (form.donationType === 'cash' && (!form.amount || form.amount === '')) {
+      donationAmount = 0;
+    }
+
     setModalData({
       firstName:       form.firstName.trim(),
       middleName:      form.middleName?.trim() || '',
@@ -195,7 +207,7 @@ export default function DonationPage() {
       phone:           formattedPhone || form.phone.replace(/\D/g, ''),
       donationType:    form.donationType,
       typeLabel:       form.donationType === 'online' ? 'QRPH (Online)' : 'Cash (In-person)',
-      amount:          Number(form.amount),
+      amount:          donationAmount,
       appointmentDate: form.appointmentDate,
       appointmentTime: form.appointmentTime,
       notes:           form.notes?.trim() || '',
@@ -228,10 +240,16 @@ export default function DonationPage() {
       }
 
       if (modalData.donationType === 'cash') {
-        // Cash donations have no amount/proof; backend defaults or handles accordingly
-        formData.append('amount', '0');
+        // Send the amount (could be 0 if not specified)
+        formData.append('amount', String(modalData.amount));
+        formData.append('paymentMethod', 'cash');
         if (modalData.appointmentDate) formData.append('appointmentDate', modalData.appointmentDate);
         if (modalData.appointmentTime) formData.append('appointmentTime', modalData.appointmentTime);
+      }
+
+      console.log('Submitting form data for:', modalData.donationType);
+      for (let pair of formData.entries()) {
+        console.log(pair[0] + ': ' + pair[1]);
       }
 
       const response = await axios.post(`${API_BASE}/api/donations`, formData, {
@@ -257,6 +275,7 @@ export default function DonationPage() {
       }
     } catch (err) {
       console.error('Donation error:', err);
+      console.error('Error response:', err.response?.data);
       setApiError(
         err.response?.data?.message ||
         err.message ||
@@ -289,6 +308,12 @@ export default function DonationPage() {
               <strong>{receipt.donorName}</strong>
             </div>
             {receipt.donationType === 'online' && (
+              <div className="dp-receipt-row">
+                <span>Amount</span>
+                <strong>{fmt(receipt.amount)}</strong>
+              </div>
+            )}
+            {receipt.donationType === 'cash' && receipt.amount > 0 && (
               <div className="dp-receipt-row">
                 <span>Amount</span>
                 <strong>{fmt(receipt.amount)}</strong>
@@ -357,7 +382,7 @@ export default function DonationPage() {
           )}
 
           <form onSubmit={handleSubmit}>
-            {/* Personal Information */}
+            {/* 1. Personal Information */}
             <div className="dp-section">
               <div className="dp-section-title">Personal Information</div>
 
@@ -430,14 +455,17 @@ export default function DonationPage() {
               </div>
             </div>
 
-            {/* Donation Method */}
+            {/* 2. Donation Method */}
             <div className="dp-section">
               <div className="dp-section-title">Donation Method</div>
               <div className="dp-tabs">
                 <button
                   type="button"
                   className={`dp-tab${form.donationType === 'online' ? ' active' : ''}`}
-                  onClick={() => setFormField('donationType', 'online')}
+                  onClick={() => {
+                    setFormField('donationType', 'online');
+                    setFormField('amount', '');
+                  }}
                   disabled={loading}
                 >
                   QRPH (Online)
@@ -445,7 +473,10 @@ export default function DonationPage() {
                 <button
                   type="button"
                   className={`dp-tab${form.donationType === 'cash' ? ' active' : ''}`}
-                  onClick={() => setFormField('donationType', 'cash')}
+                  onClick={() => {
+                    setFormField('donationType', 'cash');
+                    setFormField('amount', '');
+                  }}
                   disabled={loading}
                 >
                   Cash (In-person)
@@ -458,7 +489,7 @@ export default function DonationPage() {
               </div>
             </div>
 
-            {/* QRPH Code — Online only */}
+            {/* 3. QRPH Code — Online only */}
             {form.donationType === 'online' && (
               <div className="dp-section">
                 <div className="dp-qrph-box">
@@ -476,7 +507,7 @@ export default function DonationPage() {
               </div>
             )}
 
-            {/* Cash — Appointment Scheduling */}
+            {/* 4. Cash — Appointment Scheduling */}
             {form.donationType === 'cash' && (
               <div className="dp-section">
                 <div className="dp-appt-box">
@@ -515,10 +546,14 @@ export default function DonationPage() {
               </div>
             )}
 
-            {/* Donation Amount — Online only */}
-            {form.donationType === 'online' && (
-              <div className="dp-section">
-                <div className="dp-section-title">Donation Amount</div>
+            {/* 5. Donation Amount */}
+            <div className="dp-section">
+              <div className="dp-section-title">
+                Donation Amount
+                {form.donationType === 'online' && <span className="req">*</span>}
+                {form.donationType === 'cash' && <span className="req" style={{ opacity: 0.6 }}> (Optional)</span>}
+              </div>
+              {form.donationType === 'online' && (
                 <div className="dp-amounts">
                   {PRESETS.map(a => (
                     <button
@@ -532,25 +567,33 @@ export default function DonationPage() {
                     </button>
                   ))}
                 </div>
-                <div className="dp-group">
-                  <label>Custom Amount (PHP)<span className="req">*</span></label>
-                  <input
-                    className={`dp-input${errors.amount ? ' err' : ''}`}
-                    type="number"
-                    name="amount"
-                    value={form.amount}
-                    onChange={handleChange}
-                    min="100"
-                    placeholder="Enter amount (min ₱100)"
-                    disabled={loading}
-                  />
-                  {errors.amount && <div className="dp-err-msg">{errors.amount}</div>}
+              )}
+              <div className="dp-group">
+                <label>
+                  {form.donationType === 'cash' ? 'Amount You Plan to Donate (PHP)' : 'Custom Amount (PHP)'}
+                  {form.donationType === 'online' && <span className="req">*</span>}
+                </label>
+                <input
+                  className={`dp-input${errors.amount ? ' err' : ''}`}
+                  type="number"
+                  name="amount"
+                  value={form.amount}
+                  onChange={handleChange}
+                  min="1"
+                  placeholder={form.donationType === 'cash' ? 'Leave empty if unsure' : 'Enter amount (min ₱100)'}
+                  disabled={loading}
+                />
+                {errors.amount && <div className="dp-err-msg">{errors.amount}</div>}
+                {form.donationType === 'online' && (
                   <div className="dp-hint">Minimum donation: ₱100</div>
-                </div>
+                )}
+                {form.donationType === 'cash' && (
+                  <div className="dp-hint">Optional - you can specify the amount you plan to donate</div>
+                )}
               </div>
-            )}
+            </div>
 
-            {/* Proof of Payment — Online only */}
+            {/* 6. Proof of Payment — Online only */}
             {form.donationType === 'online' && (
               <div className="dp-section">
                 <div className="dp-section-title">
@@ -606,7 +649,7 @@ export default function DonationPage() {
               </div>
             )}
 
-            {/* Notes & Anonymous */}
+            {/* 7. Notes & Anonymous */}
             <div className="dp-section">
               <div className="dp-group">
                 <label>Message / Notes (Optional)</label>

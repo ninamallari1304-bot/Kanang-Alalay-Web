@@ -41,7 +41,7 @@ router.post('/', upload.single('proofOfPayment'), async (req, res) => {
         console.log('req.body:', req.body);
         console.log('req.file:', req.file ? req.file.filename : 'No file');
         
-        // Extract fields - handle both FormData and JSON
+        // Extract fields
         const {
             firstName, middleName, lastName, donorName,
             email, donationType, phone, amount,
@@ -55,7 +55,6 @@ router.post('/', upload.single('proofOfPayment'), async (req, res) => {
         const normalizedEmail = (email || '').toString().trim().toLowerCase();
         const normalizedDonationType = (donationType || '').toString().trim().toLowerCase();
         const normalizedPhone = (phone || '').toString().trim();
-        const normalizedAmount = (amount || '').toString().trim();
         
         // Validate required fields
         const missingFields = [];
@@ -65,27 +64,54 @@ router.post('/', upload.single('proofOfPayment'), async (req, res) => {
         if (!normalizedEmail) missingFields.push('email');
         if (!normalizedDonationType) missingFields.push('donationType');
         if (!normalizedPhone) missingFields.push('phone');
-        if (!normalizedAmount) missingFields.push('amount');
         
         if (missingFields.length > 0) {
             console.log('Missing fields:', missingFields);
-            console.log('Received values:', { firstName, lastName, donorName, email, donationType, phone, amount });
             return res.status(400).json({ 
                 success: false, 
                 message: `Missing required fields: ${missingFields.join(', ')}` 
             });
         }
 
-        const amountNum = Number(normalizedAmount);
-        if (isNaN(amountNum) || amountNum < 100) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Amount must be a valid number of at least ₱100' 
-            });
-        }
-
-        // Validate donation type specific fields
-        if (normalizedDonationType === 'cash') {
+        // Handle amount based on donation type
+        let amountNum = 0;
+        let rawAmount = (amount || '').toString().trim();
+        
+        if (normalizedDonationType === 'online') {
+            // For online, amount is required and must be positive
+            if (!rawAmount || rawAmount === '') {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'Amount is required for online donations' 
+                });
+            }
+            amountNum = Number(rawAmount);
+            if (isNaN(amountNum) || amountNum <= 0) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'Amount must be a valid positive number' 
+                });
+            }
+            
+            // Payment method required for online
+            if (!paymentMethod) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'Payment method is required for online donations' 
+                });
+            }
+        } else if (normalizedDonationType === 'cash') {
+            // For cash, amount is optional - default to 0
+            if (rawAmount && rawAmount !== '') {
+                amountNum = Number(rawAmount);
+                if (isNaN(amountNum)) {
+                    amountNum = 0;
+                }
+            } else {
+                amountNum = 0;
+            }
+            
+            // Validate appointment for cash donations
             const appointmentDateVal = (appointmentDate || '').toString().trim();
             const appointmentTimeVal = (appointmentTime || '').toString().trim();
             if (!appointmentDateVal || !appointmentTimeVal) {
@@ -94,6 +120,11 @@ router.post('/', upload.single('proofOfPayment'), async (req, res) => {
                     message: 'Appointment date and time are required for in-person donations'
                 });
             }
+        } else {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid donation type: ${normalizedDonationType}. Must be 'online' or 'cash'`
+            });
         }
 
         // Prepare donation data
@@ -108,17 +139,19 @@ router.post('/', upload.single('proofOfPayment'), async (req, res) => {
             donationType: normalizedDonationType,
             notes: (notes || '').toString().trim(),
             anonymous: anonymous === 'true' || anonymous === true,
-            paymentMethod: paymentMethod ? paymentMethod.toString().trim().toLowerCase() : null,
+            paymentMethod: normalizedDonationType === 'online' ? (paymentMethod || 'qrph').toString().trim().toLowerCase() : null,
             appointmentDate: normalizedDonationType === 'cash' ? appointmentDate : undefined,
             appointmentTime: normalizedDonationType === 'cash' ? appointmentTime : undefined,
             proofOfPayment: req.file ? req.file.filename : undefined,
             paymentStatus: 'pending'
         };
 
+        console.log('Saving donation:', donationData);
+
         const donation = new Donation(donationData);
         await donation.save();
 
-        console.log('Donation saved successfully:', donation._id);
+        console.log('Donation saved successfully:', donation._id, 'Donation ID:', donation.donationId);
 
         // Emit socket event if available
         const io = req.app.get('io');
@@ -167,6 +200,20 @@ router.get('/', async (req, res) => {
     } catch (error) {
         console.error('Error fetching donations:', error);
         res.status(500).json({ success: false, message: 'Server error fetching donations' });
+    }
+});
+
+// GET /api/donations/:id
+router.get('/:id', async (req, res) => {
+    try {
+        const donation = await Donation.findById(req.params.id);
+        if (!donation) {
+            return res.status(404).json({ success: false, message: 'Donation not found' });
+        }
+        res.json({ success: true, data: donation });
+    } catch (error) {
+        console.error('Error fetching donation:', error);
+        res.status(500).json({ success: false, message: 'Server error fetching donation' });
     }
 });
 

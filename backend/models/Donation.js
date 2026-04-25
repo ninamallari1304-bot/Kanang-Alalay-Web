@@ -35,10 +35,11 @@ const donationSchema = new mongoose.Schema({
         required: true
     },
 
-    // Amount is ALWAYS required
+    // Amount required for online; cash defaults to 0 (confirmed on arrival)
     amount: {
         type: Number,
-        min: 100,
+        min: 0,
+        default: 0,
         required: true
     },
 
