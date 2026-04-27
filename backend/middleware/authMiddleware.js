@@ -1,9 +1,6 @@
-const jwt  = require('jsonwebtoken');
+const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-// ── protect ──────────────────────────────────────────────────────────────────
-// Verifies the JWT in the Authorization header and attaches the user to req.
-// Every protected route uses this middleware first.
 const protect = async (req, res, next) => {
     try {
         const token = req.header('Authorization')?.replace('Bearer ', '');
@@ -13,7 +10,7 @@ const protect = async (req, res, next) => {
         }
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
-        const user    = await User.findById(decoded.userId).select('-password');
+        const user = await User.findById(decoded.userId).select('-password');
 
         if (!user) {
             return res.status(401).json({ success: false, message: 'User belonging to this token no longer exists.' });
@@ -23,7 +20,7 @@ const protect = async (req, res, next) => {
             return res.status(401).json({ success: false, message: 'Your account is inactive. Please contact an administrator.' });
         }
 
-        req.user  = user;
+        req.user = user;
         req.token = token;
         next();
     } catch (error) {
@@ -37,7 +34,6 @@ const protect = async (req, res, next) => {
     }
 };
 
-// ── adminOnly ─────────────────────────────────────────────────────────────────
 const adminOnly = (req, res, next) => {
     if (!req.user || req.user.role !== 'admin') {
         return res.status(403).json({
@@ -48,7 +44,26 @@ const adminOnly = (req, res, next) => {
     next();
 };
 
-// ── roleMiddleware ────────────────────────────────────────────────────────────
+const headCaregiverOnly = (req, res, next) => {
+    if (!req.user || req.user.role !== 'head_caregiver') {
+        return res.status(403).json({
+            success: false,
+            message: 'Access denied. Head Caregiver privileges required.'
+        });
+    }
+    next();
+};
+
+const adminOrHeadCaregiver = (req, res, next) => {
+    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'head_caregiver')) {
+        return res.status(403).json({
+            success: false,
+            message: 'Access denied. Admin or Head Caregiver privileges required.'
+        });
+    }
+    next();
+};
+
 const roleMiddleware = (...roles) => {
     return (req, res, next) => {
         if (!req.user || !roles.includes(req.user.role)) {
@@ -61,7 +76,6 @@ const roleMiddleware = (...roles) => {
     };
 };
 
-// ── Legacy alias so older code that imports authMiddleware still works ─────────
 const authMiddleware = protect;
 
-module.exports = { protect, adminOnly, roleMiddleware, authMiddleware };
+module.exports = { protect, adminOnly, roleMiddleware, authMiddleware, headCaregiverOnly, adminOrHeadCaregiver };

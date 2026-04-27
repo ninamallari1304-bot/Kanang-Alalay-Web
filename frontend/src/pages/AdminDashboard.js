@@ -8,7 +8,7 @@ import {
     FaCheckCircle, FaBan, FaClock, FaMoneyBillWave,
     FaPhone, FaEnvelope, FaCalendarAlt, FaUserTag, FaIdCard, FaDownload, FaBox, FaChevronDown,
     FaSearch, FaCog, FaQuestionCircle, FaTimes, FaCheck, FaInfoCircle,
-    FaExclamationCircle, FaSpinner
+    FaExclamationCircle, FaSpinner, FaTimesCircle, FaHistory
 } from 'react-icons/fa';
 import UserRegistrationModal from '../components/UserRegistrationModal';
 import AddInventoryModal from '../components/AddInventoryModal';
@@ -27,7 +27,6 @@ const API_BASE_URL =
         ? 'https://kanang-alalay-backend.onrender.com/api'
         : 'http://localhost:5000/api');
 
-// ── Notification helpers ─────────────────────────────────────────────────────
 const NOTIF_TYPES = {
     booking: { color: '#17a2b8', icon: <FaCalendarAlt />, label: 'Booking', section: 'booking' },
     donation: { color: '#28a745', icon: <FaMoneyBillWave />, label: 'Donation', section: 'donation' },
@@ -50,10 +49,10 @@ const buildNotifications = (bookings, donations, staff, inventory) => {
         body: `${d.donorName} — ₱${d.amount?.toLocaleString()}`,
         time: d.createdAt || new Date().toISOString(), read: false,
     }));
-    staff.filter(m => !m.isActive && !m.isVerified).forEach(m => notifs.push({
+    staff.filter(m => !m.isActive && m.status !== 'terminated').forEach(m => notifs.push({
         id: `st-${m._id}`, type: 'personnel',
-        title: 'Personnel Pending Activation',
-        body: `${m.firstName} ${m.lastName} (${m.role})`,
+        title: 'Personnel Inactive',
+        body: `${m.firstName} ${m.lastName} (${m.role}) - ${m.status || 'inactive'}`,
         time: m.createdAt || new Date().toISOString(), read: false,
     }));
     inventory.filter(i => i.quantity <= (i.minThreshold || 10)).forEach(i => notifs.push({
@@ -73,8 +72,6 @@ const timeAgo = (iso) => {
     return `${Math.floor(diff / 86400)}d ago`;
 };
 
-
-// ── Confirmation Modal ────────────────────────────────────────────────────────
 const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel, confirmLabel = 'Confirm', danger = false }) => {
     if (!isOpen) return null;
     return (
@@ -104,14 +101,120 @@ const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel, confirmLabe
     );
 };
 
-// ── Proof-of-payment URL builder ─────────────────────────────────────────────
-// API_BASE_URL may end with /api — strip it so we get the server root.
+const ReasonModal = ({ isOpen, action, userName, currentStatus, reason, setReason, effectiveDate, setEffectiveDate, notes, setNotes, onConfirm, onCancel, loading }) => {
+    if (!isOpen) return null;
+    
+    const getActionTitle = () => {
+        switch(action) {
+            case 'restrict': return 'Restrict Access';
+            case 'deactivate': return 'Deactivate Account (Permanent)';
+            case 'suspend': return 'Suspend Account';
+            case 'terminate': return 'Terminate Employment';
+            case 'loa': return 'Leave of Absence';
+            default: return 'Personnel Action';
+        }
+    };
+    
+    const getActionColor = () => {
+        switch(action) {
+            case 'restrict': return '#E65100';
+            case 'deactivate': return '#C0392B';
+            case 'suspend': return '#856404';
+            case 'terminate': return '#dc3545';
+            case 'loa': return '#1565C0';
+            default: return '#7A5C4E';
+        }
+    };
+    
+    const getActionDescription = () => {
+        switch(action) {
+            case 'restrict': return 'Temporarily restrict system access while keeping the account active.';
+            case 'deactivate': return 'Permanently deactivate account when staff leaves the organization for good.';
+            case 'suspend': return 'Temporarily suspend account due to policy violations or pending investigation.';
+            case 'terminate': return 'Terminate employment with immediate effect. Account will be disabled.';
+            case 'loa': return 'Grant leave of absence. Account will be temporarily disabled until return date.';
+            default: return '';
+        }
+    };
+    
+    return (
+        <div className="modal-overlay" style={{ zIndex: 10001 }}>
+            <div className="registration-modal" style={{ maxWidth: 500, padding: 0 }}>
+                <div style={{ padding: '20px 24px', borderBottom: '1.5px solid #E8D6CC', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: getActionColor(), borderRadius: '20px 20px 0 0' }}>
+                    <h4 style={{ margin: 0, color: '#fff' }}>{getActionTitle()}</h4>
+                    <button onClick={onCancel} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.2rem', cursor: 'pointer' }}><FaTimes /></button>
+                </div>
+                <div style={{ padding: '24px' }}>
+                    <div style={{ background: '#FFF8F3', padding: '12px 16px', borderRadius: 10, marginBottom: 20 }}>
+                        <strong>{userName}</strong> (Current Status: {currentStatus || 'Active'})
+                    </div>
+                    <p style={{ color: getActionColor(), fontSize: '.88rem', marginBottom: 20, padding: '10px', background: `${getActionColor()}10`, borderRadius: 8 }}>
+                        {getActionDescription()}
+                    </p>
+                    
+                    <div style={{ marginBottom: 16 }}>
+                        <label style={{ display: 'block', marginBottom: 6, fontWeight: 600, fontSize: '.82rem', color: '#7A5C4E' }}>Reason *</label>
+                        <textarea
+                            value={reason}
+                            onChange={(e) => setReason(e.target.value)}
+                            placeholder="Provide detailed reason for this action..."
+                            rows={3}
+                            style={{
+                                width: '100%', padding: '10px 14px', border: '1.5px solid #E8D6CC', borderRadius: 10,
+                                fontFamily: "'DM Sans', sans-serif", fontSize: '.88rem', resize: 'vertical'
+                            }}
+                        />
+                    </div>
+                    
+                    <div style={{ marginBottom: 16 }}>
+                        <label style={{ display: 'block', marginBottom: 6, fontWeight: 600, fontSize: '.82rem', color: '#7A5C4E' }}>Effective Date</label>
+                        <input
+                            type="date"
+                            value={effectiveDate}
+                            onChange={(e) => setEffectiveDate(e.target.value)}
+                            style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #E8D6CC', borderRadius: 10 }}
+                        />
+                    </div>
+                    
+                    <div style={{ marginBottom: 20 }}>
+                        <label style={{ display: 'block', marginBottom: 6, fontWeight: 600, fontSize: '.82rem', color: '#7A5C4E' }}>Additional Notes</label>
+                        <textarea
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            placeholder="Any additional information or documentation reference..."
+                            rows={2}
+                            style={{
+                                width: '100%', padding: '10px 14px', border: '1.5px solid #E8D6CC', borderRadius: 10,
+                                fontFamily: "'DM Sans', sans-serif", fontSize: '.88rem', resize: 'vertical'
+                            }}
+                        />
+                    </div>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 10, borderTop: '1.5px solid #E8D6CC' }}>
+                        <button className="btn-outline-sm" onClick={onCancel}>Cancel</button>
+                        <button
+                            onClick={onConfirm}
+                            disabled={!reason.trim() || loading}
+                            style={{
+                                padding: '10px 24px', borderRadius: 9, border: 'none',
+                                background: !reason.trim() || loading ? '#ccc' : getActionColor(),
+                                color: '#fff', fontWeight: 600, cursor: !reason.trim() || loading ? 'not-allowed' : 'pointer'
+                            }}
+                        >
+                            {loading ? <FaSpinner className="spin" /> : `Confirm ${getActionTitle()}`}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const proofUrl = (filename) => {
     const base = API_BASE_URL.replace(/\/api\/?$/, '');
     return `${base}/uploads/${filename}`;
 };
 
-// ── Details Modal ─────────────────────────────────────────────────────────────
 const DetailsModal = ({ data, type, onClose }) => {
     if (!data) return null;
     return (
@@ -146,7 +249,6 @@ const DetailsModal = ({ data, type, onClose }) => {
                             <InfoMini label="Amount" value={`₱${data.amount?.toLocaleString()}`} accent="#28a745" />
                             <InfoMini label="Type" value={data.donationType} />
                         </div>
-                        {/* Appointment info for cash/in-person donations */}
                         {data.donationType === 'cash' && (data.appointmentDate || data.appointmentTime) && (
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, background: 'var(--d-cream)', padding: 14, borderRadius: 8 }}>
                                 {data.appointmentDate && (
@@ -158,8 +260,6 @@ const DetailsModal = ({ data, type, onClose }) => {
                             </div>
                         )}
                         <InfoRow label="Receipt" value={data.receiptNumber || 'Awaiting confirmation'} mono />
-
-                        {/* ── Proof of Payment ── */}
                         <div>
                             <small style={{ color: 'var(--d-muted)', fontWeight: 700, textTransform: 'uppercase', fontSize: '.7rem' }}>
                                 Proof of Payment
@@ -167,7 +267,6 @@ const DetailsModal = ({ data, type, onClose }) => {
                             {data.proofOfPayment ? (
                                 <div style={{ marginTop: 8 }}>
                                     {/\.(jpg|jpeg|png|gif|webp)$/i.test(data.proofOfPayment) ? (
-                                        // ── Image preview ──
                                         <a href={proofUrl(data.proofOfPayment)} target="_blank" rel="noopener noreferrer">
                                             <img
                                                 src={proofUrl(data.proofOfPayment)}
@@ -185,7 +284,6 @@ const DetailsModal = ({ data, type, onClose }) => {
                                             </small>
                                         </a>
                                     ) : (
-                                        // ── PDF link ──
                                         <a
                                             href={proofUrl(data.proofOfPayment)}
                                             target="_blank"
@@ -208,7 +306,6 @@ const DetailsModal = ({ data, type, onClose }) => {
                                 </div>
                             )}
                         </div>
-
                         <div><small style={{ color: 'var(--d-muted)', fontWeight: 700 }}>Status</small>
                             <div style={{ marginTop: 6 }}><span className={`status ${data.paymentStatus}`}>{data.paymentStatus}</span></div>
                         </div>
@@ -232,13 +329,13 @@ const InfoRow = ({ label, value, highlight, mono }) => (
         }}>{value}</div>
     </div>
 );
+
 const InfoMini = ({ label, value, accent }) => (
     <div><small style={{ color: 'var(--d-muted)' }}>{label}</small>
         <div style={{ fontWeight: 600, color: accent || 'var(--d-ink)' }}>{value}</div>
     </div>
 );
 
-// ── Main Component ────────────────────────────────────────────────────────────
 const AdminDashboard = () => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
@@ -250,6 +347,7 @@ const AdminDashboard = () => {
     const [notifOpen, setNotifOpen] = useState(false);
     const [notifications, setNotifications] = useState([]);
     const [readIds, setReadIds] = useState(new Set());
+    const [toastMessage, setToastMessage] = useState(null);
 
     const [currentPage, setCurrentPage] = useState(1);
     const [bookingPage, setBookingPage] = useState(1);
@@ -268,6 +366,18 @@ const AdminDashboard = () => {
     const [showAddInventory, setShowAddInventory] = useState(false);
     const [detailsModal, setDetailsModal] = useState({ isOpen: false, type: '', data: null });
 
+    const [reasonModal, setReasonModal] = useState({
+        isOpen: false,
+        action: null,
+        userId: null,
+        userName: '',
+        currentStatus: null,
+        reason: '',
+        effectiveDate: new Date().toISOString().slice(0, 10),
+        notes: ''
+    });
+    const [actionLoading, setActionLoading] = useState(false);
+
     const [confirmModal, setConfirmModal] = useState({
         isOpen: false, title: '', message: '', onConfirm: null, danger: false, confirmLabel: 'Confirm'
     });
@@ -284,22 +394,23 @@ const AdminDashboard = () => {
     const [registeredName, setRegisteredName] = useState('');
 
     const [stats, setStats] = useState({
-        totalResidents: 0, staffOnDuty: 0, pendingBookings: 0,
+        totalResidents: 0, activeStaff: 0, pendingBookings: 0,
         totalDonations: 0, totalDonationAmount: 0, lowStockItems: 0,
         complianceRate: 92, missedMeds: 2, delayedMeds: 1
     });
 
     const [editStatusModal, setEditStatusModal] = useState({ isOpen: false, booking: null, newStatus: '' });
     const [stockRequests, setStockRequests] = useState([]);
+    const [rejectionModal, setRejectionModal] = useState({ isOpen: false, bookingId: null, reason: '' });
+    const [openDropdown, setOpenDropdown] = useState(null);
+    const dropdownRef = useRef(null);
 
-    const [rejectionModal, setRejectionModal] = useState({
-        isOpen: false,
-        bookingId: null,
-        reason: ''
-    });
-
-    // ── Real-time socket listeners ─────────────────────────────────────────
     const { on, off } = useSocket();
+
+    const toast = (msg, type = 'success') => {
+        setToastMessage({ msg, type });
+        setTimeout(() => setToastMessage(null), 3000);
+    };
 
     useEffect(() => {
         const handleNewBooking = (booking) => {
@@ -322,18 +433,19 @@ const AdminDashboard = () => {
         };
     }, [on, off]);
 
-    // ── Close dropdowns when clicking outside ─────────────────────────────
     useEffect(() => {
         const handler = (e) => {
             if (notifRef.current && !notifRef.current.contains(e.target)) {
                 setNotifOpen(false);
+            }
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+                setOpenDropdown(null);
             }
         };
         document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
     }, []);
 
-    // ── Build notifications from live data ────────────────────────────────
     useEffect(() => {
         const built = buildNotifications(bookings, donations, staff, inventory);
         setNotifications(built);
@@ -345,9 +457,6 @@ const AdminDashboard = () => {
 
     const markAllRead = () => setReadIds(new Set(notifications.map(n => n.id)));
     const markRead = (id) => setReadIds(prev => new Set([...prev, id]));
-
-    // ==================== FIXED SEARCH FILTERS ====================
-    // These now properly filter based on searchQuery and activeSection context
 
     const filteredStaff = useMemo(() => {
         const q = searchQuery.toLowerCase().trim();
@@ -370,9 +479,7 @@ const AdminDashboard = () => {
             b.email?.toLowerCase().includes(q) ||
             b.phone?.toLowerCase().includes(q) ||
             b.purpose?.toLowerCase().includes(q) ||
-            b.status?.toLowerCase().includes(q) ||
-            (b.firstName && b.firstName.toLowerCase().includes(q)) ||
-            (b.lastName && b.lastName.toLowerCase().includes(q))
+            b.status?.toLowerCase().includes(q)
         );
     }, [bookings, searchQuery]);
 
@@ -383,9 +490,7 @@ const AdminDashboard = () => {
             d.donorName?.toLowerCase().includes(q) ||
             d.email?.toLowerCase().includes(q) ||
             d.donationType?.toLowerCase().includes(q) ||
-            d.paymentStatus?.toLowerCase().includes(q) ||
-            (d.firstName && d.firstName.toLowerCase().includes(q)) ||
-            (d.lastName && d.lastName.toLowerCase().includes(q))
+            d.paymentStatus?.toLowerCase().includes(q)
         );
     }, [donations, searchQuery]);
 
@@ -399,7 +504,6 @@ const AdminDashboard = () => {
         );
     }, [inventory, searchQuery]);
 
-    // Reset pages when section or search changes
     useEffect(() => {
         setCurrentPage(1);
         setBookingPage(1);
@@ -407,11 +511,6 @@ const AdminDashboard = () => {
         setInventoryPage(1);
     }, [activeSection, searchQuery]);
 
-    // Clear search when changing sections (optional - remove if you want search to persist)
-    // Uncomment the line below if you want search to clear when changing sections
-    // useEffect(() => { setSearchQuery(''); }, [activeSection]);
-
-    // ── API helper ────────────────────────────────────────────────────────
     const fetchApi = useCallback(async (endpoint, options = {}) => {
         const token = localStorage.getItem('token');
         try {
@@ -431,7 +530,6 @@ const AdminDashboard = () => {
         }
     }, []);
 
-    // ── Initial data load ─────────────────────────────────────────────────
     useEffect(() => {
         const load = async () => {
             setLoading(true);
@@ -448,17 +546,8 @@ const AdminDashboard = () => {
             setLoading(false);
         };
         load();
-    }, [fetchApi]);
-
-    useEffect(() => {
-        if (activeSection === 'staff' || activeSection === 'roster') fetchStaffList();
-        // Also load staff on initial load so reports have data
-    }, [activeSection]);
-
-    useEffect(() => {
-        // Pre-load staff on mount for reports/overview
         fetchStaffList();
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [fetchApi]);
 
     const fetchStaffList = async () => {
         const d = await fetchApi('/admin/staff');
@@ -495,7 +584,6 @@ const AdminDashboard = () => {
         );
     };
 
-    // ── Pagination renderer ───────────────────────────────────────────────
     const renderPagination = (total, page, setPage) => {
         const pages = Math.ceil(total / itemsPerPage);
         if (pages <= 1) return null;
@@ -513,26 +601,6 @@ const AdminDashboard = () => {
                 </div>
             </div>
         );
-    };
-
-    // ── Staff actions ─────────────────────────────────────────────────────
-    const generateRegistrationCode = async (role = 'nurse') => {
-        const d = await fetchApi('/admin/generate-codes', {
-            method: 'POST', body: JSON.stringify({ count: 1, role })
-        });
-        if (d.success && d.codes?.length) {
-            const code = d.codes[0].code;
-            navigator.clipboard.writeText(code).catch(() => { });
-            showConfirm(
-                `Code Generated for ${role.toUpperCase()}`,
-                `Registration code: ${code}\n\nThis code has been copied to your clipboard. Share it with the new staff member — they will use it to self-register their account on the Staff Registration page. Each code is single-use and expires in 72 hours.`,
-                closeConfirm,
-                false,
-                'OK'
-            );
-        } else {
-            showConfirm('Error', d.message || 'Failed to generate code.', closeConfirm, true, 'OK');
-        }
     };
 
     const sendOtp = async (email, userId, firstName) => {
@@ -580,9 +648,6 @@ const AdminDashboard = () => {
         fetchStaffList();
     };
 
-    // NOTE: changeRole function is removed - role is now permanent/read-only
-    // Staff roles are set during registration and cannot be changed by admin
-
     const toggleStaffStatus = async (id, cur) => {
         const next = cur === 'active' ? 'inactive' : 'active';
         const member = staff.find(m => m._id === id);
@@ -591,13 +656,172 @@ const AdminDashboard = () => {
             `Are you sure you want to ${next === 'active' ? 'activate' : 'deactivate'} ${member?.firstName} ${member?.lastName}?`,
             async () => {
                 closeConfirm();
-                setStaff(staff.map(m => m._id === id ? { ...m, isActive: next === 'active' } : m));
+                setStaff(staff.map(m => m._id === id ? { ...m, isActive: next === 'active', status: next === 'active' ? 'active' : 'inactive' } : m));
                 await fetchApi(`/admin/staff/${id}/status`, {
                     method: 'PUT', body: JSON.stringify({ status: next })
                 });
+                toast(`${member?.firstName} ${member?.lastName} has been ${next === 'active' ? 'activated' : 'deactivated'}.`);
+                await fetchStaffList();
             },
             next === 'inactive',
             next === 'active' ? 'Activate' : 'Deactivate'
+        );
+    };
+
+    const handleRestrictUser = (userId, userName, currentStatus) => {
+        setReasonModal({
+            isOpen: true,
+            action: 'restrict',
+            userId,
+            userName,
+            currentStatus,
+            reason: '',
+            effectiveDate: new Date().toISOString().slice(0, 10),
+            notes: ''
+        });
+    };
+
+    const handleDeactivateUser = (userId, userName, currentStatus) => {
+        setReasonModal({
+            isOpen: true,
+            action: 'deactivate',
+            userId,
+            userName,
+            currentStatus,
+            reason: '',
+            effectiveDate: new Date().toISOString().slice(0, 10),
+            notes: ''
+        });
+    };
+
+    const handleSuspendUser = (userId, userName, currentStatus) => {
+        setReasonModal({
+            isOpen: true,
+            action: 'suspend',
+            userId,
+            userName,
+            currentStatus,
+            reason: '',
+            effectiveDate: new Date().toISOString().slice(0, 10),
+            notes: ''
+        });
+    };
+
+    const handleTerminateUser = (userId, userName, currentStatus) => {
+        setReasonModal({
+            isOpen: true,
+            action: 'terminate',
+            userId,
+            userName,
+            currentStatus,
+            reason: '',
+            effectiveDate: new Date().toISOString().slice(0, 10),
+            notes: ''
+        });
+    };
+
+    const handleLeaveOfAbsence = (userId, userName, currentStatus) => {
+        setReasonModal({
+            isOpen: true,
+            action: 'loa',
+            userId,
+            userName,
+            currentStatus,
+            reason: '',
+            effectiveDate: new Date().toISOString().slice(0, 10),
+            notes: ''
+        });
+    };
+
+    const confirmPersonnelAction = async () => {
+        const { action, userId, reason, effectiveDate, notes, userName } = reasonModal;
+ 
+        // Map each action to the real accountStatus string that the backend expects.
+        // This is the fix: before, ALL actions sent 'inactive'.
+        // Now each action sends its own distinct status.
+        const actionStatusMap = {
+            restrict:   'restricted',
+            suspend:    'suspended',
+            terminate:  'terminated',
+            loa:        'on_leave',
+            deactivate: 'deactivated',
+        };
+ 
+        const newStatus = actionStatusMap[action];
+        if (!newStatus) return;
+ 
+        const actionLabels = {
+            restrict:   'restricted',
+            suspend:    'suspended',
+            terminate:  'terminated',
+            loa:        'placed on leave of absence',
+            deactivate: 'permanently deactivated',
+        };
+ 
+        setActionLoading(true);
+ 
+        try {
+            // Send the real accountStatus — backend now understands all values
+            await fetchApi(`/admin/staff/${userId}/status`, {
+                method: 'PUT',
+                body: JSON.stringify({ status: newStatus, reason })
+            });
+ 
+            // Log the action with full details
+            await fetchApi(`/admin/staff/${userId}/action-log`, {
+                method: 'POST',
+                body: JSON.stringify({ action, reason, effectiveDate, notes, performedBy: user._id, newStatus })
+            });
+ 
+            // Update local state so the UI reflects the new status immediately
+            setStaff(staff.map(m =>
+                m._id === userId
+                    ? { ...m, isActive: false, accountStatus: newStatus, status: newStatus, actionReason: reason, actionDate: effectiveDate }
+                    : m
+            ));
+ 
+            toast(`${userName} has been ${actionLabels[action]}. Reason: ${reason.substring(0, 50)}${reason.length > 50 ? '...' : ''}`);
+            setReasonModal({ isOpen: false, action: null, userId: null, userName: '', currentStatus: null, reason: '', effectiveDate: '', notes: '' });
+ 
+            await fetchStaffList();
+ 
+        } catch (error) {
+            console.error('Action error:', error);
+            toast('Failed to perform action. Please try again.', 'error');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleReactivateUser = async (userId, userName) => {
+        showConfirm(
+            'Reactivate Account',
+            `Are you sure you want to reactivate ${userName}'s account? This will restore their access.`,
+            async () => {
+                closeConfirm();
+                setLoading(true);
+                try {
+                    await fetchApi(`/admin/staff/${userId}/status`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ status: 'active' })
+                    });
+                    
+                    await fetchApi(`/admin/staff/${userId}/action-log`, {
+                        method: 'POST',
+                        body: JSON.stringify({ action: 'reactivate', reason: 'Account reactivated', performedBy: user._id, newStatus: 'active' })
+                    });
+                    
+                    setStaff(staff.map(m => m._id === userId ? { ...m, isActive: true, status: 'active' } : m));
+                    toast(`${userName} has been reactivated.`);
+                    await fetchStaffList();
+                } catch (error) {
+                    toast('Failed to reactivate account.', 'error');
+                } finally {
+                    setLoading(false);
+                }
+            },
+            false,
+            'Reactivate'
         );
     };
 
@@ -610,6 +834,8 @@ const AdminDashboard = () => {
                 closeConfirm();
                 setStaff(staff.filter(m => m._id !== id));
                 await fetchApi(`/admin/staff/${id}`, { method: 'DELETE' });
+                toast(`${member?.firstName} ${member?.lastName} has been deleted.`);
+                await fetchStaffList();
             },
             true,
             'Delete'
@@ -633,18 +859,20 @@ const AdminDashboard = () => {
                 if (status !== 'pending') {
                     setStats(p => ({ ...p, pendingBookings: Math.max(0, p.pendingBookings - 1) }));
                 }
+                toast(`Booking ${actionLabel.toLowerCase()}d successfully.`);
             },
             status === 'rejected',
             actionLabel
         );
     };
+
     const handleRejectWithReason = (bookingId) => {
         setRejectionModal({ isOpen: true, bookingId, reason: '' });
     };
 
     const confirmRejection = async () => {
         if (!rejectionModal.reason.trim() || rejectionModal.reason.trim().length < 5) {
-            alert('Please provide a rejection reason (minimum 5 characters)');
+            toast('Please provide a rejection reason (minimum 5 characters)', 'error');
             return;
         }
         await updateBookingStatus(rejectionModal.bookingId, 'rejected', rejectionModal.reason);
@@ -662,6 +890,7 @@ const AdminDashboard = () => {
                 await fetchApi(`/donations/${id}/payment`, {
                     method: 'PUT', body: JSON.stringify({ paymentStatus })
                 });
+                toast(`Donation marked as ${paymentStatus}.`);
             },
             false,
             'Confirm'
@@ -690,10 +919,10 @@ const AdminDashboard = () => {
             const data = await res.json();
             if (data.success && data.data) {
                 setInventory(prev => [data.data, ...prev]);
+                toast('Inventory item added successfully.');
             }
         } catch (err) {
             console.error('Add inventory error:', err);
-            // Optimistic fallback
             setInventory(prev => [...prev, {
                 _id: Date.now().toString(),
                 name: item.name,
@@ -702,6 +931,7 @@ const AdminDashboard = () => {
                 unit: item.unit || 'pcs',
                 minThreshold: Number(item.minThreshold) || 10,
             }]);
+            toast('Inventory item added (local).', 'info');
         }
         setShowAddInventory(false);
     };
@@ -740,10 +970,8 @@ const AdminDashboard = () => {
             });
         }
         doc.save(`KA_${type}_${Date.now()}.pdf`);
+        toast('Report exported successfully.');
     };
-
-    const handleGenerateReport = (type) =>
-        showConfirm('Generate Report', `A ${type} report will be emailed to ${user?.email}. Continue?`, closeConfirm, false, 'Send Report');
 
     const handleEditBooking = (b) => {
         setEditStatusModal({ isOpen: true, booking: b, newStatus: b.status });
@@ -755,18 +983,62 @@ const AdminDashboard = () => {
             `Log attendance for ${name} at ${new Date().toLocaleTimeString()}?`,
             async () => {
                 closeConfirm();
-                // Log attendance via API
                 await fetchApi(`/admin/staff/${id}/attendance`, {
                     method: 'POST',
                     body: JSON.stringify({ loggedAt: new Date().toISOString() })
                 });
+                toast(`Attendance logged for ${name}.`);
             },
             false,
             'Log Attendance'
         );
 
-    // Search badge helper - shows search results count
-    const getSearchBadge = (filteredArray, totalArray, label) => {
+    const viewUserHistory = (userId, userName) => {
+        toast(`Viewing history for ${userName} - Feature coming soon.`, 'info');
+    };
+
+    const getSearchPlaceholder = () => {
+        switch (activeSection) {
+            case 'staff':
+            case 'roster':
+                return 'Search by name, email, role, or staff ID…';
+            case 'booking':
+                return 'Search by visitor name, email, phone, purpose, or status…';
+            case 'donation':
+                return 'Search by donor name, email, donation type, or status…';
+            case 'inventory':
+                return 'Search by item name, category, or status…';
+            default:
+                return 'Search across dashboard…';
+        }
+    };
+
+    const getRoleBadgeStyle = (role) => {
+        switch (role) {
+            case 'admin':
+                return { background: '#dc3545', color: 'white' };
+            case 'head_caregiver':
+                return { background: '#b85c2d', color: 'white' };
+            case 'caregiver':
+                return { background: '#28a745', color: 'white' };
+            default:
+                return { background: '#6c757d', color: 'white' };
+        }
+    };
+
+    const getStatusBadgeStyle = (status) => {
+        if (!status || status === 'active') return { background: '#EEFBF5', color: '#1E7D56', label: 'Active' };
+        switch(status) {
+            case 'restricted': return { background: '#FFF8E1', color: '#E65100', label: 'Restricted' };
+            case 'suspended': return { background: '#FFF3CD', color: '#856404', label: 'Suspended' };
+            case 'on_leave': return { background: '#E8F4FD', color: '#1565C0', label: 'On Leave' };
+            case 'terminated': return { background: '#FFF0F0', color: '#C0392B', label: 'Terminated' };
+            case 'inactive': return { background: '#F3F4F6', color: '#6B7280', label: 'Inactive' };
+            default: return { background: '#EEFBF5', color: '#1E7D56', label: 'Active' };
+        }
+    };
+
+    const getSearchBadge = (filteredArray, totalArray) => {
         if (!searchQuery.trim()) return null;
         if (filteredArray.length !== totalArray.length) {
             return (
@@ -777,22 +1049,6 @@ const AdminDashboard = () => {
         }
         return null;
     };
-
-    // Helper to get role badge color
-    const getRoleBadgeStyle = (role) => {
-        switch (role) {
-            case 'admin':
-                return { background: '#dc3545', color: 'white' };
-            case 'nurse':
-                return { background: '#28a745', color: 'white' };
-            case 'caregiver':
-                return { background: '#17a2b8', color: 'white' };
-            default:
-                return { background: '#6c757d', color: 'white' };
-        }
-    };
-
-    // ==================== SECTION RENDERERS ====================
 
     const renderOverview = () => (
         <div>
@@ -819,7 +1075,7 @@ const AdminDashboard = () => {
             <div className="stats-grid">
                 {[
                     { bg: '#b85c2d', icon: <FaUsers />, val: stats.totalResidents, label: 'Total Residents', section: null },
-                    { bg: '#28a745', icon: <FaUserMd />, val: stats.staffOnDuty, label: 'Staff on Duty', section: 'roster' },
+                    { bg: '#28a745', icon: <FaUserMd />, val: stats.activeStaff, label: 'Active Staff', section: 'roster' },
                     { bg: '#ffc107', icon: <FaCalendarCheck />, val: stats.pendingBookings, label: 'Pending Bookings', section: 'booking' },
                     { bg: '#17a2b8', icon: <FaChartBar />, val: `₱${(stats.totalDonationAmount || 0).toLocaleString()}`, label: 'Total Donations', section: 'donation' },
                 ].map((s, i) => (
@@ -890,7 +1146,7 @@ const AdminDashboard = () => {
                     <div className="card-header">
                         <h5>
                             Personnel Management
-                            {getSearchBadge(filteredStaff, staff, 'staff')}
+                            {getSearchBadge(filteredStaff, staff)}
                         </h5>
                         <button className="btn-primary-sm" onClick={() => setShowRegistrationModal(true)}>
                             <FaUserPlus /> Add New Personnel
@@ -906,49 +1162,203 @@ const AdminDashboard = () => {
                                 <tr><td colSpan="5" className="text-center" style={{ padding: '2rem', color: 'var(--d-muted)' }}>
                                     {searchQuery ? `No personnel match "${searchQuery}"` : 'No personnel found.'}
                                 </td></tr>
-                            ) : paged.map(m => (
-                                <tr key={m._id}>
-                                    <td>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                            <FaUserCircle size={30} color="var(--d-border)" />
-                                            <div>
-                                                <strong>{m.firstName} {m.lastName}</strong><br />
-                                                <small className="text-muted">ID: {m.staffId || m.employeeId || 'Auto-generated'}</small>
+                            ) : paged.map(m => {
+                                const statusStyle = getStatusBadgeStyle(m.status || (m.isActive ? 'active' : 'inactive'));
+                                return (
+                                    <tr key={m._id}>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                <FaUserCircle size={30} color="var(--d-border)" />
+                                                <div>
+                                                    <strong>{m.firstName} {m.lastName}</strong><br />
+                                                    <small className="text-muted">ID: {m.staffId || m.employeeId || 'Auto-generated'}</small>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div><FaEnvelope size={11} style={{ marginRight: 5, color: 'var(--d-muted)' }} />{m.email}</div>
-                                        {m.phone && <small className="text-muted"><FaPhone size={10} style={{ marginRight: 4 }} />{m.phone}</small>}
-                                    </td>
-                                    <td>
-                                        {/* Role is now permanent/read-only - no dropdown */}
-                                        <span
-                                            className="role-badge"
-                                            style={{
-                                                display: 'inline-block',
-                                                padding: '6px 14px',
-                                                borderRadius: 20,
-                                                fontSize: '.8rem',
-                                                fontWeight: 600,
-                                                textTransform: 'capitalize',
+                                        </td>
+                                        <td>
+                                            <div><FaEnvelope size={11} style={{ marginRight: 5, color: 'var(--d-muted)' }} />{m.email}</div>
+                                            {m.phone && <small className="text-muted"><FaPhone size={10} style={{ marginRight: 4 }} />{m.phone}</small>}
+                                        </td>
+                                        <td>
+                                            <span className="role-badge" style={{
+                                                display: 'inline-block', padding: '6px 14px', borderRadius: 20,
+                                                fontSize: '.8rem', fontWeight: 600, textTransform: 'capitalize',
                                                 ...getRoleBadgeStyle(m.role)
-                                            }}
-                                        >
-                                            {m.role}
-                                        </span>
-                                    </td>
-                                    <td><span className={`status ${m.isActive ? 'active' : 'inactive'}`}>{m.isActive ? 'Active' : 'Inactive'}</span></td>
-                                    <td className="actions">
-                                        <span title="Mark Attendance" className="edit" onClick={() => handleMarkAttendance(m._id, `${m.firstName} ${m.lastName}`)}><FaClock /></span>
-                                        {m.isActive
-                                            ? <span title="Deactivate" className="deactivate" onClick={() => toggleStaffStatus(m._id, 'active')}><FaBan /></span>
-                                            : <span title="Activate" className="activate" onClick={() => toggleStaffStatus(m._id, 'inactive')}><FaCheckCircle /></span>
-                                        }
-                                        <span title="Delete" className="delete" onClick={() => deleteStaff(m._id)}><FaTrash /></span>
-                                    </td>
-                                </tr>
-                            ))}
+                                            }}>
+                                                {m.role === 'head_caregiver' ? 'Head Caregiver' : m.role}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span className="status" style={statusStyle}>{statusStyle.label}</span>
+                                            {m.actionReason && (
+                                                <small style={{ display: 'block', fontSize: '.7rem', color: '#dc3545', marginTop: 3 }}>
+                                                    {m.actionReason.substring(0, 40)}...
+                                                </small>
+                                            )}
+                                        </td>
+                                        <td className="actions" style={{ position: 'relative' }}>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setOpenDropdown(openDropdown === m._id ? null : m._id);
+                                                }}
+                                                style={{
+                                                    padding: '8px 16px',
+                                                    borderRadius: 8,
+                                                    border: '1.5px solid var(--d-border)',
+                                                    background: 'var(--d-cream)',
+                                                    color: 'var(--d-ink)',
+                                                    cursor: 'pointer',
+                                                    fontSize: '.88rem',
+                                                    fontWeight: 600,
+                                                    fontFamily: 'var(--d-font-body)',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 8,
+                                                    transition: 'all .2s'
+                                                }}
+                                            >
+                                                Actions <FaChevronDown size={12} style={{ transition: 'transform .2s', transform: openDropdown === m._id ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                                            </button>
+                                            
+                                            {openDropdown === m._id && (
+                                                <div
+                                                    ref={dropdownRef}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        top: '100%',
+                                                        right: 0,
+                                                        marginTop: 6,
+                                                        background: 'white',
+                                                        border: '1.5px solid var(--d-border)',
+                                                        borderRadius: 12,
+                                                        boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                                                        zIndex: 1000,
+                                                        minWidth: 220,
+                                                        overflow: 'hidden'
+                                                    }}
+                                                >
+                                                    <div style={{ padding: '6px 0' }}>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleMarkAttendance(m._id, `${m.firstName} ${m.lastName}`);
+                                                                setOpenDropdown(null);
+                                                            }}
+                                                            className="dropdown-item"
+                                                        >
+                                                            <FaClock style={{ color: '#17a2b8' }} /> Mark Attendance
+                                                        </button>
+                                                        
+                                                        {m.isActive && m.status !== 'restricted' && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleRestrictUser(m._id, `${m.firstName} ${m.lastName}`, m.status);
+                                                                    setOpenDropdown(null);
+                                                                }}
+                                                                className="dropdown-item"
+                                                            >
+                                                                <FaBan style={{ color: '#E65100' }} /> Restrict Access
+                                                            </button>
+                                                        )}
+                                                        
+                                                        {m.isActive && m.status !== 'suspended' && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleSuspendUser(m._id, `${m.firstName} ${m.lastName}`, m.status);
+                                                                    setOpenDropdown(null);
+                                                                }}
+                                                                className="dropdown-item"
+                                                            >
+                                                                <FaExclamationTriangle style={{ color: '#856404' }} /> Suspend Account
+                                                            </button>
+                                                        )}
+                                                        
+                                                        {m.isActive && m.status !== 'on_leave' && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleLeaveOfAbsence(m._id, `${m.firstName} ${m.lastName}`, m.status);
+                                                                    setOpenDropdown(null);
+                                                                }}
+                                                                className="dropdown-item"
+                                                            >
+                                                                <FaCalendarAlt style={{ color: '#1565C0' }} /> Leave of Absence
+                                                            </button>
+                                                        )}
+                                                        
+                                                        {m.isActive && m.status !== 'terminated' && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleTerminateUser(m._id, `${m.firstName} ${m.lastName}`, m.status);
+                                                                    setOpenDropdown(null);
+                                                                }}
+                                                                className="dropdown-item"
+                                                            >
+                                                                <FaTimesCircle style={{ color: '#C0392B' }} /> Terminate Employment
+                                                            </button>
+                                                        )}
+                                                        
+                                                        <div style={{ height: 1, background: 'var(--d-border)', margin: '6px 0' }} />
+                                                        
+                                                        {m.isActive || (m.status && (m.status === 'restricted' || m.status === 'suspended' || m.status === 'on_leave')) ? (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleDeactivateUser(m._id, `${m.firstName} ${m.lastName}`, m.status);
+                                                                    setOpenDropdown(null);
+                                                                }}
+                                                                className="dropdown-item"
+                                                            >
+                                                                <FaTrash style={{ color: '#dc3545' }} /> Deactivate (Permanent)
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleReactivateUser(m._id, `${m.firstName} ${m.lastName}`);
+                                                                    setOpenDropdown(null);
+                                                                }}
+                                                                className="dropdown-item"
+                                                            >
+                                                                <FaCheckCircle style={{ color: '#28a745' }} /> Reactivate Account
+                                                            </button>
+                                                        )}
+                                                        
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                viewUserHistory(m._id, `${m.firstName} ${m.lastName}`);
+                                                                setOpenDropdown(null);
+                                                            }}
+                                                            className="dropdown-item"
+                                                        >
+                                                            <FaHistory style={{ color: '#3949AB' }} /> View Action History
+                                                        </button>
+                                                        
+                                                        <div style={{ height: 1, background: 'var(--d-border)', margin: '6px 0' }} />
+                                                        
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                deleteStaff(m._id);
+                                                                setOpenDropdown(null);
+                                                            }}
+                                                            className="dropdown-item"
+                                                            style={{ color: '#dc3545' }}
+                                                        >
+                                                            <FaTrash /> Delete Permanently
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                     {renderPagination(filteredStaff.length, currentPage, setCurrentPage)}
@@ -1027,7 +1437,7 @@ const AdminDashboard = () => {
                         <h5>
                             <FaCalendarAlt color="var(--d-orange)" style={{ marginRight: 8 }} />
                             Admission &amp; Booking — {monthLabel}
-                            {getSearchBadge(filteredBookings, bookings, 'bookings')}
+                            {getSearchBadge(filteredBookings, bookings)}
                         </h5>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                             {Object.entries(STATUS_STYLE).map(([k, v]) => (
@@ -1093,7 +1503,7 @@ const AdminDashboard = () => {
                     <div className="card-header">
                         <h5>
                             All Bookings
-                            {getSearchBadge(filteredBookings, bookings, 'bookings')}
+                            {getSearchBadge(filteredBookings, bookings)}
                         </h5>
                         {searchQuery && filteredBookings.length === 0 && (
                             <button className="btn-outline-sm" onClick={() => setSearchQuery('')}>
@@ -1124,15 +1534,112 @@ const AdminDashboard = () => {
                                                 <small>Purpose: {b.purpose} ({b.numberOfVisitors} pax)</small>
                                             </td>
                                             <td><span className={`status ${b.status}`}>{b.status}</span></td>
-                                            <td className="actions">
-                                                {b.status === 'pending' && <>
-                                                    <button className="btn-success-sm" onClick={() => updateBookingStatus(b._id, 'approved')}>Approve</button>
-                                                    <button className="btn-danger-sm" onClick={() => handleRejectWithReason(b._id)}>Reject</button>                                                </>}
-                                                {b.status === 'approved' && (
-                                                    <button className="btn-primary-sm" onClick={() => updateBookingStatus(b._id, 'completed')}>Complete</button>
+                                            <td className="actions" style={{ position: 'relative' }}>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setOpenDropdown(openDropdown === b._id ? null : b._id);
+                                                    }}
+                                                    style={{
+                                                        padding: '8px 16px',
+                                                        borderRadius: 8,
+                                                        border: '1.5px solid var(--d-border)',
+                                                        background: 'var(--d-cream)',
+                                                        color: 'var(--d-ink)',
+                                                        cursor: 'pointer',
+                                                        fontSize: '.88rem',
+                                                        fontWeight: 600,
+                                                        fontFamily: 'var(--d-font-body)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: 8,
+                                                        transition: 'all .2s'
+                                                    }}
+                                                >
+                                                    Actions <FaChevronDown size={12} style={{ transition: 'transform .2s', transform: openDropdown === b._id ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                                                </button>
+                                                
+                                                {openDropdown === b._id && (
+                                                    <div
+                                                        ref={dropdownRef}
+                                                        style={{
+                                                            position: 'absolute',
+                                                            top: '100%',
+                                                            right: 0,
+                                                            marginTop: 6,
+                                                            background: 'white',
+                                                            border: '1.5px solid var(--d-border)',
+                                                            borderRadius: 12,
+                                                            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                                                            zIndex: 1000,
+                                                            minWidth: 200,
+                                                            overflow: 'hidden'
+                                                        }}
+                                                    >
+                                                        <div style={{ padding: '6px 0' }}>
+                                                            {b.status === 'pending' && (
+                                                                <>
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            updateBookingStatus(b._id, 'approved');
+                                                                            setOpenDropdown(null);
+                                                                        }}
+                                                                        className="dropdown-item"
+                                                                    >
+                                                                        <FaCheckCircle style={{ color: '#28a745' }} /> Approve Booking
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleRejectWithReason(b._id);
+                                                                            setOpenDropdown(null);
+                                                                        }}
+                                                                        className="dropdown-item"
+                                                                    >
+                                                                        <FaBan style={{ color: '#dc3545' }} /> Reject Booking
+                                                                    </button>
+                                                                    <div style={{ height: 1, background: 'var(--d-border)', margin: '6px 0' }} />
+                                                                </>
+                                                            )}
+                                                            {b.status === 'approved' && (
+                                                                <>
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            updateBookingStatus(b._id, 'completed');
+                                                                            setOpenDropdown(null);
+                                                                        }}
+                                                                        className="dropdown-item"
+                                                                    >
+                                                                        <FaCheckCircle style={{ color: '#5c6bc0' }} /> Mark Complete
+                                                                    </button>
+                                                                    <div style={{ height: 1, background: 'var(--d-border)', margin: '6px 0' }} />
+                                                                </>
+                                                            )}
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleViewDetails('booking', b);
+                                                                    setOpenDropdown(null);
+                                                                }}
+                                                                className="dropdown-item"
+                                                            >
+                                                                <FaEye style={{ color: '#17a2b8' }} /> View Details
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleEditBooking(b);
+                                                                    setOpenDropdown(null);
+                                                                }}
+                                                                className="dropdown-item"
+                                                            >
+                                                                <FaEdit style={{ color: '#ffc107' }} /> Edit Status
+                                                            </button>
+                                                        </div>
+                                                    </div>
                                                 )}
-                                                <span title="View Details" className="view" onClick={() => handleViewDetails('booking', b)}><FaEye /></span>
-                                                <span title="Edit Status" className="edit" onClick={() => handleEditBooking(b)}><FaEdit /></span>
                                             </td>
                                         </tr>
                                     ))}
@@ -1153,7 +1660,7 @@ const AdminDashboard = () => {
                 <div className="card-header">
                     <h5>
                         Donation Management
-                        {getSearchBadge(filteredDonations, donations, 'donations')}
+                        {getSearchBadge(filteredDonations, donations)}
                     </h5>
                     <button className="btn-primary-sm" onClick={() => handleExportPDF('donations')}>
                         <FaDownload /> Export PDF
@@ -1277,7 +1784,7 @@ const AdminDashboard = () => {
             <div className="card-white">
                 <div className="card-header">
                     <h5>Medication Compliance Chart</h5>
-                    <button className="btn-primary-sm" onClick={() => handleGenerateReport('Compliance')}>
+                    <button className="btn-primary-sm" onClick={() => toast('Report generation coming soon.', 'info')}>
                         <FaFileAlt /> Full Report
                     </button>
                 </div>
@@ -1363,29 +1870,9 @@ const AdminDashboard = () => {
         }
     };
 
-    // Get placeholder text for search based on active section
-    const getSearchPlaceholder = () => {
-        switch (activeSection) {
-            case 'staff':
-            case 'roster':
-                return 'Search by name, email, role, or staff ID…';
-            case 'booking':
-                return 'Search by visitor name, email, phone, purpose, or status…';
-            case 'donation':
-                return 'Search by donor name, email, donation type, or status…';
-            case 'inventory':
-                return 'Search by item name, category, or status…';
-            default:
-                return 'Search across dashboard…';
-        }
-    };
-
-    // ==================== MAIN RENDER ====================
     return (
         <div className="dashboard-layout">
             <div className="dashboard-body">
-
-                {/* Sidebar */}
                 <div className="sidebar">
                     <div className="sidebar-header">
                         <div className="brand-section">
@@ -1418,10 +1905,7 @@ const AdminDashboard = () => {
                     </div>
                 </div>
 
-                {/* Main area */}
                 <div className="main-content-wrapper">
-
-                    {/* Topbar with Search */}
                     <div className="admin-topbar">
                         <div className="topbar-left">
                             <div className="topbar-search-wrapper">
@@ -1442,8 +1926,6 @@ const AdminDashboard = () => {
                         </div>
 
                         <div className="topbar-right">
-
-                            {/* Notification Bell */}
                             <div className="topbar-notif-menu" ref={notifRef}>
                                 <button
                                     className="topbar-icon-btn"
@@ -1509,7 +1991,6 @@ const AdminDashboard = () => {
                                 )}
                             </div>
 
-                            {/* User dropdown */}
                             <div className="topbar-user-menu">
                                 <div
                                     className={`topbar-user-trigger ${accountMenuOpen ? 'active' : ''}`}
@@ -1543,12 +2024,18 @@ const AdminDashboard = () => {
                         </div>
                     </div>
 
-                    {/* Page content */}
                     <div className="main-content">{renderContent()}</div>
                 </div>
             </div>
 
-            {/* Modals */}
+            {toastMessage && (
+                <div className="toast-container" style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 10002 }}>
+                    <div className={`toast ${toastMessage.type === 'error' ? 'error' : toastMessage.type === 'info' ? 'warn' : 'success'}`}>
+                        {toastMessage.type === 'error' ? <FaTimes /> : <FaCheck />} {toastMessage.msg}
+                    </div>
+                </div>
+            )}
+
             <UserRegistrationModal
                 isOpen={showRegistrationModal}
                 onClose={() => setShowRegistrationModal(false)}
@@ -1575,6 +2062,22 @@ const AdminDashboard = () => {
                 onCancel={closeConfirm}
                 confirmLabel={confirmModal.confirmLabel}
                 danger={confirmModal.danger}
+            />
+
+            <ReasonModal
+                isOpen={reasonModal.isOpen}
+                action={reasonModal.action}
+                userName={reasonModal.userName}
+                currentStatus={reasonModal.currentStatus}
+                reason={reasonModal.reason}
+                setReason={(val) => setReasonModal(prev => ({ ...prev, reason: val }))}
+                effectiveDate={reasonModal.effectiveDate}
+                setEffectiveDate={(val) => setReasonModal(prev => ({ ...prev, effectiveDate: val }))}
+                notes={reasonModal.notes}
+                setNotes={(val) => setReasonModal(prev => ({ ...prev, notes: val }))}
+                onConfirm={confirmPersonnelAction}
+                onCancel={() => setReasonModal(prev => ({ ...prev, isOpen: false }))}
+                loading={actionLoading}
             />
 
             {editStatusModal.isOpen && (
@@ -1621,9 +2124,9 @@ const AdminDashboard = () => {
                             >Save</button>
                         </div>
                     </div>
-
                 </div>
             )}
+
             {rejectionModal.isOpen && (
                 <div className="modal-overlay" style={{ zIndex: 9999 }}>
                     <div className="registration-modal" style={{ maxWidth: 450, padding: 32 }}>

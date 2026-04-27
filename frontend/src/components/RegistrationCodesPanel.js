@@ -1,4 +1,3 @@
-// RegistrationCodesPanel.js
 import React, { useState } from 'react';
 import axios from 'axios';
 
@@ -7,7 +6,7 @@ const RegistrationCodesPanel = () => {
     const [generating, setGenerating] = useState(false);
     const [form, setForm] = useState({
         count: 1,
-        role: 'staff',
+        role: 'caregiver',
         purpose: ''
     });
 
@@ -44,8 +43,9 @@ const RegistrationCodesPanel = () => {
                     value={form.role}
                     onChange={(e) => setForm({...form, role: e.target.value})}
                 >
-                    <option value="staff">Staff</option>
-                    <option value="admin">Admin</option>
+                    <option value="admin">Admin (Web Dashboard)</option>
+                    <option value="head_caregiver">Head Caregiver (Web Dashboard)</option>
+                    <option value="caregiver">Caregiver (Mobile App)</option>
                 </select>
                 <button onClick={generateCodes} disabled={generating}>
                     {generating ? 'Generating...' : 'Generate Codes'}
@@ -56,7 +56,7 @@ const RegistrationCodesPanel = () => {
                 {codes.map((code, index) => (
                     <div key={index} className="code-item">
                         <span className="code">{code.code}</span>
-                        <span className="role">{code.role}</span>
+                        <span className="role">{code.role === 'head_caregiver' ? 'Head Caregiver' : code.role === 'caregiver' ? 'Caregiver (Mobile)' : code.role}</span>
                         <span className="expiry">
                             Expires: {new Date(code.expiresAt).toLocaleDateString()}
                         </span>
@@ -72,3 +72,5 @@ const RegistrationCodesPanel = () => {
         </div>
     );
 };
+
+export default RegistrationCodesPanel;

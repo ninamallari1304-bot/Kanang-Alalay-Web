@@ -11,13 +11,6 @@ const userSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     phone: { type: String },
-    // Floors for nurses/caregivers: '1st Floor' – '4th Floor'
-    ward: {
-        type: String,
-        trim: true,
-        default: '',
-    },
-    // Auto-set by role: 'Nursing', 'Caregiving', 'Administration', or area name for staff
     department: {
         type: String,
         trim: true,
@@ -41,43 +34,53 @@ const userSchema = new mongoose.Schema({
         phone: String,
         relation: String
     },
-    licenseNumber: String,
-    specialization: String,
-    yearsOfExperience: Number,
-
     role: {
         type: String,
-        enum: ['admin', 'nurse', 'caregiver'],
-        default: 'nurse'
+        enum: ['admin', 'head_caregiver', 'caregiver'],
+        default: 'caregiver'
     },
 
-    // Account status
+    // ── Account Status ────────────────────────────────────────────────────────
+    // 'pending'     → Newly registered, waiting for OTP activation by admin
+    // 'active'      → Normal, fully operational account
+    // 'restricted'  → Admin restricted access (still employed, limited access)
+    // 'suspended'   → Temporarily suspended (policy violation / investigation)
+    // 'on_leave'    → On approved leave of absence
+    // 'terminated'  → Employment terminated, no longer with organization
+    // 'deactivated' → Permanently deactivated (permanent departure)
+    accountStatus: {
+        type: String,
+        enum: ['pending', 'active', 'restricted', 'suspended', 'on_leave', 'terminated', 'deactivated'],
+        default: 'pending'
+    },
+    // Reason recorded when admin changes accountStatus
+    statusReason: { type: String, default: '' },
+    statusUpdatedAt: { type: Date },
+    statusUpdatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+
+    // Legacy fields — kept for backward compatibility, derived from accountStatus
     isVerified: { type: Boolean, default: false },
     isActive: { type: Boolean, default: false },
     isEmailVerified: { type: Boolean, default: false },
 
-    // Login / Activation OTP
     otpCode: { type: String },
     otpExpires: { type: Date },
-
-    // Forgot-Password OTP  ← used by /forgot-password routes
     resetPasswordOtp: { type: String },
     resetPasswordOtpExpires: { type: Date },
-
-    // Legacy email-link verification (older flow)
     emailVerificationToken: { type: String },
     emailVerificationExpires: { type: Date },
-
-    // Legacy OTP fields (kept for backward compat)
     verificationOtp: { type: String },
     verificationOtpExpires: { type: Date },
     resetOtp: { type: String },
     resetOtpExpires: { type: Date },
-
 }, { timestamps: true });
 
-// ── Hash password before saving ──────────────────────────────────────────────
 userSchema.pre('save', async function (next) {
+    // Keep isActive in sync with accountStatus so old code still works
+    if (this.isModified('accountStatus')) {
+        this.isActive = this.accountStatus === 'active';
+    }
+
     if (!this.isModified('password')) return next();
     try {
         const salt = await bcrypt.genSalt(10);
@@ -88,7 +91,6 @@ userSchema.pre('save', async function (next) {
     }
 });
 
-// ── Instance method: compare plain-text vs hashed password ───────────────────
 userSchema.methods.comparePassword = async function (candidatePassword) {
     return bcrypt.compare(candidatePassword, this.password);
 };

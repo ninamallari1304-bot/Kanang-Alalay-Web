@@ -1,44 +1,42 @@
-const express      = require('express');
-const router       = express.Router();
-const Resident     = require('../models/Resident');
-const Medication   = require('../models/Medication');
+const express = require('express');
+const router = express.Router();
+const Resident = require('../models/Resident');
+const Medication = require('../models/Medication');
 const MedicationLog = require('../models/MedicationLog');
-const Inventory    = require('../models/Inventory');
-const VitalsLog    = require('../models/VitalsLog');
+const Inventory = require('../models/Inventory');
+const VitalsLog = require('../models/VitalsLog');
 const StockRequest = require('../models/StockRequest');
-const { protect }  = require('../middleware/authMiddleware');
+const { protect } = require('../middleware/authMiddleware');
 
 router.use(protect);
 
-// ── Helper: shape a MedicationLog doc for the frontend ───────────────────────
 function shapeLog(l) {
     const r = l.residentId;
     const m = l.medicationId;
     const isPopulated = r && typeof r === 'object';
 
     return {
-        _id:              l._id,
-        logId:            l.logId,
-        residentId:       isPopulated ? r._id : l.residentId,
-        residentName:     l.residentName || (isPopulated ? `${r.firstName} ${r.lastName}` : '—'),
-        medicationId:     isPopulated && m ? m._id : l.medicationId,
-        medicationName:   l.medicationName || (isPopulated && m ? m.name : '—'),
-        room:             l.room  || (isPopulated ? r.roomNumber || '' : ''),
-        floor:            l.floor || (isPopulated ? r.floor      || '' : ''),
-        bed:              l.bed   || (isPopulated ? r.bed        || '' : ''),
-        condition:        l.condition  || (isPopulated && m ? m.purpose || '' : ''),
-        dosage:           l.dosage     || (isPopulated && m && m.dosage ? `${m.dosage.value}${m.dosage.unit}` : ''),
-        frequency:        l.frequency  || '',
-        nextDose:         l.nextDose   || '',
-        scheduledTime:    l.scheduledTime,
+        _id: l._id,
+        logId: l.logId,
+        residentId: isPopulated ? r._id : l.residentId,
+        residentName: l.residentName || (isPopulated ? `${r.firstName} ${r.lastName}` : '—'),
+        medicationId: isPopulated && m ? m._id : l.medicationId,
+        medicationName: l.medicationName || (isPopulated && m ? m.name : '—'),
+        room: l.room || (isPopulated ? r.roomNumber || '' : ''),
+        floor: l.floor || (isPopulated ? r.floor || '' : ''),
+        bed: l.bed || (isPopulated ? r.bed || '' : ''),
+        condition: l.condition || (isPopulated && m ? m.purpose || '' : ''),
+        dosage: l.dosage || (isPopulated && m && m.dosage ? `${m.dosage.value}${m.dosage.unit}` : ''),
+        frequency: l.frequency || '',
+        nextDose: l.nextDose || '',
+        scheduledTime: l.scheduledTime,
         administeredTime: l.administeredTime,
-        status:           l.status,
-        notes:            l.notes || '',
+        status: l.status,
+        notes: l.notes || '',
         verificationMethod: l.verificationMethod,
     };
 }
 
-// ── Helper: auto-mark overdue logs ────────────────────────────────────────────
 async function autoMarkOverdue(logs) {
     const now = new Date();
     const toUpdate = logs.filter(l =>
@@ -53,34 +51,29 @@ async function autoMarkOverdue(logs) {
     return logs;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  RESIDENTS
-// ─────────────────────────────────────────────────────────────────────────────
-
-// GET /api/nurse/residents
 router.get('/residents', async (req, res) => {
     try {
         const residents = await Resident.find({ status: 'active' }).sort({ roomNumber: 1 });
         const shaped = residents.map(r => ({
-            _id:               r._id,
-            residentId:        r.residentId,
-            name:              `${r.firstName} ${r.lastName}`,
-            firstName:         r.firstName,
-            lastName:          r.lastName,
-            age:               r.age,
-            gender:            r.gender,
-            room:              r.roomNumber,
-            floor:             r.floor  || '',
-            bed:               r.bed    || '',
-            conditions:        (r.medicalConditions || []).map(c => c.name || c),
-            alertLevel:        r.alertLevel        || 'stable',
+            _id: r._id,
+            residentId: r.residentId,
+            name: `${r.firstName} ${r.lastName}`,
+            firstName: r.firstName,
+            lastName: r.lastName,
+            age: r.age,
+            gender: r.gender,
+            room: r.roomNumber,
+            floor: r.floor || '',
+            bed: r.bed || '',
+            conditions: (r.medicalConditions || []).map(c => c.name || c),
+            alertLevel: r.alertLevel || 'stable',
             medicationOverdue: r.medicationOverdue || false,
-            overdueMed:        r.overdueMed        || '',
-            overdueAt:         r.overdueAt         || null,
-            nextMed:           r.nextMed           || '',
-            primaryNurse:      r.assignedNurse     || '',
-            secondaryNurse:    r.assignedCaregiver || '',
-            status:            r.status,
+            overdueMed: r.overdueMed || '',
+            overdueAt: r.overdueAt || null,
+            nextMed: r.nextMed || '',
+            primaryNurse: r.assignedNurse || '',
+            secondaryNurse: r.assignedCaregiver || '',
+            status: r.status,
         }));
         res.json({ success: true, data: shaped, count: shaped.length });
     } catch (err) {
@@ -88,7 +81,6 @@ router.get('/residents', async (req, res) => {
     }
 });
 
-// POST /api/nurse/residents
 router.post('/residents', async (req, res) => {
     try {
         const { firstName, lastName, middleName, age, gender, roomNumber, floor, bed, conditions, primaryNurse, alertLevel, admissionDate } = req.body;
@@ -96,10 +88,10 @@ router.post('/residents', async (req, res) => {
             return res.status(400).json({ success: false, message: 'firstName, lastName, age, gender, roomNumber are required.' });
 
         const residentId = 'RES' + Date.now().toString().slice(-6);
-        const resident   = new Resident({
+        const resident = new Resident({
             residentId, firstName, lastName, age, gender,
             roomNumber, floor: floor || '', bed: bed || '',
-            alertLevel:    alertLevel || 'stable',
+            alertLevel: alertLevel || 'stable',
             admissionDate: admissionDate ? new Date(admissionDate) : new Date(),
             medicalConditions: (conditions || []).map(c => ({ name: c })),
             assignedNurse: primaryNurse || `${req.user.firstName} ${req.user.lastName}`,
@@ -107,25 +99,25 @@ router.post('/residents', async (req, res) => {
         await resident.save();
 
         const shaped = {
-            _id:               resident._id,
-            residentId:        resident.residentId,
-            name:              `${resident.firstName} ${resident.lastName}`,
-            firstName:         resident.firstName,
-            lastName:          resident.lastName,
-            age:               resident.age,
-            gender:            resident.gender,
-            room:              resident.roomNumber,
-            floor:             resident.floor  || '',
-            bed:               resident.bed    || '',
-            conditions:        (resident.medicalConditions || []).map(c => c.name || c),
-            alertLevel:        resident.alertLevel        || 'stable',
+            _id: resident._id,
+            residentId: resident.residentId,
+            name: `${resident.firstName} ${resident.lastName}`,
+            firstName: resident.firstName,
+            lastName: resident.lastName,
+            age: resident.age,
+            gender: resident.gender,
+            room: resident.roomNumber,
+            floor: resident.floor || '',
+            bed: resident.bed || '',
+            conditions: (resident.medicalConditions || []).map(c => c.name || c),
+            alertLevel: resident.alertLevel || 'stable',
             medicationOverdue: resident.medicationOverdue || false,
-            overdueMed:        resident.overdueMed        || '',
-            overdueAt:         resident.overdueAt         || null,
-            nextMed:           resident.nextMed           || '',
-            primaryNurse:      resident.assignedNurse     || '',
-            secondaryNurse:    resident.assignedCaregiver || '',
-            status:            resident.status,
+            overdueMed: resident.overdueMed || '',
+            overdueAt: resident.overdueAt || null,
+            nextMed: resident.nextMed || '',
+            primaryNurse: resident.assignedNurse || '',
+            secondaryNurse: resident.assignedCaregiver || '',
+            status: resident.status,
         };
         res.status(201).json({ success: true, data: shaped });
     } catch (err) {
@@ -133,7 +125,6 @@ router.post('/residents', async (req, res) => {
     }
 });
 
-// PUT /api/nurse/residents/:id
 router.put('/residents/:id', async (req, res) => {
     try {
         const { conditions, ...rest } = req.body;
@@ -147,7 +138,6 @@ router.put('/residents/:id', async (req, res) => {
     }
 });
 
-// POST /api/nurse/residents/:id/vitals
 router.post('/residents/:id/vitals', async (req, res) => {
     try {
         const { bloodPressure, heartRate, temperature, oxygenSat, weight, notes } = req.body;
@@ -156,18 +146,17 @@ router.post('/residents/:id/vitals', async (req, res) => {
         if (!resident) return res.status(404).json({ success: false, message: 'Resident not found.' });
 
         const vitals = new VitalsLog({
-            residentId:    req.params.id,
-            loggedBy:      req.user._id,
+            residentId: req.params.id,
+            loggedBy: req.user._id,
             bloodPressure: bloodPressure || '',
-            heartRate:     heartRate     ? +heartRate     : null,
-            temperature:   temperature   ? +temperature   : null,
-            oxygenSat:     oxygenSat     ? +oxygenSat     : null,
-            weight:        weight        ? +weight        : null,
-            notes:         notes         || '',
+            heartRate: heartRate ? +heartRate : null,
+            temperature: temperature ? +temperature : null,
+            oxygenSat: oxygenSat ? +oxygenSat : null,
+            weight: weight ? +weight : null,
+            notes: notes || '',
         });
         await vitals.save();
 
-        // Update resident alertLevel if any vitals are critical
         let alertLevel = resident.alertLevel || 'stable';
         if ((+temperature > 38.5) || (+heartRate > 100) || (+oxygenSat < 94)) {
             alertLevel = 'alert';
@@ -185,7 +174,6 @@ router.post('/residents/:id/vitals', async (req, res) => {
     }
 });
 
-// GET /api/nurse/residents/:id/vitals
 router.get('/residents/:id/vitals', async (req, res) => {
     try {
         const vitals = await VitalsLog.find({ residentId: req.params.id })
@@ -197,11 +185,6 @@ router.get('/residents/:id/vitals', async (req, res) => {
     }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  MEDICATIONS
-// ─────────────────────────────────────────────────────────────────────────────
-
-// GET /api/nurse/medications
 router.get('/medications', async (req, res) => {
     try {
         const meds = await Medication.find({ isActive: true }).sort({ name: 1 });
@@ -211,11 +194,6 @@ router.get('/medications', async (req, res) => {
     }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  MEDICATION SCHEDULE
-// ─────────────────────────────────────────────────────────────────────────────
-
-// GET /api/nurse/schedule
 router.get('/schedule', async (req, res) => {
     try {
         const { date, residentId } = req.query;
@@ -225,13 +203,13 @@ router.get('/schedule', async (req, res) => {
         nextDay.setDate(nextDay.getDate() + 1);
 
         const query = {
-            caregiverId:   req.user._id,
+            caregiverId: req.user._id,
             scheduledTime: { $gte: target, $lt: nextDay },
         };
         if (residentId) query.residentId = residentId;
 
         let logs = await MedicationLog.find(query)
-            .populate('residentId',   'firstName lastName roomNumber floor bed')
+            .populate('residentId', 'firstName lastName roomNumber floor bed')
             .populate('medicationId', 'name dosage form purpose')
             .sort({ scheduledTime: 1 });
 
@@ -242,7 +220,6 @@ router.get('/schedule', async (req, res) => {
     }
 });
 
-// GET /api/nurse/schedule/all  — all logs (admin / nurse overview)
 router.get('/schedule/all', async (req, res) => {
     try {
         const { date } = req.query;
@@ -252,7 +229,7 @@ router.get('/schedule/all', async (req, res) => {
         nextDay.setDate(nextDay.getDate() + 1);
 
         let logs = await MedicationLog.find({ scheduledTime: { $gte: target, $lt: nextDay } })
-            .populate('residentId',   'firstName lastName roomNumber floor bed')
+            .populate('residentId', 'firstName lastName roomNumber floor bed')
             .populate('medicationId', 'name dosage form purpose')
             .sort({ scheduledTime: 1 });
 
@@ -263,7 +240,6 @@ router.get('/schedule/all', async (req, res) => {
     }
 });
 
-// POST /api/nurse/schedule
 router.post('/schedule', async (req, res) => {
     try {
         const {
@@ -278,28 +254,28 @@ router.post('/schedule', async (req, res) => {
             Resident.findById(residentId),
             Medication.findById(medicationId),
         ]);
-        if (!resident)   return res.status(404).json({ success: false, message: 'Resident not found.' });
+        if (!resident) return res.status(404).json({ success: false, message: 'Resident not found.' });
         if (!medication) return res.status(404).json({ success: false, message: 'Medication not found.' });
 
         const logId = `LOG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
         const log = new MedicationLog({
             logId,
-            residentId:    resident._id,
-            medicationId:  medication._id,
-            caregiverId:   req.user._id,
-            residentName:  `${resident.firstName} ${resident.lastName}`,
+            residentId: resident._id,
+            medicationId: medication._id,
+            caregiverId: req.user._id,
+            residentName: `${resident.firstName} ${resident.lastName}`,
             medicationName: medication.name,
-            room:          resident.roomNumber || '',
-            floor:         resident.floor      || '',
-            bed:           resident.bed        || '',
-            condition:     medication.purpose  || '',
-            dosage:        dosage || (medication.dosage ? `${medication.dosage.value}${medication.dosage.unit}` : ''),
-            frequency:     frequency || '',
-            nextDose:      nextDose  || '',
+            room: resident.roomNumber || '',
+            floor: resident.floor || '',
+            bed: resident.bed || '',
+            condition: medication.purpose || '',
+            dosage: dosage || (medication.dosage ? `${medication.dosage.value}${medication.dosage.unit}` : ''),
+            frequency: frequency || '',
+            nextDose: nextDose || '',
             scheduledTime: new Date(scheduledTime),
-            notes:         notes     || '',
-            status:        'scheduled',
+            notes: notes || '',
+            status: 'scheduled',
         });
         await log.save();
 
@@ -309,7 +285,6 @@ router.post('/schedule', async (req, res) => {
     }
 });
 
-// PUT /api/nurse/schedule/:id/status
 router.put('/schedule/:id/status', async (req, res) => {
     try {
         const { status, notes, verificationMethod } = req.body;
@@ -323,12 +298,10 @@ router.put('/schedule/:id/status', async (req, res) => {
         log.status = status;
         if (status === 'administered' || status === 'completed') {
             log.administeredTime = new Date();
-            // Decrement inventory stock for this medication
             await Inventory.findOneAndUpdate(
                 { name: { $regex: new RegExp(log.medicationName, 'i') } },
                 { $inc: { quantity: -1 } }
             );
-            // Clear overdue flag on resident if no more overdue logs
             if (log.residentId) {
                 const stillOverdue = await MedicationLog.findOne({
                     residentId: log.residentId,
@@ -338,13 +311,13 @@ router.put('/schedule/:id/status', async (req, res) => {
                 if (!stillOverdue) {
                     await Resident.findByIdAndUpdate(log.residentId, {
                         medicationOverdue: false,
-                        overdueMed:  '',
-                        overdueAt:   null,
+                        overdueMed: '',
+                        overdueAt: null,
                     });
                 }
             }
         }
-        if (notes              !== undefined) log.notes              = notes;
+        if (notes !== undefined) log.notes = notes;
         if (verificationMethod !== undefined) log.verificationMethod = verificationMethod;
         await log.save();
 
@@ -354,19 +327,18 @@ router.put('/schedule/:id/status', async (req, res) => {
     }
 });
 
-// PUT /api/nurse/schedule/:id
 router.put('/schedule/:id', async (req, res) => {
     try {
         const { scheduledTime, dosage, notes, nextDose, frequency } = req.body;
         const update = {};
         if (scheduledTime !== undefined) update.scheduledTime = new Date(scheduledTime);
-        if (dosage        !== undefined) update.dosage        = dosage;
-        if (notes         !== undefined) update.notes         = notes;
-        if (nextDose      !== undefined) update.nextDose      = nextDose;
-        if (frequency     !== undefined) update.frequency     = frequency;
+        if (dosage !== undefined) update.dosage = dosage;
+        if (notes !== undefined) update.notes = notes;
+        if (nextDose !== undefined) update.nextDose = nextDose;
+        if (frequency !== undefined) update.frequency = frequency;
 
         const log = await MedicationLog.findByIdAndUpdate(req.params.id, update, { new: true })
-            .populate('residentId',   'firstName lastName roomNumber floor bed')
+            .populate('residentId', 'firstName lastName roomNumber floor bed')
             .populate('medicationId', 'name dosage form purpose');
 
         if (!log) return res.status(404).json({ success: false, message: 'Log not found.' });
@@ -376,11 +348,6 @@ router.put('/schedule/:id', async (req, res) => {
     }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  INVENTORY (read-only for nurses; stock requests)
-// ─────────────────────────────────────────────────────────────────────────────
-
-// GET /api/nurse/inventory
 router.get('/inventory', async (req, res) => {
     try {
         const items = await Inventory.find({
@@ -392,7 +359,6 @@ router.get('/inventory', async (req, res) => {
     }
 });
 
-// POST /api/nurse/inventory/request
 router.post('/inventory/request', async (req, res) => {
     try {
         const { itemId, itemName, quantity, reason } = req.body;
@@ -400,17 +366,17 @@ router.post('/inventory/request', async (req, res) => {
             return res.status(400).json({ success: false, message: 'itemName and quantity are required.' });
 
         const request = new StockRequest({
-            itemId:      itemId || '',
-            itemName:    itemName.trim(),
-            quantity:    +quantity,
-            reason:      reason || '',
+            itemId: itemId || '',
+            itemName: itemName.trim(),
+            quantity: +quantity,
+            reason: reason || '',
             requestedBy: req.user._id,
         });
         await request.save();
 
         res.json({
             success: true,
-            message: `Stock request for ${quantity} units of "${itemName}" submitted. Admin has been notified.`,
+            message: `Stock request for ${quantity} units of "${itemName}" submitted.`,
             data: request
         });
     } catch (err) {
@@ -418,9 +384,6 @@ router.post('/inventory/request', async (req, res) => {
     }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  VOICE NOTE
-// ─────────────────────────────────────────────────────────────────────────────
 router.post('/voice-note', async (req, res) => {
     try {
         const { note, logId } = req.body;
@@ -432,12 +395,9 @@ router.post('/voice-note', async (req, res) => {
     }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  STATS
-// ─────────────────────────────────────────────────────────────────────────────
 router.get('/stats', async (req, res) => {
     try {
-        const today    = new Date(); today.setHours(0, 0, 0, 0);
+        const today = new Date(); today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
 
         const [totalResidents, todayLogs, invItems] = await Promise.all([
@@ -446,10 +406,10 @@ router.get('/stats', async (req, res) => {
             Inventory.find({ category: { $in: ['medication', 'medical_supplies'] } }, { quantity: 1, minThreshold: 1 }),
         ]);
 
-        const total   = todayLogs.length;
-        const onTime  = todayLogs.filter(l => l.status === 'administered' || l.status === 'completed').length;
+        const total = todayLogs.length;
+        const onTime = todayLogs.filter(l => l.status === 'administered' || l.status === 'completed').length;
         const delayed = todayLogs.filter(l => l.status === 'delayed').length;
-        const missed  = todayLogs.filter(l => l.status === 'missed').length;
+        const missed = todayLogs.filter(l => l.status === 'missed').length;
         const pending = todayLogs.filter(l => l.status === 'scheduled' || l.status === 'pending').length;
         const overdue = todayLogs.filter(l => l.status === 'overdue').length;
         const complianceRate = total > 0 ? Math.round((onTime / total) * 100) : 0;

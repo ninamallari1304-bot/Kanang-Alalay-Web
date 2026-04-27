@@ -2,13 +2,13 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 
 const AuthContext = createContext(null);
 
-const VALID_ROLES = ['admin', 'nurse', 'caregiver'];
+const WEB_ALLOWED_ROLES = ['admin', 'head_caregiver'];
 
 const getApiBaseUrl = () => {
     const fallback = process.env.NODE_ENV === 'production'
         ? 'https://kanang-alalay-backend.onrender.com/api'
         : 'http://localhost:5000/api';
-    const raw     = process.env.REACT_APP_API_URL || fallback;
+    const raw = process.env.REACT_APP_API_URL || fallback;
     const trimmed = raw.replace(/\/+$/, '');
     return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
 };
@@ -16,13 +16,12 @@ const getApiBaseUrl = () => {
 const API_BASE_URL = getApiBaseUrl();
 
 export const AuthProvider = ({ children }) => {
-    const [user,    setUser]    = useState(null);
+    const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    // ── On mount: restore session AND validate token with backend ─────────────
     useEffect(() => {
         const restore = async () => {
-            const token      = localStorage.getItem('token');
+            const token = localStorage.getItem('token');
             const storedUser = localStorage.getItem('user');
 
             if (!token || !storedUser) {
@@ -40,17 +39,15 @@ export const AuthProvider = ({ children }) => {
                 return;
             }
 
-            // Reject stale/removed roles immediately
-            if (!VALID_ROLES.includes(parsed.role)) {
+            if (!WEB_ALLOWED_ROLES.includes(parsed.role)) {
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
                 setLoading(false);
                 return;
             }
 
-            // Validate token with backend
             try {
-                const res  = await fetch(`${API_BASE_URL}/auth/validate-token`, {
+                const res = await fetch(`${API_BASE_URL}/auth/validate-token`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 const data = await res.json();
@@ -62,11 +59,9 @@ export const AuthProvider = ({ children }) => {
                     return;
                 }
 
-                // Refresh stored user with latest data from backend
                 localStorage.setItem('user', JSON.stringify(data.user));
                 setUser(data.user);
             } catch {
-                // Network error — fall back to stored user so app still works offline
                 setUser(parsed);
             }
 
@@ -76,12 +71,11 @@ export const AuthProvider = ({ children }) => {
         restore();
     }, []);
 
-    // ── Login ──────────────────────────────────────────────────────────────────
     const login = useCallback(async (username, password) => {
-        const res  = await fetch(`${API_BASE_URL}/auth/login`, {
-            method:  'POST',
+        const res = await fetch(`${API_BASE_URL}/auth/login`, {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ username, password }),
+            body: JSON.stringify({ username, password }),
         });
         const data = await res.json();
 
@@ -89,37 +83,37 @@ export const AuthProvider = ({ children }) => {
             return {
                 success: false,
                 message: data.message || 'Login failed.',
-                userId:  data.userId
+                userId: data.userId
             };
         }
 
-        if (!VALID_ROLES.includes(data.user?.role)) {
+        if (!WEB_ALLOWED_ROLES.includes(data.user?.role)) {
             return {
                 success: false,
-                message: 'Your account role is no longer supported. Please contact the administrator.',
+                message: 'Access restricted. This account is for mobile app use only.',
             };
         }
 
         localStorage.setItem('token', data.token);
-        localStorage.setItem('user',  JSON.stringify(data.user));
+        localStorage.setItem('user', JSON.stringify(data.user));
         setUser(data.user);
         return { success: true, user: data.user };
     }, []);
 
-    // ── Logout ─────────────────────────────────────────────────────────────────
     const logout = useCallback(() => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         setUser(null);
     }, []);
 
-    // ── Role → home route ──────────────────────────────────────────────────────
     const getHomeRoute = useCallback((role) => {
         switch ((role || '').toLowerCase()) {
-            case 'admin':     return '/admin';
-            case 'nurse':     return '/nurse';
-            case 'caregiver': return '/nurse';
-            default:          return '/login';
+            case 'admin':
+                return '/admin';
+            case 'head_caregiver':
+                return '/head-caregiver';
+            default:
+                return '/login';
         }
     }, []);
 

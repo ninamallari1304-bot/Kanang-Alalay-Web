@@ -1,26 +1,36 @@
-const express  = require('express');
-const router   = express.Router();
-const User     = require('../models/User');
-const Booking  = require('../models/Booking');
+const express = require('express');
+const router = express.Router();
+const User = require('../models/User');
+const Booking = require('../models/Booking');
 const Donation = require('../models/Donation');
 const Inventory = require('../models/Inventory');
 const RegistrationCode = require('../models/VerificationCode');
-const StockRequest     = require('../models/StockRequest');
-const VitalsLog        = require('../models/VitalsLog');
-const ActivityLog      = require('../models/ActivityLog');
-const { protect, adminOnly } = require('../middleware/authMiddleware');
+const StockRequest = require('../models/StockRequest');
+const VitalsLog = require('../models/VitalsLog');
+const ActivityLog = require('../models/ActivityLog');
+const { protect, adminOrHeadCaregiver } = require('../middleware/authMiddleware');
 const { sendEmail, generateOtpTemplate } = require('../models/mailer');
 
-router.use(protect, adminOnly);
+router.use(protect, adminOrHeadCaregiver);
 
-// ── Auto-generate staff ID with role prefix + 4-digit counter ────────────────
+// Valid accountStatus values and their human labels
+const ACCOUNT_STATUSES = {
+    active:      'Active',
+    pending:     'Pending Activation',
+    restricted:  'Restricted',
+    suspended:   'Suspended',
+    on_leave:    'On Leave',
+    terminated:  'Terminated',
+    deactivated: 'Deactivated',
+};
+
 async function generateStaffId(role) {
     const prefixMap = {
-        admin:     'ADMIN',
-        nurse:     'NURSE',
+        admin: 'ADMIN',
+        head_caregiver: 'HCG',
         caregiver: 'CG',
     };
-    const prefix = prefixMap[role] || 'NURSE';
+    const prefix = prefixMap[role] || 'CG';
 
     const latest = await User.findOne(
         { staffId: new RegExp(`^${prefix}-\\d+$`) },
@@ -31,19 +41,18 @@ async function generateStaffId(role) {
     let next = 1;
     if (latest?.staffId) {
         const parts = latest.staffId.split('-');
-        const num   = parseInt(parts[parts.length - 1], 10);
+        const num = parseInt(parts[parts.length - 1], 10);
         if (!isNaN(num)) next = num + 1;
     }
 
     return `${prefix}-${String(next).padStart(4, '0')}`;
 }
 
-// ==================== CREATE USER ============================================
 router.post('/create-user', async (req, res) => {
     try {
         const {
             firstName, lastName, middleName = '', username, email,
-            password, phone = '', role = 'nurse', ward = '', department = '',
+            password, phone = '', role = 'caregiver', department = '',
             activateImmediately = true
         } = req.body;
 
@@ -57,7 +66,12 @@ router.post('/create-user', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Password must be at least 8 characters.' });
         }
 
-        const derived  = username?.trim() || email.split('@')[0];
+        const allowedRoles = ['admin', 'head_caregiver', 'caregiver'];
+        if (!allowedRoles.includes(role)) {
+            return res.status(400).json({ success: false, message: `Role must be one of: ${allowedRoles.join(', ')}` });
+        }
+
+        const derived = username?.trim() || email.split('@')[0];
         const existing = await User.findOne({ $or: [{ email }, { username: derived }] });
         if (existing) {
             return res.status(400).json({
@@ -72,43 +86,43 @@ router.post('/create-user', async (req, res) => {
 
         const user = new User({
             staffId,
-            firstName:  firstName.trim(),
-            lastName:   lastName.trim(),
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
             middleName: middleName.trim(),
-            username:   derived,
-            email:      email.trim().toLowerCase(),
+            username: derived,
+            email: email.trim().toLowerCase(),
             password,
-            phone:      phone.trim(),
+            phone: phone.trim(),
             role,
-            ward:       ward       || undefined,
             department: department || undefined,
             isVerified: activateImmediately,
-            isActive:   activateImmediately,
+            isActive: activateImmediately,
+            accountStatus: activateImmediately ? 'active' : 'pending',
         });
 
         await user.save();
 
         if (!activateImmediately) {
-            const otpCode   = Math.floor(100000 + Math.random() * 900000).toString();
-            user.otpCode    = otpCode;
+            const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+            user.otpCode = otpCode;
             user.otpExpires = new Date(Date.now() + 15 * 60 * 1000);
             await user.save();
 
             try {
                 await sendEmail(email, 'Activate your Kanang-Alalay Account', generateOtpTemplate(otpCode));
             } catch (mailErr) {
-                console.error('❌ Email error:', mailErr.message);
+                console.error('Email error:', mailErr.message);
             }
         }
 
         res.status(201).json({
-            success:   true,
-            message:   `User ${firstName} ${lastName} created with ID ${staffId}.${activateImmediately ? ' Account is active.' : ' OTP sent for activation.'}`,
-            userId:    user._id,
-            staffId:   user.staffId,
-            email:     user.email,
+            success: true,
+            message: `User ${firstName} ${lastName} created with ID ${staffId}.${activateImmediately ? ' Account is active.' : ' OTP sent for activation.'}`,
+            userId: user._id,
+            staffId: user.staffId,
+            email: user.email,
             firstName: user.firstName,
-            role:      user.role,
+            role: user.role,
         });
     } catch (error) {
         console.error('Create user error:', error);
@@ -119,11 +133,10 @@ router.post('/create-user', async (req, res) => {
     }
 });
 
-// ==================== STAFF MANAGEMENT =======================================
 router.get('/staff', async (req, res) => {
     try {
         const staff = await User.find({
-            role: { $in: ['admin', 'nurse', 'caregiver'] }
+            role: { $in: ['admin', 'head_caregiver', 'caregiver'] }
         }).select('-password').sort({ createdAt: -1 });
 
         res.json({ success: true, count: staff.length, staff });
@@ -142,6 +155,9 @@ router.get('/staff/:id', async (req, res) => {
     }
 });
 
+// ── PUT /admin/staff/:id/status ──────────────────────────────────────────────
+// Now accepts the full accountStatus string from the frontend Actions dropdown.
+// Also keeps isActive in sync for backward compatibility.
 router.put('/staff/:id/status', async (req, res) => {
     try {
         const user = await User.findById(req.params.id);
@@ -151,18 +167,76 @@ router.put('/staff/:id/status', async (req, res) => {
             return res.status(400).json({ success: false, message: 'You cannot change your own status.' });
         }
 
-        user.isActive = req.body.status === 'active';
+        const { status, reason = '' } = req.body;
+
+        // Accept full accountStatus strings from the dashboard Actions menu
+        if (status && ACCOUNT_STATUSES[status]) {
+            user.accountStatus = status;
+            user.isActive = status === 'active';
+            user.isVerified = status === 'active' ? true : user.isVerified;
+            user.statusReason = reason;
+            user.statusUpdatedAt = new Date();
+            user.statusUpdatedBy = req.user._id;
+        } else if (status === 'inactive') {
+            // Legacy toggle from old simple activate/deactivate button
+            user.accountStatus = 'deactivated';
+            user.isActive = false;
+            user.statusReason = reason || 'Deactivated by admin';
+            user.statusUpdatedAt = new Date();
+            user.statusUpdatedBy = req.user._id;
+        } else {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid status. Allowed: ${Object.keys(ACCOUNT_STATUSES).join(', ')}`
+            });
+        }
+
         await user.save();
 
-        res.json({ success: true, message: `Staff status updated to ${user.isActive ? 'active' : 'inactive'}.` });
+        // Log to ActivityLog
+        await ActivityLog.create({
+            action: `STATUS_CHANGE_${status.toUpperCase()}`,
+            details: `${user.firstName} ${user.lastName}'s account status changed to "${ACCOUNT_STATUSES[user.accountStatus]}"${reason ? `. Reason: ${reason}` : ''}.`,
+            user: req.user._id,
+            targetId: user._id,
+        });
+
+        res.json({
+            success: true,
+            message: `${user.firstName} ${user.lastName}'s status updated to "${ACCOUNT_STATUSES[user.accountStatus]}".`,
+            accountStatus: user.accountStatus,
+            isActive: user.isActive,
+        });
     } catch (error) {
+        console.error('Status update error:', error);
         res.status(500).json({ success: false, message: 'Server error updating status' });
+    }
+});
+
+// ── POST /admin/staff/:id/action-log ─────────────────────────────────────────
+// Called by AdminDashboard after confirmPersonnelAction to log the action.
+router.post('/staff/:id/action-log', async (req, res) => {
+    try {
+        const { action, reason, effectiveDate, notes, newStatus } = req.body;
+        const user = await User.findById(req.params.id).select('firstName lastName');
+        if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+
+        await ActivityLog.create({
+            action: `ACTION_${action.toUpperCase()}`,
+            details: `Personnel action "${action}" on ${user.firstName} ${user.lastName}. Status: ${newStatus}. Reason: ${reason}. Effective: ${effectiveDate}. Notes: ${notes || 'none'}.`,
+            user: req.user._id,
+            targetId: user._id,
+        });
+
+        res.json({ success: true, message: 'Action logged.' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Server error logging action' });
     }
 });
 
 router.put('/staff/:id/role', async (req, res) => {
     try {
-        const allowedRoles = ['admin', 'nurse', 'caregiver'];
+        const allowedRoles = ['admin', 'head_caregiver', 'caregiver'];
         const { role } = req.body;
 
         if (!allowedRoles.includes(role)) {
@@ -200,7 +274,6 @@ router.delete('/staff/:id', async (req, res) => {
     }
 });
 
-// ==================== REGISTRATION CODES =====================================
 router.get('/registration-codes', async (req, res) => {
     try {
         const codes = await RegistrationCode.find().sort({ createdAt: -1 });
@@ -212,17 +285,22 @@ router.get('/registration-codes', async (req, res) => {
 
 router.post('/generate-codes', async (req, res) => {
     try {
-        const { count = 1, role = 'nurse' } = req.body;
+        const { count = 1, role = 'caregiver' } = req.body;
         const codes = [];
+
+        const allowedRoles = ['admin', 'head_caregiver', 'caregiver'];
+        if (!allowedRoles.includes(role)) {
+            return res.status(400).json({ success: false, message: `Role must be one of: ${allowedRoles.join(', ')}` });
+        }
 
         for (let i = 0; i < count; i++) {
             const code = `LSAE-REG-${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
             const newCode = new RegistrationCode({
                 code,
                 role,
-                email:     'unassigned@lsae.org',
+                email: 'unassigned@lsae.org',
                 expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000),
-                status:    'active'
+                status: 'active'
             });
             await newCode.save();
             codes.push(newCode);
@@ -234,23 +312,21 @@ router.post('/generate-codes', async (req, res) => {
     }
 });
 
-// ==================== DASHBOARD STATS ========================================
 router.get('/stats', async (req, res) => {
     try {
         const [
-            totalDonations, pendingBookings, staffOnDuty,
-            donationAmount, totalBookings, activeStaff,
+            totalDonations, pendingBookings, activeStaff,
+            donationAmount, totalBookings,
             inventoryItems
         ] = await Promise.all([
             Donation.countDocuments(),
             Booking.countDocuments({ status: 'pending' }),
-            User.countDocuments({ role: { $ne: 'admin' }, isActive: true }),
+            User.countDocuments({ accountStatus: 'active' }),
             Donation.aggregate([
                 { $match: { paymentStatus: 'paid' } },
                 { $group: { _id: null, total: { $sum: '$amount' } } }
             ]),
             Booking.countDocuments(),
-            User.countDocuments({ isActive: true, role: { $ne: 'admin' } }),
             Inventory.find({}, { quantity: 1, minThreshold: 1 })
         ]);
 
@@ -261,14 +337,13 @@ router.get('/stats', async (req, res) => {
         res.json({
             success: true,
             data: {
-                totalResidents:      71,
-                staffOnDuty,
+                totalResidents: 71,
+                activeStaff,
                 pendingBookings,
                 totalDonations,
                 totalDonationAmount: donationAmount[0]?.total || 0,
                 lowStockItems,
-                totalBookings,
-                activeStaff
+                totalBookings
             }
         });
     } catch (error) {
@@ -277,13 +352,12 @@ router.get('/stats', async (req, res) => {
     }
 });
 
-// ==================== INVENTORY ROUTES =======================================
 router.get('/inventory', async (req, res) => {
     try {
         const { category, status, limit = 100 } = req.query;
         const query = {};
         if (category) query.category = category;
-        if (status)   query.status   = status;
+        if (status) query.status = status;
 
         const items = await Inventory.find(query)
             .limit(parseInt(limit))
@@ -332,16 +406,15 @@ router.delete('/inventory/:id', async (req, res) => {
     }
 });
 
-// ==================== ATTENDANCE ==============================================
 router.post('/staff/:id/attendance', async (req, res) => {
     try {
         const user = await User.findById(req.params.id).select('-password');
         if (!user) return res.status(404).json({ success: false, message: 'Staff not found.' });
 
         await ActivityLog.create({
-            action:   'ATTENDANCE',
-            details:  `Attendance logged for ${user.firstName} ${user.lastName} at ${new Date().toLocaleTimeString()}`,
-            user:     req.user._id,
+            action: 'ATTENDANCE',
+            details: `Attendance logged for ${user.firstName} ${user.lastName} at ${new Date().toLocaleTimeString()}`,
+            user: req.user._id,
             targetId: user._id,
         });
         res.json({ success: true, message: `Attendance logged for ${user.firstName} ${user.lastName}.` });
@@ -350,12 +423,11 @@ router.post('/staff/:id/attendance', async (req, res) => {
     }
 });
 
-// ==================== STOCK REQUESTS =========================================
 router.get('/stock-requests', async (req, res) => {
     try {
         const requests = await StockRequest.find()
-            .populate('requestedBy', 'firstName lastName role ward')
-            .populate('resolvedBy',  'firstName lastName')
+            .populate('requestedBy', 'firstName lastName role')
+            .populate('resolvedBy', 'firstName lastName')
             .sort({ createdAt: -1 });
         res.json({ success: true, data: requests, count: requests.length });
     } catch (err) {
@@ -370,7 +442,7 @@ router.put('/stock-requests/:id', async (req, res) => {
             req.params.id,
             {
                 status,
-                adminNote:  adminNote || '',
+                adminNote: adminNote || '',
                 resolvedBy: req.user._id,
                 resolvedAt: new Date()
             },
