@@ -39,30 +39,17 @@ const userSchema = new mongoose.Schema({
         enum: ['admin', 'head_caregiver', 'caregiver'],
         default: 'caregiver'
     },
-
-    // ── Account Status ────────────────────────────────────────────────────────
-    // 'pending'     → Newly registered, waiting for OTP activation by admin
-    // 'active'      → Normal, fully operational account
-    // 'restricted'  → Admin restricted access (still employed, limited access)
-    // 'suspended'   → Temporarily suspended (policy violation / investigation)
-    // 'on_leave'    → On approved leave of absence
-    // 'terminated'  → Employment terminated, no longer with organization
-    // 'deactivated' → Permanently deactivated (permanent departure)
-    accountStatus: {
+    status: {
         type: String,
-        enum: ['pending', 'active', 'restricted', 'suspended', 'on_leave', 'terminated', 'deactivated'],
+        enum: ['pending', 'active', 'restricted', 'suspended', 'deactivated'],
         default: 'pending'
     },
-    // Reason recorded when admin changes accountStatus
     statusReason: { type: String, default: '' },
     statusUpdatedAt: { type: Date },
     statusUpdatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-
-    // Legacy fields — kept for backward compatibility, derived from accountStatus
     isVerified: { type: Boolean, default: false },
     isActive: { type: Boolean, default: false },
     isEmailVerified: { type: Boolean, default: false },
-
     otpCode: { type: String },
     otpExpires: { type: Date },
     resetPasswordOtp: { type: String },
@@ -76,11 +63,6 @@ const userSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 userSchema.pre('save', async function (next) {
-    // Keep isActive in sync with accountStatus so old code still works
-    if (this.isModified('accountStatus')) {
-        this.isActive = this.accountStatus === 'active';
-    }
-
     if (!this.isModified('password')) return next();
     try {
         const salt = await bcrypt.genSalt(10);

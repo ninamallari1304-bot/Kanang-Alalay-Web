@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { FaUser, FaLock, FaEye, FaEyeSlash, FaSpinner, FaEnvelope, FaKey, FaCheckCircle, FaTimes, FaArrowLeft, FaExclamationTriangle, FaBan, FaClock, FaTimesCircle } from 'react-icons/fa';
+import { FaUser, FaLock, FaEye, FaEyeSlash, FaSpinner, FaEnvelope, FaKey, FaCheckCircle, FaTimes, FaArrowLeft } from 'react-icons/fa';
 import '../styles/LoginPage.css';
 
 const getApiBaseUrl = () => {
@@ -15,52 +15,6 @@ const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl();
 
-// ── Blocked Account Panel config ──────────────────────────────────────────────
-// Each accountStatus that blocks login gets its own icon, color, and contact hint.
-const BLOCKED_STATUS_CONFIG = {
-    restricted: {
-        icon: <FaBan size={36} />,
-        color: '#E65100',
-        bgColor: '#FFF3E0',
-        borderColor: '#FFCC80',
-        title: 'Access Restricted',
-        contactHint: 'Contact your administrator to resolve this restriction.',
-    },
-    suspended: {
-        icon: <FaExclamationTriangle size={36} />,
-        color: '#856404',
-        bgColor: '#FFF8E1',
-        borderColor: '#FFE082',
-        title: 'Account Suspended',
-        contactHint: 'Please contact your supervisor or HR department.',
-    },
-    on_leave: {
-        icon: <FaClock size={36} />,
-        color: '#1565C0',
-        bgColor: '#E3F2FD',
-        borderColor: '#90CAF9',
-        title: 'On Leave of Absence',
-        contactHint: 'Your access will be restored when your leave period ends.',
-    },
-    terminated: {
-        icon: <FaTimesCircle size={36} />,
-        color: '#C0392B',
-        bgColor: '#FEEBEE',
-        borderColor: '#EF9A9A',
-        title: 'Employment Terminated',
-        contactHint: 'If you believe this is an error, contact the HR department.',
-    },
-    deactivated: {
-        icon: <FaTimesCircle size={36} />,
-        color: '#4A4A4A',
-        bgColor: '#F5F5F5',
-        borderColor: '#BDBDBD',
-        title: 'Account Deactivated',
-        contactHint: 'Contact the administrator if you believe this is an error.',
-    },
-};
-
-// ── Forgot Password Modal ─────────────────────────────────────────────────────
 const ForgotPasswordModal = ({ onClose }) => {
     const [step, setStep]               = useState('email');
     const [email, setEmail]             = useState('');
@@ -83,7 +37,6 @@ const ForgotPasswordModal = ({ onClose }) => {
     const setError = (text) => setMsg({ text, type: 'error' });
     const setOk    = (text) => setMsg({ text, type: 'success' });
 
-    // Step 1 – request OTP
     const handleRequestOtp = async () => {
         if (!email.trim()) { setError('Please enter your email address.'); return; }
         setLoading(true);
@@ -109,7 +62,6 @@ const ForgotPasswordModal = ({ onClose }) => {
         }
     };
 
-    // Step 2 – verify OTP
     const handleVerifyOtp = async () => {
         if (!otp || otp.length < 6) { setError('Enter the full 6-digit OTP.'); return; }
         setLoading(true);
@@ -134,7 +86,6 @@ const ForgotPasswordModal = ({ onClose }) => {
         }
     };
 
-    // Step 2 – resend OTP
     const handleResendOtp = async () => {
         if (resendTimer > 0) return;
         setInfo('Sending new OTP…');
@@ -145,16 +96,15 @@ const ForgotPasswordModal = ({ onClose }) => {
                 body:    JSON.stringify({ email: email.trim() })
             });
             const data = await res.json();
-            if (data.success) { setOk('New OTP sent!'); setResendTimer(60); }
-            else setError(data.message || 'Failed to resend OTP.');
+            setOk(data.message || 'New OTP sent.');
+            setResendTimer(60);
         } catch {
-            setError('Network error.');
+            setError('Failed to resend OTP.');
         }
     };
 
-    // Step 3 – reset password
     const handleResetPassword = async () => {
-        if (!newPassword || newPassword.length < 6) { setError('Password must be at least 6 characters.'); return; }
+        if (newPassword.length < 6) { setError('Password must be at least 6 characters.'); return; }
         if (newPassword !== confirmPass) { setError('Passwords do not match.'); return; }
         setLoading(true);
         setMsg({ text: '', type: '' });
@@ -165,8 +115,15 @@ const ForgotPasswordModal = ({ onClose }) => {
                 body:    JSON.stringify({ email: email.trim(), otp, password: newPassword })
             });
             const data = await res.json();
-            if (data.success) { setStep('done'); }
-            else { setError(data.message || 'Failed to reset password.'); }
+            if (data.success) {
+                setNewPassword('');
+                setConfirmPass('');
+                setOtp('');
+                setEmail('');
+                setStep('done');
+            } else {
+                setError(data.message || 'Failed to reset password.');
+            }
         } catch {
             setError('Network error. Please try again.');
         } finally {
@@ -174,22 +131,49 @@ const ForgotPasswordModal = ({ onClose }) => {
         }
     };
 
+    const stepTitles = {
+        email:   'Forgot Password',
+        otp:     'Enter OTP',
+        newpass: 'New Password',
+        done:    'All Done!'
+    };
+
+    const stepSubs = {
+        email:   "Enter the email address linked to your account and we'll send a one-time code.",
+        otp:     `We sent a 6-digit code to ${email}. Enter it below.`,
+        newpass: 'Choose a strong new password for your account.',
+        done:    'Your password has been reset successfully.'
+    };
+
     return (
-        <div className="fp-overlay">
+        <div className="fp-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
             <div className="fp-modal">
-                <div className="fp-header">
-                    <h3 className="fp-title">
-                        {step === 'email' ? 'Forgot Password'
-                            : step === 'otp' ? 'Enter OTP'
-                            : step === 'newpass' ? 'New Password'
-                            : 'Password Reset'}
-                    </h3>
-                    <button className="fp-close" onClick={onClose}><FaTimes /></button>
-                </div>
+                <button className="fp-close" onClick={onClose} aria-label="Close">
+                    <FaTimes />
+                </button>
+
+                {step !== 'done' && (
+                    <div className="fp-steps">
+                        {['email', 'otp', 'newpass'].map((s, i) => (
+                            <div key={s} className="fp-step-wrap">
+                                <div className={`fp-dot ${step === s ? 'active' : ['otp','newpass','done'].indexOf(step) > i-1 && step !== s ? 'done' : ''}`}>
+                                    {(['otp','newpass','done'].indexOf(step) > i) ? '✓' : i + 1}
+                                </div>
+                                {i < 2 && <div className={`fp-line ${['otp','newpass','done'].indexOf(step) > i ? 'done' : ''}`} />}
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                <h3 className="fp-title">{stepTitles[step]}</h3>
+                <p className="fp-sub">{stepSubs[step]}</p>
+
+                {msg.text && (
+                    <div className={`fp-msg fp-msg-${msg.type}`}>{msg.text}</div>
+                )}
 
                 {step === 'email' && (
                     <div className="fp-body">
-                        <p className="fp-desc">Enter your registered email address and we'll send you an OTP.</p>
                         <div className="fp-field">
                             <label>Email Address</label>
                             <div className="fp-input-wrap">
@@ -197,14 +181,14 @@ const ForgotPasswordModal = ({ onClose }) => {
                                 <input
                                     type="email"
                                     className="fp-input"
-                                    placeholder="Enter your email"
+                                    placeholder="you@example.com"
                                     value={email}
-                                    onChange={e => setEmail(e.target.value)}
+                                    onChange={e => { setEmail(e.target.value); setMsg({ text:'', type:'' }); }}
                                     onKeyDown={e => e.key === 'Enter' && handleRequestOtp()}
+                                    autoFocus
                                 />
                             </div>
                         </div>
-                        {msg.text && <p className={`fp-msg ${msg.type}`}>{msg.text}</p>}
                         <button className="fp-btn" onClick={handleRequestOtp} disabled={loading}>
                             {loading ? <FaSpinner className="spin" /> : 'Send OTP'}
                         </button>
@@ -213,50 +197,46 @@ const ForgotPasswordModal = ({ onClose }) => {
 
                 {step === 'otp' && (
                     <div className="fp-body">
-                        <p className="fp-desc">We sent a 6-digit OTP to <strong>{email}</strong>. It expires in 15 minutes.</p>
                         <div className="fp-field">
-                            <label>OTP Code</label>
-                            <div className="fp-input-wrap">
-                                <FaKey className="fp-icon" />
-                                <input
-                                    type="text"
-                                    className="fp-input"
-                                    placeholder="Enter 6-digit OTP"
-                                    value={otp}
-                                    onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                    maxLength={6}
-                                    onKeyDown={e => e.key === 'Enter' && handleVerifyOtp()}
-                                />
-                            </div>
+                            <label>6-Digit OTP</label>
+                            <input
+                                type="text"
+                                className="fp-input otp-center"
+                                placeholder="• • • • • •"
+                                value={otp}
+                                onChange={e => setOtp(e.target.value.replace(/\D/g,'').slice(0,6))}
+                                onKeyDown={e => e.key === 'Enter' && handleVerifyOtp()}
+                                maxLength={6}
+                                autoFocus
+                            />
                         </div>
-                        {msg.text && <p className={`fp-msg ${msg.type}`}>{msg.text}</p>}
                         <button className="fp-btn" onClick={handleVerifyOtp} disabled={loading}>
                             {loading ? <FaSpinner className="spin" /> : 'Verify OTP'}
                         </button>
-                        <button
-                            className="fp-resend"
-                            onClick={handleResendOtp}
-                            disabled={resendTimer > 0}
-                        >
-                            {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend OTP'}
-                        </button>
+                        <div className="fp-resend-row">
+                            <button className="fp-link" onClick={handleResendOtp} disabled={resendTimer > 0}>
+                                {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend OTP'}
+                            </button>
+                            <button className="fp-link muted" onClick={() => { setStep('email'); setOtp(''); setMsg({ text:'', type:'' }); }}>
+                                ← Change Email
+                            </button>
+                        </div>
                     </div>
                 )}
 
                 {step === 'newpass' && (
                     <div className="fp-body">
-                        <p className="fp-desc">Choose a strong password for your account.</p>
                         <div className="fp-field">
                             <label>New Password</label>
                             <div className="fp-input-wrap">
-                                <FaLock className="fp-icon" />
+                                <FaKey className="fp-icon" />
                                 <input
                                     type={showNew ? 'text' : 'password'}
                                     className="fp-input"
-                                    placeholder="Enter new password"
+                                    placeholder="At least 6 characters"
                                     value={newPassword}
                                     onChange={e => setNewPassword(e.target.value)}
-                                    onKeyDown={e => e.key === 'Enter' && handleResetPassword()}
+                                    autoFocus
                                 />
                                 <button type="button" className="fp-eye" onClick={() => setShowNew(p => !p)}>
                                     {showNew ? <FaEyeSlash /> : <FaEye />}
@@ -292,7 +272,6 @@ const ForgotPasswordModal = ({ onClose }) => {
                             </div>
                         )}
 
-                        {msg.text && <p className={`fp-msg ${msg.type}`}>{msg.text}</p>}
                         <button className="fp-btn" onClick={handleResetPassword} disabled={loading}>
                             {loading ? <FaSpinner className="spin" /> : 'Reset Password'}
                         </button>
@@ -315,9 +294,8 @@ const ForgotPasswordModal = ({ onClose }) => {
     );
 };
 
-// ── Main Login Page ────────────────────────────────────────────────────────────
 const LoginPage = () => {
-    const { login, user, getHomeRoute } = useAuth();
+    const { login, user, getHomeRoute, clearSession } = useAuth();
     const navigate = useNavigate();
 
     const [form, setForm]             = useState({ username: '', password: '' });
@@ -326,17 +304,17 @@ const LoginPage = () => {
     const [error, setError]           = useState('');
     const [showForgot, setShowForgot] = useState(false);
 
-    // OTP activation state (pending accounts)
-    const [needsOtp, setNeedsOtp]           = useState(false);
+    const [needsOtp, setNeedsOtp]         = useState(false);
     const [pendingUserId, setPendingUserId] = useState(null);
-    const [otpCode, setOtpCode]             = useState('');
-    const [otpMsg, setOtpMsg]               = useState('');
-    const [otpLoading, setOtpLoading]       = useState(false);
-    const [resendTimer, setResendTimer]     = useState(0);
+    const [otpCode, setOtpCode]           = useState('');
+    const [otpMsg, setOtpMsg]             = useState('');
+    const [otpLoading, setOtpLoading]     = useState(false);
+    const [resendTimer, setResendTimer]   = useState(0);
 
-    // Blocked account state (restricted / suspended / on_leave / terminated / deactivated)
-    const [blockedStatus, setBlockedStatus] = useState(null);   // accountStatus string
-    const [blockedMessage, setBlockedMessage] = useState('');   // server message
+    // Clear any stale session when login page loads
+    useEffect(() => {
+        clearSession();
+    }, [clearSession]);
 
     useEffect(() => {
         if (user) navigate(getHomeRoute(user.role), { replace: true });
@@ -353,6 +331,8 @@ const LoginPage = () => {
         setError('');
     };
 
+    const [blockedStatus, setBlockedStatus] = useState(null);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!form.username.trim() || !form.password.trim()) {
@@ -361,33 +341,54 @@ const LoginPage = () => {
         }
         setLoading(true);
         setError('');
+        setBlockedStatus(null);
         const result = await login(form.username.trim(), form.password);
         setLoading(false);
-
         if (result.success) {
             navigate(getHomeRoute(result.user.role), { replace: true });
-            return;
+        } else {
+            const status = result.accountStatus;
+            if (status && ['deactivated', 'suspended', 'restricted'].includes(status)) {
+                setBlockedStatus({ status, reason: result.reason || '' });
+            } else if (result.needsOtp || result.userId) {
+                setPendingUserId(result.userId);
+                setNeedsOtp(true);
+                setOtpMsg('Your account needs to be activated. Enter the OTP sent to your email, or request a new one.');
+                setResendTimer(30);
+            } else {
+                setError(result.message || 'Invalid credentials.');
+            }
         }
+    };
 
-        // Pending account → OTP activation panel (existing behaviour)
-        if (result.userId && result.accountStatus === 'pending') {
-            setPendingUserId(result.userId);
-            setNeedsOtp(true);
-            setOtpMsg('Your account needs to be activated. Enter the OTP sent to your email, or request a new one.');
-            setResendTimer(30);
-            return;
-        }
-
-        // Blocked account statuses → dedicated blocked panel
-        const blockedStatuses = ['restricted', 'suspended', 'on_leave', 'terminated', 'deactivated'];
-        if (result.accountStatus && blockedStatuses.includes(result.accountStatus)) {
-            setBlockedStatus(result.accountStatus);
-            setBlockedMessage(result.message || 'Your account is not accessible.');
-            return;
-        }
-
-        // Generic error (wrong credentials, role mismatch, etc.)
-        setError(result.message || 'Invalid credentials.');
+    const BLOCKED_CONFIG = {
+        deactivated: {
+            icon: '\u26D4',
+            title: 'Account Deactivated',
+            message: 'Your account has been permanently deactivated by an administrator. Please contact your HR department or system administrator for assistance.',
+            bg: '#FFF0F0',
+            border: '#F5C6CB',
+            color: '#721C24',
+            iconBg: '#F8D7DA',
+        },
+        suspended: {
+            icon: '\u23F8',
+            title: 'Account Suspended',
+            message: 'Your account has been temporarily suspended. This may be due to a policy violation or a pending investigation. Please contact your administrator.',
+            bg: '#FFF3CD',
+            border: '#FFEAA7',
+            color: '#856404',
+            iconBg: '#FFF0B3',
+        },
+        restricted: {
+            icon: '\uD83D\uDD12',
+            title: 'Access Restricted',
+            message: 'Your system access has been restricted by an administrator. You may still be employed but certain features are unavailable. Contact your supervisor for details.',
+            bg: '#FFF8E1',
+            border: '#FFE082',
+            color: '#E65100',
+            iconBg: '#FFE0B2',
+        },
     };
 
     const handleVerifyOtp = async () => {
@@ -433,76 +434,10 @@ const LoginPage = () => {
         }
     };
 
-    // ── Blocked Account Panel ─────────────────────────────────────────────────
-    if (blockedStatus && BLOCKED_STATUS_CONFIG[blockedStatus]) {
-        const cfg = BLOCKED_STATUS_CONFIG[blockedStatus];
-        return (
-            <div className="login-page">
-                <button className="back-to-home" onClick={() => navigate('/')}>
-                    <FaArrowLeft /> Back to Home
-                </button>
-                <div className="login-card">
-                    <div className="login-logo"><div className="logo-mark"></div></div>
-
-                    {/* Status icon */}
-                    <div style={{
-                        display: 'flex',
-                        justifyContent: 'center',
-                        marginBottom: 16,
-                    }}>
-                        <div style={{
-                            width: 72,
-                            height: 72,
-                            borderRadius: '50%',
-                            background: cfg.bgColor,
-                            border: `2px solid ${cfg.borderColor}`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: cfg.color,
-                        }}>
-                            {cfg.icon}
-                        </div>
-                    </div>
-
-                    <h2 className="login-title" style={{ color: cfg.color }}>{cfg.title}</h2>
-
-                    {/* Server message */}
-                    <div style={{
-                        background: cfg.bgColor,
-                        border: `1.5px solid ${cfg.borderColor}`,
-                        borderRadius: 10,
-                        padding: '14px 16px',
-                        marginBottom: 16,
-                        textAlign: 'center',
-                    }}>
-                        <p style={{ margin: 0, color: cfg.color, fontSize: '.92rem', fontWeight: 600 }}>
-                            {blockedMessage}
-                        </p>
-                    </div>
-
-                    {/* Contact hint */}
-                    <p className="login-sub" style={{ fontSize: '.85rem', marginBottom: 24 }}>
-                        {cfg.contactHint}
-                    </p>
-
-                    <button
-                        className="login-btn"
-                        style={{ background: cfg.color }}
-                        onClick={() => { setBlockedStatus(null); setBlockedMessage(''); setError(''); }}
-                    >
-                        ← Back to Login
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    // ── OTP Activation panel ──────────────────────────────────────────────────
     if (needsOtp) {
         return (
             <div className="login-page">
-                <button className="back-to-home" onClick={() => navigate('/')}>
+                <button className="back-to-home" onClick={() => navigate("/")}>
                     <FaArrowLeft /> Back to Home
                 </button>
                 <div className="login-card">
@@ -536,11 +471,10 @@ const LoginPage = () => {
         );
     }
 
-    // ── Main Login Form ───────────────────────────────────────────────────────
     return (
         <>
             <div className="login-page">
-                <button className="back-to-home" onClick={() => navigate('/')}>
+                <button className="back-to-home" onClick={() => navigate("/")}>
                     <FaArrowLeft /> Back to Home
                 </button>
                 <div className="login-card">
@@ -584,6 +518,42 @@ const LoginPage = () => {
                             </div>
                         </div>
 
+                        {blockedStatus && (() => {
+                            const cfg = BLOCKED_CONFIG[blockedStatus.status];
+                            return (
+                                <div style={{
+                                    background: cfg.bg,
+                                    border: `1.5px solid ${cfg.border}`,
+                                    borderRadius: 12,
+                                    padding: '16px',
+                                    marginBottom: 16,
+                                    display: 'flex',
+                                    gap: 14,
+                                    alignItems: 'flex-start',
+                                    animation: 'shake .3s ease'
+                                }}>
+                                    <div style={{
+                                        width: 40, height: 40, borderRadius: '50%',
+                                        background: cfg.iconBg,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        fontSize: '1.1rem', flexShrink: 0
+                                    }}>{cfg.icon}</div>
+                                    <div>
+                                        <strong style={{ display: 'block', color: cfg.color, fontSize: '.9rem', marginBottom: 4 }}>
+                                            {cfg.title}
+                                        </strong>
+                                        <span style={{ color: cfg.color, fontSize: '.82rem', lineHeight: 1.5, opacity: .9 }}>
+                                            {cfg.message}
+                                        </span>
+                                        {blockedStatus.reason && (
+                                            <div style={{ marginTop: 8, fontSize: '.78rem', color: cfg.color, opacity: .8, fontStyle: 'italic' }}>
+                                                Reason: {blockedStatus.reason}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })()}
                         {error && <div className="login-error">{error}</div>}
 
                         <div className="forgot-row">

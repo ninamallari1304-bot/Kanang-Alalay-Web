@@ -24,7 +24,6 @@ router.get('/profile', protect, async (req, res) => {
                 shift: req.user.shift,
                 isActive: req.user.isActive,
                 isVerified: req.user.isVerified,
-                accountStatus: req.user.accountStatus,
                 createdAt: req.user.createdAt,
                 hireDate: req.user.hireDate,
             }
@@ -35,7 +34,6 @@ router.get('/profile', protect, async (req, res) => {
     }
 });
 
-// ── Login ─────────────────────────────────────────────────────────────────────
 router.post('/login', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -46,65 +44,23 @@ router.post('/login', async (req, res) => {
 
         const user = await User.findOne({ $or: [{ email: username }, { username }] });
 
-        // Wrong credentials — do not hint which field was wrong
         if (!user || !(await user.comparePassword(password))) {
             return res.status(401).json({ success: false, message: 'Invalid credentials.' });
         }
 
-        // ── Account status gate ───────────────────────────────────────────────
-        // Resolve the effective status: prefer accountStatus; fall back to legacy
-        // isVerified/isActive for older records that predate the field.
-        const status = user.accountStatus || (user.isActive && user.isVerified ? 'active' : 'pending');
-
-        if (status !== 'active') {
-            // Each non-active state gets its own specific message
-            const statusMessages = {
-                pending: {
-                    message: 'Your account has not been activated yet. Please verify the OTP sent to your email.',
-                    // userId lets the frontend redirect to the OTP activation panel
-                    sendUserId: true,
-                },
-                restricted: {
-                    message: 'Your account access has been restricted. Please contact your administrator for assistance.',
-                    sendUserId: false,
-                },
-                suspended: {
-                    message: 'Your account has been temporarily suspended. Please contact your supervisor or HR.',
-                    sendUserId: false,
-                },
-                on_leave: {
-                    message: 'Your account is currently on approved leave of absence and cannot be accessed at this time.',
-                    sendUserId: false,
-                },
-                terminated: {
-                    message: 'Your employment has been terminated and this account no longer has system access.',
-                    sendUserId: false,
-                },
-                deactivated: {
-                    message: 'This account has been permanently deactivated. Please contact the administrator if you believe this is an error.',
-                    sendUserId: false,
-                },
-            };
-
-            const config = statusMessages[status] || {
-                message: 'Your account is inactive. Please contact your administrator.',
-                sendUserId: false,
-            };
-
+        if (!user.isVerified || !user.isActive) {
             return res.status(401).json({
                 success: false,
-                accountStatus: status,
-                message: config.message,
-                ...(config.sendUserId && { userId: user._id }),
+                message: 'Account is not yet activated. Please verify your OTP first.',
+                userId: user._id
             });
         }
 
-        // ── Role check (web portal is admin/head_caregiver only) ─────────────
         const WEB_ALLOWED_ROLES = ['admin', 'head_caregiver'];
         if (!WEB_ALLOWED_ROLES.includes(user.role)) {
             return res.status(403).json({
                 success: false,
-                message: 'Access restricted. This portal is for admin and head caregiver use only. Please use the mobile application.'
+                message: 'Access restricted. This account is for mobile app use only. Please use the mobile application to access caregiver features.'
             });
         }
 
@@ -130,7 +86,6 @@ router.post('/login', async (req, res) => {
                 phone: user.phone,
                 department: user.department,
                 shift: user.shift,
-                accountStatus: user.accountStatus,
             }
         });
     } catch (error) {
@@ -212,8 +167,7 @@ router.post('/register-staff', async (req, res) => {
             phone,
             role: codeDoc.role,
             isVerified: false,
-            isActive: false,
-            accountStatus: 'pending',
+            isActive: false
         });
 
         await user.save();
@@ -255,57 +209,26 @@ router.post('/send-otp', async (req, res) => {
 
         if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
 
-        if (user.accountStatus === 'active') {
-            return res.status(400).json({ success: false, message: 'Account is already activated.' });
-        }
-
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
         user.otpCode = otpCode;
         user.otpExpires = new Date(Date.now() + 15 * 60 * 1000);
         await user.save();
 
-        try {
-            await sendEmail(user.email, 'Your Kanang-Alalay OTP', generateOtpTemplate(otpCode));
-        } catch (mailErr) {
-            console.error('Email error:', mailErr.message);
-        }
+        console.log('\n=======================================');
+        console.log(`OTP Generated for: ${user.email}`);
+        console.log(`OTP CODE: ${otpCode}`);
+        console.log('=======================================\n');
 
-        res.json({ success: true, message: `OTP sent to ${user.email}.` });
+        try {
+            await sendEmail(user.email, 'Verify your Kanang-Alalay Account', generateOtpTemplate(otpCode));
+            res.json({ success: true, message: 'OTP sent successfully.' });
+        } catch (mailError) {
+            console.error('Email error:', mailError.message);
+            res.json({ success: true, message: 'OTP generated (email delivery failed).' });
+        }
     } catch (error) {
         console.error('Send OTP error:', error);
         res.status(500).json({ success: false, message: 'Server error sending OTP' });
-    }
-});
-
-router.post('/verify-otp', async (req, res) => {
-    try {
-        const { userId, otp } = req.body;
-        if (!userId || !otp) {
-            return res.status(400).json({ success: false, message: 'User ID and OTP are required.' });
-        }
-
-        const user = await User.findById(userId);
-        if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
-
-        if (user.otpCode !== otp) {
-            return res.status(400).json({ success: false, message: 'Invalid OTP.' });
-        }
-        if (user.otpExpires < new Date()) {
-            return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
-        }
-
-        // Activate the account
-        user.isVerified = true;
-        user.isActive = true;
-        user.accountStatus = 'active';
-        user.otpCode = undefined;
-        user.otpExpires = undefined;
-        await user.save();
-
-        res.json({ success: true, message: 'Account activated successfully.' });
-    } catch (error) {
-        console.error('Verify OTP error:', error);
-        res.status(500).json({ success: false, message: 'Server error verifying OTP' });
     }
 });
 
@@ -329,7 +252,33 @@ router.post('/resend-otp', async (req, res) => {
         res.json({ success: true, message: 'New OTP sent to your email.' });
     } catch (error) {
         console.error('Resend OTP error:', error);
-        res.status(500).json({ success: false, message: 'Server error' });
+        res.status(500).json({ success: false, message: 'Server error resending OTP' });
+    }
+});
+
+router.post('/verify-otp', async (req, res) => {
+    try {
+        const { userId, otp } = req.body;
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+
+        if (user.otpCode !== otp) {
+            return res.status(400).json({ success: false, message: 'Invalid OTP.' });
+        }
+        if (user.otpExpires < new Date()) {
+            return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
+        }
+
+        user.otpCode = undefined;
+        user.otpExpires = undefined;
+        user.isVerified = true;
+        user.isActive = true;
+        await user.save();
+
+        res.json({ success: true, message: 'Account activated successfully. You can now log in.' });
+    } catch (error) {
+        console.error('Verify OTP error:', error);
+        res.status(500).json({ success: false, message: 'Server error verifying OTP' });
     }
 });
 
@@ -339,17 +288,28 @@ router.post('/forgot-password', async (req, res) => {
         if (!email) return res.status(400).json({ success: false, message: 'Email is required.' });
 
         const user = await User.findOne({ email });
-        if (user) {
-            const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-            user.resetPasswordOtp = otpCode;
-            user.resetPasswordOtpExpires = new Date(Date.now() + 15 * 60 * 1000);
-            await user.save();
+        if (!user) {
+            return res.json({ success: true, message: 'If that email exists, an OTP has been sent.' });
+        }
 
-            try {
-                await sendEmail(email, 'Password Reset OTP - Kanang-Alalay', generateOtpTemplate(otpCode));
-            } catch (mailErr) {
-                console.error('Email error:', mailErr.message);
-            }
+        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+        user.resetPasswordOtp = otpCode;
+        user.resetPasswordOtpExpires = new Date(Date.now() + 15 * 60 * 1000);
+        await user.save();
+
+        console.log('\n=======================================');
+        console.log(`Password Reset OTP for: ${email}`);
+        console.log(`OTP CODE: ${otpCode}`);
+        console.log('=======================================\n');
+
+        try {
+            await sendEmail(email, 'Reset your Kanang-Alalay Password', generateOtpTemplate(otpCode));
+        } catch (mailError) {
+            console.error('Email send FAILED:', mailError.message);
+            return res.status(500).json({
+                success: false,
+                message: 'OTP generated but email could not be sent.'
+            });
         }
 
         res.json({ success: true, message: 'If that email exists, an OTP has been sent.' });
@@ -509,13 +469,6 @@ router.get('/validate-token', protect, async (req, res) => {
     if (!WEB_ALLOWED_ROLES.includes(req.user.role)) {
         return res.status(403).json({ success: false, message: 'Role no longer valid for web login.' });
     }
-
-    // If token is valid but account was deactivated/suspended after login, block here too
-    const freshUser = await User.findById(req.user._id).select('accountStatus isActive');
-    if (freshUser && freshUser.accountStatus && freshUser.accountStatus !== 'active') {
-        return res.status(401).json({ success: false, message: 'Your account status has changed. Please log in again.' });
-    }
-
     res.json({
         success: true,
         user: {
@@ -531,7 +484,6 @@ router.get('/validate-token', protect, async (req, res) => {
             department: req.user.department,
             shift: req.user.shift,
             isActive: req.user.isActive,
-            accountStatus: req.user.accountStatus,
             createdAt: req.user.createdAt,
         }
     });

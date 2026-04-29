@@ -734,57 +734,60 @@ const AdminDashboard = () => {
     };
 
     const confirmPersonnelAction = async () => {
-        const { action, userId, reason, effectiveDate, notes, userName } = reasonModal;
- 
-        // Map each action to the real accountStatus string that the backend expects.
-        // This is the fix: before, ALL actions sent 'inactive'.
-        // Now each action sends its own distinct status.
-        const actionStatusMap = {
-            restrict:   'restricted',
-            suspend:    'suspended',
-            terminate:  'terminated',
-            loa:        'on_leave',
-            deactivate: 'deactivated',
-        };
- 
-        const newStatus = actionStatusMap[action];
-        if (!newStatus) return;
- 
-        const actionLabels = {
-            restrict:   'restricted',
-            suspend:    'suspended',
-            terminate:  'terminated',
-            loa:        'placed on leave of absence',
-            deactivate: 'permanently deactivated',
-        };
- 
+        const { action, userId, reason, effectiveDate, notes, userName, currentStatus } = reasonModal;
+        
+        let newStatus = 'inactive';
+        let actionMessage = '';
+        
+        switch(action) {
+            case 'restrict':
+                newStatus = 'restricted';
+                actionMessage = 'restricted';
+                break;
+            case 'deactivate':
+                newStatus = 'deactivated';
+                actionMessage = 'deactivated permanently';
+                break;
+            case 'suspend':
+                newStatus = 'suspended';
+                actionMessage = 'suspended';
+                break;
+            case 'terminate':
+                newStatus = 'terminated';
+                actionMessage = 'terminated';
+                break;
+            case 'loa':
+                newStatus = 'on_leave';
+                actionMessage = 'placed on leave of absence';
+                break;
+            default:
+                return;
+        }
+        
         setActionLoading(true);
- 
+        
         try {
-            // Send the real accountStatus — backend now understands all values
             await fetchApi(`/admin/staff/${userId}/status`, {
                 method: 'PUT',
                 body: JSON.stringify({ status: newStatus, reason })
             });
- 
-            // Log the action with full details
+            
             await fetchApi(`/admin/staff/${userId}/action-log`, {
                 method: 'POST',
                 body: JSON.stringify({ action, reason, effectiveDate, notes, performedBy: user._id, newStatus })
             });
- 
-            // Update local state so the UI reflects the new status immediately
-            setStaff(staff.map(m =>
-                m._id === userId
-                    ? { ...m, isActive: false, accountStatus: newStatus, status: newStatus, actionReason: reason, actionDate: effectiveDate }
+            
+            setStaff(staff.map(m => 
+                m._id === userId 
+                    ? { ...m, isActive: false, status: newStatus, actionReason: reason, actionDate: effectiveDate }
                     : m
             ));
- 
-            toast(`${userName} has been ${actionLabels[action]}. Reason: ${reason.substring(0, 50)}${reason.length > 50 ? '...' : ''}`);
+            
+            toast(`${userName} has been ${actionMessage}. Reason: ${reason.substring(0, 50)}${reason.length > 50 ? '...' : ''}`);
             setReasonModal({ isOpen: false, action: null, userId: null, userName: '', currentStatus: null, reason: '', effectiveDate: '', notes: '' });
- 
+            
             await fetchStaffList();
- 
+            
         } catch (error) {
             console.error('Action error:', error);
             toast('Failed to perform action. Please try again.', 'error');
@@ -1027,15 +1030,23 @@ const AdminDashboard = () => {
     };
 
     const getStatusBadgeStyle = (status) => {
-        if (!status || status === 'active') return { background: '#EEFBF5', color: '#1E7D56', label: 'Active' };
         switch(status) {
-            case 'restricted': return { background: '#FFF8E1', color: '#E65100', label: 'Restricted' };
-            case 'suspended': return { background: '#FFF3CD', color: '#856404', label: 'Suspended' };
-            case 'on_leave': return { background: '#E8F4FD', color: '#1565C0', label: 'On Leave' };
-            case 'terminated': return { background: '#FFF0F0', color: '#C0392B', label: 'Terminated' };
-            case 'inactive': return { background: '#F3F4F6', color: '#6B7280', label: 'Inactive' };
-            default: return { background: '#EEFBF5', color: '#1E7D56', label: 'Active' };
+            case 'active':      return { background: '#EEFBF5', color: '#1E7D56', label: 'Active' };
+            case 'pending':     return { background: '#FFF8E1', color: '#B8860B', label: 'Pending' };
+            case 'restricted':  return { background: '#FFF3E0', color: '#E65100', label: 'Restricted' };
+            case 'suspended':   return { background: '#FFF3CD', color: '#856404', label: 'Suspended' };
+            case 'deactivated': return { background: '#FFF0F0', color: '#C0392B', label: 'Deactivated' };
+            case 'on_leave':    return { background: '#E8F4FD', color: '#1565C0', label: 'On Leave' };
+            case 'terminated':  return { background: '#F3F4F6', color: '#4B5563', label: 'Terminated' };
+            default:            return { background: '#FFF8E1', color: '#B8860B', label: 'Pending' };
         }
+    };
+
+    const getAccountStatus = (m) => {
+        if (m.status) return m.status;
+        if (!m.isVerified && !m.isActive) return 'pending';
+        if (m.isActive) return 'active';
+        return 'deactivated';
     };
 
     const getSearchBadge = (filteredArray, totalArray) => {
@@ -1163,7 +1174,8 @@ const AdminDashboard = () => {
                                     {searchQuery ? `No personnel match "${searchQuery}"` : 'No personnel found.'}
                                 </td></tr>
                             ) : paged.map(m => {
-                                const statusStyle = getStatusBadgeStyle(m.status || (m.isActive ? 'active' : 'inactive'));
+                                const accountStatus = getAccountStatus(m);
+                                const statusStyle = getStatusBadgeStyle(accountStatus);
                                 return (
                                     <tr key={m._id}>
                                         <td>
@@ -1239,117 +1251,82 @@ const AdminDashboard = () => {
                                                     }}
                                                 >
                                                     <div style={{ padding: '6px 0' }}>
+                                                        {/* Always visible */}
                                                         <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleMarkAttendance(m._id, `${m.firstName} ${m.lastName}`);
-                                                                setOpenDropdown(null);
-                                                            }}
+                                                            onClick={(e) => { e.stopPropagation(); handleMarkAttendance(m._id, `${m.firstName} ${m.lastName}`); setOpenDropdown(null); }}
                                                             className="dropdown-item"
                                                         >
                                                             <FaClock style={{ color: '#17a2b8' }} /> Mark Attendance
                                                         </button>
-                                                        
-                                                        {m.isActive && m.status !== 'restricted' && (
+
+                                                        {/* PENDING: can only activate */}
+                                                        {accountStatus === 'pending' && (
                                                             <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleRestrictUser(m._id, `${m.firstName} ${m.lastName}`, m.status);
-                                                                    setOpenDropdown(null);
-                                                                }}
+                                                                onClick={(e) => { e.stopPropagation(); handleReactivateUser(m._id, `${m.firstName} ${m.lastName}`); setOpenDropdown(null); }}
                                                                 className="dropdown-item"
                                                             >
+                                                                <FaCheckCircle style={{ color: '#28a745' }} /> Activate Account
+                                                            </button>
+                                                        )}
+
+                                                        {/* ACTIVE: show restrict, suspend, loa, terminate, deactivate */}
+                                                        {accountStatus === 'active' && (<>
+                                                            <button onClick={(e) => { e.stopPropagation(); handleRestrictUser(m._id, `${m.firstName} ${m.lastName}`, accountStatus); setOpenDropdown(null); }} className="dropdown-item">
                                                                 <FaBan style={{ color: '#E65100' }} /> Restrict Access
                                                             </button>
-                                                        )}
-                                                        
-                                                        {m.isActive && m.status !== 'suspended' && (
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleSuspendUser(m._id, `${m.firstName} ${m.lastName}`, m.status);
-                                                                    setOpenDropdown(null);
-                                                                }}
-                                                                className="dropdown-item"
-                                                            >
+                                                            <button onClick={(e) => { e.stopPropagation(); handleSuspendUser(m._id, `${m.firstName} ${m.lastName}`, accountStatus); setOpenDropdown(null); }} className="dropdown-item">
                                                                 <FaExclamationTriangle style={{ color: '#856404' }} /> Suspend Account
                                                             </button>
-                                                        )}
-                                                        
-                                                        {m.isActive && m.status !== 'on_leave' && (
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleLeaveOfAbsence(m._id, `${m.firstName} ${m.lastName}`, m.status);
-                                                                    setOpenDropdown(null);
-                                                                }}
-                                                                className="dropdown-item"
-                                                            >
+                                                            <button onClick={(e) => { e.stopPropagation(); handleLeaveOfAbsence(m._id, `${m.firstName} ${m.lastName}`, accountStatus); setOpenDropdown(null); }} className="dropdown-item">
                                                                 <FaCalendarAlt style={{ color: '#1565C0' }} /> Leave of Absence
                                                             </button>
-                                                        )}
-                                                        
-                                                        {m.isActive && m.status !== 'terminated' && (
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleTerminateUser(m._id, `${m.firstName} ${m.lastName}`, m.status);
-                                                                    setOpenDropdown(null);
-                                                                }}
-                                                                className="dropdown-item"
-                                                            >
+                                                            <button onClick={(e) => { e.stopPropagation(); handleTerminateUser(m._id, `${m.firstName} ${m.lastName}`, accountStatus); setOpenDropdown(null); }} className="dropdown-item">
                                                                 <FaTimesCircle style={{ color: '#C0392B' }} /> Terminate Employment
                                                             </button>
-                                                        )}
-                                                        
-                                                        <div style={{ height: 1, background: 'var(--d-border)', margin: '6px 0' }} />
-                                                        
-                                                        {m.isActive || (m.status && (m.status === 'restricted' || m.status === 'suspended' || m.status === 'on_leave')) ? (
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleDeactivateUser(m._id, `${m.firstName} ${m.lastName}`, m.status);
-                                                                    setOpenDropdown(null);
-                                                                }}
-                                                                className="dropdown-item"
-                                                            >
+                                                            <div style={{ height: 1, background: 'var(--d-border)', margin: '6px 0' }} />
+                                                            <button onClick={(e) => { e.stopPropagation(); handleDeactivateUser(m._id, `${m.firstName} ${m.lastName}`, accountStatus); setOpenDropdown(null); }} className="dropdown-item">
                                                                 <FaTrash style={{ color: '#dc3545' }} /> Deactivate (Permanent)
                                                             </button>
-                                                        ) : (
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleReactivateUser(m._id, `${m.firstName} ${m.lastName}`);
-                                                                    setOpenDropdown(null);
-                                                                }}
-                                                                className="dropdown-item"
-                                                            >
+                                                        </>)}
+
+                                                        {/* RESTRICTED: can reactivate or escalate to deactivate */}
+                                                        {accountStatus === 'restricted' && (<>
+                                                            <button onClick={(e) => { e.stopPropagation(); handleReactivateUser(m._id, `${m.firstName} ${m.lastName}`); setOpenDropdown(null); }} className="dropdown-item">
+                                                                <FaCheckCircle style={{ color: '#28a745' }} /> Restore Access
+                                                            </button>
+                                                            <button onClick={(e) => { e.stopPropagation(); handleSuspendUser(m._id, `${m.firstName} ${m.lastName}`, accountStatus); setOpenDropdown(null); }} className="dropdown-item">
+                                                                <FaExclamationTriangle style={{ color: '#856404' }} /> Escalate to Suspend
+                                                            </button>
+                                                            <div style={{ height: 1, background: 'var(--d-border)', margin: '6px 0' }} />
+                                                            <button onClick={(e) => { e.stopPropagation(); handleDeactivateUser(m._id, `${m.firstName} ${m.lastName}`, accountStatus); setOpenDropdown(null); }} className="dropdown-item">
+                                                                <FaTrash style={{ color: '#dc3545' }} /> Deactivate (Permanent)
+                                                            </button>
+                                                        </>)}
+
+                                                        {/* SUSPENDED: can reactivate or deactivate */}
+                                                        {accountStatus === 'suspended' && (<>
+                                                            <button onClick={(e) => { e.stopPropagation(); handleReactivateUser(m._id, `${m.firstName} ${m.lastName}`); setOpenDropdown(null); }} className="dropdown-item">
+                                                                <FaCheckCircle style={{ color: '#28a745' }} /> Lift Suspension
+                                                            </button>
+                                                            <div style={{ height: 1, background: 'var(--d-border)', margin: '6px 0' }} />
+                                                            <button onClick={(e) => { e.stopPropagation(); handleDeactivateUser(m._id, `${m.firstName} ${m.lastName}`, accountStatus); setOpenDropdown(null); }} className="dropdown-item">
+                                                                <FaTrash style={{ color: '#dc3545' }} /> Deactivate (Permanent)
+                                                            </button>
+                                                        </>)}
+
+                                                        {/* DEACTIVATED: can only reactivate or delete */}
+                                                        {accountStatus === 'deactivated' && (
+                                                            <button onClick={(e) => { e.stopPropagation(); handleReactivateUser(m._id, `${m.firstName} ${m.lastName}`); setOpenDropdown(null); }} className="dropdown-item">
                                                                 <FaCheckCircle style={{ color: '#28a745' }} /> Reactivate Account
                                                             </button>
                                                         )}
-                                                        
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                viewUserHistory(m._id, `${m.firstName} ${m.lastName}`);
-                                                                setOpenDropdown(null);
-                                                            }}
-                                                            className="dropdown-item"
-                                                        >
+
+                                                        <button onClick={(e) => { e.stopPropagation(); viewUserHistory(m._id, `${m.firstName} ${m.lastName}`); setOpenDropdown(null); }} className="dropdown-item">
                                                             <FaHistory style={{ color: '#3949AB' }} /> View Action History
                                                         </button>
-                                                        
+
                                                         <div style={{ height: 1, background: 'var(--d-border)', margin: '6px 0' }} />
-                                                        
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                deleteStaff(m._id);
-                                                                setOpenDropdown(null);
-                                                            }}
-                                                            className="dropdown-item"
-                                                            style={{ color: '#dc3545' }}
-                                                        >
+                                                        <button onClick={(e) => { e.stopPropagation(); deleteStaff(m._id); setOpenDropdown(null); }} className="dropdown-item" style={{ color: '#dc3545' }}>
                                                             <FaTrash /> Delete Permanently
                                                         </button>
                                                     </div>

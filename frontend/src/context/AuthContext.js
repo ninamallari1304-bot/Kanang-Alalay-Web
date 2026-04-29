@@ -18,57 +18,70 @@ const API_BASE_URL = getApiBaseUrl();
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+    // Only restore session if we're NOT on the login page
+    const restoreSession = async (skipValidation = false) => {
+        const token = localStorage.getItem('token');
+        const storedUser = localStorage.getItem('user');
+
+        if (!token || !storedUser) {
+            setLoading(false);
+            return false;
+        }
+
+        // Skip validation when coming from login page (optional parameter)
+        if (skipValidation) {
+            setLoading(false);
+            return false;
+        }
+
+        let parsed;
+        try {
+            parsed = JSON.parse(storedUser);
+        } catch {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            setLoading(false);
+            return false;
+        }
+
+        if (!WEB_ALLOWED_ROLES.includes(parsed.role)) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            setLoading(false);
+            return false;
+        }
+
+        try {
+            const res = await fetch(`${API_BASE_URL}/auth/validate-token`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                setLoading(false);
+                return false;
+            }
+
+            localStorage.setItem('user', JSON.stringify(data.user));
+            setUser(data.user);
+            setIsAuthenticated(true);
+            setLoading(false);
+            return true;
+        } catch {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            setLoading(false);
+            return false;
+        }
+    };
 
     useEffect(() => {
-        const restore = async () => {
-            const token = localStorage.getItem('token');
-            const storedUser = localStorage.getItem('user');
-
-            if (!token || !storedUser) {
-                setLoading(false);
-                return;
-            }
-
-            let parsed;
-            try {
-                parsed = JSON.parse(storedUser);
-            } catch {
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                setLoading(false);
-                return;
-            }
-
-            if (!WEB_ALLOWED_ROLES.includes(parsed.role)) {
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                setLoading(false);
-                return;
-            }
-
-            try {
-                const res = await fetch(`${API_BASE_URL}/auth/validate-token`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-                const data = await res.json();
-
-                if (!res.ok || !data.success) {
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('user');
-                    setLoading(false);
-                    return;
-                }
-
-                localStorage.setItem('user', JSON.stringify(data.user));
-                setUser(data.user);
-            } catch {
-                setUser(parsed);
-            }
-
-            setLoading(false);
-        };
-
-        restore();
+        // Only auto-restore if we're not explicitly told to skip
+        restoreSession(false);
     }, []);
 
     const login = useCallback(async (username, password) => {
@@ -83,7 +96,10 @@ export const AuthProvider = ({ children }) => {
             return {
                 success: false,
                 message: data.message || 'Login failed.',
-                userId: data.userId
+                userId: data.userId || null,
+                needsOtp: data.needsOtp || false,
+                accountStatus: data.accountStatus || null,
+                reason: data.reason || '',
             };
         }
 
@@ -97,6 +113,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
         setUser(data.user);
+        setIsAuthenticated(true);
         return { success: true, user: data.user };
     }, []);
 
@@ -104,6 +121,14 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         setUser(null);
+        setIsAuthenticated(false);
+    }, []);
+
+    const clearSession = useCallback(() => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setUser(null);
+        setIsAuthenticated(false);
     }, []);
 
     const getHomeRoute = useCallback((role) => {
@@ -118,7 +143,15 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, logout, getHomeRoute }}>
+        <AuthContext.Provider value={{ 
+            user, 
+            loading, 
+            isAuthenticated,
+            login, 
+            logout, 
+            clearSession,
+            getHomeRoute 
+        }}>
             {children}
         </AuthContext.Provider>
     );

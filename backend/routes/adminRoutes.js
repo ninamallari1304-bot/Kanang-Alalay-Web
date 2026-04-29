@@ -13,17 +13,6 @@ const { sendEmail, generateOtpTemplate } = require('../models/mailer');
 
 router.use(protect, adminOrHeadCaregiver);
 
-// Valid accountStatus values and their human labels
-const ACCOUNT_STATUSES = {
-    active:      'Active',
-    pending:     'Pending Activation',
-    restricted:  'Restricted',
-    suspended:   'Suspended',
-    on_leave:    'On Leave',
-    terminated:  'Terminated',
-    deactivated: 'Deactivated',
-};
-
 async function generateStaffId(role) {
     const prefixMap = {
         admin: 'ADMIN',
@@ -97,7 +86,6 @@ router.post('/create-user', async (req, res) => {
             department: department || undefined,
             isVerified: activateImmediately,
             isActive: activateImmediately,
-            accountStatus: activateImmediately ? 'active' : 'pending',
         });
 
         await user.save();
@@ -155,82 +143,35 @@ router.get('/staff/:id', async (req, res) => {
     }
 });
 
-// ── PUT /admin/staff/:id/status ──────────────────────────────────────────────
-// Now accepts the full accountStatus string from the frontend Actions dropdown.
-// Also keeps isActive in sync for backward compatibility.
 router.put('/staff/:id/status', async (req, res) => {
     try {
-        const user = await User.findById(req.params.id);
-        if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+        const target = await User.findById(req.params.id);
+        if (!target) return res.status(404).json({ success: false, message: 'User not found.' });
 
-        if (user._id.toString() === req.user._id.toString()) {
+        if (target._id.toString() === req.user._id.toString()) {
             return res.status(400).json({ success: false, message: 'You cannot change your own status.' });
         }
 
-        const { status, reason = '' } = req.body;
-
-        // Accept full accountStatus strings from the dashboard Actions menu
-        if (status && ACCOUNT_STATUSES[status]) {
-            user.accountStatus = status;
-            user.isActive = status === 'active';
-            user.isVerified = status === 'active' ? true : user.isVerified;
-            user.statusReason = reason;
-            user.statusUpdatedAt = new Date();
-            user.statusUpdatedBy = req.user._id;
-        } else if (status === 'inactive') {
-            // Legacy toggle from old simple activate/deactivate button
-            user.accountStatus = 'deactivated';
-            user.isActive = false;
-            user.statusReason = reason || 'Deactivated by admin';
-            user.statusUpdatedAt = new Date();
-            user.statusUpdatedBy = req.user._id;
-        } else {
-            return res.status(400).json({
-                success: false,
-                message: `Invalid status. Allowed: ${Object.keys(ACCOUNT_STATUSES).join(', ')}`
-            });
+        const { status, reason } = req.body;
+        const allowedStatuses = ['pending', 'active', 'restricted', 'suspended', 'deactivated'];
+        if (!allowedStatuses.includes(status)) {
+            return res.status(400).json({ success: false, message: `Invalid status. Must be one of: ${allowedStatuses.join(', ')}` });
         }
 
-        await user.save();
-
-        // Log to ActivityLog
-        await ActivityLog.create({
-            action: `STATUS_CHANGE_${status.toUpperCase()}`,
-            details: `${user.firstName} ${user.lastName}'s account status changed to "${ACCOUNT_STATUSES[user.accountStatus]}"${reason ? `. Reason: ${reason}` : ''}.`,
-            user: req.user._id,
-            targetId: user._id,
-        });
+        target.status = status;
+        target.isActive = status === 'active';
+        target.statusReason = reason || '';
+        target.statusUpdatedAt = new Date();
+        target.statusUpdatedBy = req.user._id;
+        await target.save();
 
         res.json({
             success: true,
-            message: `${user.firstName} ${user.lastName}'s status updated to "${ACCOUNT_STATUSES[user.accountStatus]}".`,
-            accountStatus: user.accountStatus,
-            isActive: user.isActive,
+            message: `Staff status updated to "${status}".`,
+            staff: { _id: target._id, status: target.status, isActive: target.isActive, statusReason: target.statusReason }
         });
     } catch (error) {
-        console.error('Status update error:', error);
         res.status(500).json({ success: false, message: 'Server error updating status' });
-    }
-});
-
-// ── POST /admin/staff/:id/action-log ─────────────────────────────────────────
-// Called by AdminDashboard after confirmPersonnelAction to log the action.
-router.post('/staff/:id/action-log', async (req, res) => {
-    try {
-        const { action, reason, effectiveDate, notes, newStatus } = req.body;
-        const user = await User.findById(req.params.id).select('firstName lastName');
-        if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
-
-        await ActivityLog.create({
-            action: `ACTION_${action.toUpperCase()}`,
-            details: `Personnel action "${action}" on ${user.firstName} ${user.lastName}. Status: ${newStatus}. Reason: ${reason}. Effective: ${effectiveDate}. Notes: ${notes || 'none'}.`,
-            user: req.user._id,
-            targetId: user._id,
-        });
-
-        res.json({ success: true, message: 'Action logged.' });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Server error logging action' });
     }
 });
 
@@ -321,7 +262,7 @@ router.get('/stats', async (req, res) => {
         ] = await Promise.all([
             Donation.countDocuments(),
             Booking.countDocuments({ status: 'pending' }),
-            User.countDocuments({ accountStatus: 'active' }),
+            User.countDocuments({ isActive: true }),
             Donation.aggregate([
                 { $match: { paymentStatus: 'paid' } },
                 { $group: { _id: null, total: { $sum: '$amount' } } }

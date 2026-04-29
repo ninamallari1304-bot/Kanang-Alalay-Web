@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 const WEB_ALLOWED_ROLES = ['admin', 'head_caregiver'];
 
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
-    const { user, loading } = useAuth();
+    const { user, loading, isAuthenticated } = useAuth();
 
     if (loading) {
         return (
@@ -27,7 +27,8 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
         );
     }
 
-    if (!user) {
+    // Use isAuthenticated instead of just checking user
+    if (!isAuthenticated || !user) {
         return <Navigate to="/login" replace />;
     }
 
