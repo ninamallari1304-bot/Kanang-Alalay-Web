@@ -26,13 +26,11 @@ body {
   color: var(--ink);
 }
 
-/* ── Page Shell ── */
 .dp-shell {
   min-height: 100vh;
   background: var(--cream);
 }
 
-/* ── Hero Banner ── */
 .dp-hero {
   position: relative;
   overflow: hidden;
@@ -93,7 +91,6 @@ body {
   line-height: 1.6;
 }
 
-/* ── Back Button ── */
 .dp-back {
   position: absolute;
   top: 24px;
@@ -117,14 +114,12 @@ body {
   background: rgba(255, 255, 255, .35);
 }
 
-/* ── Main Container ── */
 .dp-body {
   max-width: 1200px;
   margin: 0 auto;
   padding: 40px 24px 60px;
 }
 
-/* ── Form Container (full width) ── */
 .dp-form-container {
   background: var(--white);
   border-radius: 16px;
@@ -133,7 +128,6 @@ body {
   margin-bottom: 24px;
 }
 
-/* ── Section Spacing ── */
 .dp-section {
   margin-bottom: 32px;
 }
@@ -142,7 +136,6 @@ body {
   margin-bottom: 0;
 }
 
-/* ── Section Title ── */
 .dp-section-title {
   font-size: 18px;
   font-weight: 700;
@@ -151,7 +144,6 @@ body {
   font-family: var(--font-head);
 }
 
-/* ── Pill Tabs ── */
 .dp-tabs {
   display: flex;
   gap: 12px;
@@ -187,7 +179,6 @@ body {
   font-weight: 600;
 }
 
-/* ── Fields ── */
 .dp-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -270,7 +261,6 @@ body {
   color: var(--green);
 }
 
-/* ── QRPH Box ── */
 .dp-qrph-box {
   margin-bottom: 20px;
   text-align: center;
@@ -306,7 +296,6 @@ body {
   line-height: 1.6;
 }
 
-/* QRPH Image Placeholder */
 .dp-qrph-placeholder {
   width: 220px;
   height: 220px;
@@ -338,7 +327,6 @@ body {
   padding: 0 20px;
 }
 
-/* ── Amount Buttons ── */
 .dp-amounts {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -371,7 +359,6 @@ body {
   color: #fff;
 }
 
-/* ── Proof of Payment Upload ── */
 .dp-upload-box {
   border: 2px dashed var(--border);
   border-radius: 12px;
@@ -499,7 +486,6 @@ body {
   background: #fca5a5;
 }
 
-/* ── Anonymous Toggle ── */
 .dp-toggle-row {
   display: flex;
   align-items: center;
@@ -563,7 +549,6 @@ body {
   margin-top: 3px;
 }
 
-/* ── Appointment Box ── */
 .dp-appt-box {
   background: linear-gradient(135deg, #FFF0E8, #FFF8F3);
   border-radius: 12px;
@@ -582,7 +567,6 @@ body {
   gap: 8px;
 }
 
-/* ── Submit Button ── */
 .dp-submit {
   width: 100%;
   padding: 18px;
@@ -628,7 +612,6 @@ body {
   to { transform: rotate(360deg); }
 }
 
-/* ── Alert ── */
 .dp-alert {
   border-radius: 12px;
   padding: 14px 18px;
@@ -651,7 +634,6 @@ body {
   color: #1E7D56;
 }
 
-/* ── Confirmation Modal ── */
 .dp-modal-overlay {
   position: fixed;
   inset: 0;
@@ -780,7 +762,6 @@ body {
   cursor: not-allowed;
 }
 
-/* ── Success Screen ── */
 .dp-success {
   min-height: 100vh;
   display: flex;
@@ -895,7 +876,6 @@ body {
   cursor: pointer;
 }
 
-/* ── Responsive ── */
 @media (max-width: 768px) {
   .dp-hero {
     padding: 40px 20px 50px;

@@ -1,5 +1,4 @@
-/* StaffRegistration.css - Updated with Formal Name Fields */
-
+/* StaffRegistration.css */
 .registration-wrapper {
     min-height: 100vh;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -7,7 +6,6 @@
     position: relative;
 }
 
-/* Security Header */
 .security-header {
     position: fixed;
     top: 0;
@@ -28,7 +26,6 @@
     color: #ffd700;
 }
 
-/* Back Button */
 .back-button {
     position: fixed;
     top: 70px;
@@ -56,7 +53,6 @@
     color: #764ba2;
 }
 
-/* Main Container */
 .registration-container {
     max-width: 1000px;
     margin: 80px auto 40px;
@@ -78,7 +74,6 @@
     }
 }
 
-/* Header */
 .registration-header {
     text-align: center;
     margin-bottom: 40px;
@@ -118,7 +113,6 @@
     color: #ff6b6b;
 }
 
-/* Staff ID Display */
 .staff-id-display {
     background: linear-gradient(135deg, #f6f9fc, #e9f2f9);
     border-radius: 15px;
@@ -185,7 +179,6 @@
     color: #27ae60;
 }
 
-/* Success/Error Cards */
 .success-card {
     background: #d4edda;
     color: #155724;
@@ -262,7 +255,6 @@
     margin-bottom: 15px;
 }
 
-/* Form Sections */
 .form-section {
     background: #f8f9fa;
     border-radius: 15px;
@@ -295,7 +287,6 @@
     font-weight: 500;
 }
 
-/* Form Layout */
 .form-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -309,7 +300,6 @@
     }
 }
 
-/* Name Fields Grid */
 .name-fields-grid {
     display: grid;
     grid-template-columns: 1.2fr 1fr 1.2fr 0.8fr;
@@ -329,7 +319,6 @@
     }
 }
 
-/* Form Groups */
 .form-group {
     margin-bottom: 20px;
 }
@@ -381,7 +370,6 @@
     background-color: #f0fff0;
 }
 
-/* Input Hints */
 .input-hint {
     display: block;
     margin-top: 5px;
@@ -390,7 +378,6 @@
     font-style: italic;
 }
 
-/* Field Errors */
 .field-errors {
     margin-top: 5px;
 }
@@ -420,7 +407,6 @@
     gap: 5px;
 }
 
-/* Password Section */
 .password-group {
     position: relative;
 }
@@ -503,7 +489,6 @@
     box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
 }
 
-/* Password Requirements */
 .password-requirements {
     background: #f8f9fa;
     border-radius: 10px;
@@ -537,7 +522,6 @@
     color: #28a745;
 }
 
-/* Registration Codes */
 .available-codes {
     background: #e9ecef;
     border-radius: 10px;
@@ -619,7 +603,6 @@
     color: #721c24;
 }
 
-/* Form Actions */
 .form-actions {
     display: flex;
     justify-content: flex-end;
@@ -670,7 +653,6 @@
     opacity: 0.6;
 }
 
-/* Spinner */
 .spinner {
     display: inline-block;
     width: 16px;
@@ -686,7 +668,6 @@
     to { transform: rotate(360deg); }
 }
 
-/* Security Footer */
 .security-footer {
     background: linear-gradient(135deg, #2c3e50, #34495e);
     color: white;
@@ -725,7 +706,6 @@
     font-weight: bold;
 }
 
-/* Responsive Design */
 @media (max-width: 768px) {
     .registration-wrapper {
         padding: 15px;
@@ -769,7 +749,6 @@
     }
 }
 
-/* Print Styles */
 @media print {
     .security-header,
     .back-button,
@@ -792,7 +771,6 @@
     }
 }
 
-/* Animations */
 @keyframes fadeIn {
     from {
         opacity: 0;
@@ -806,7 +784,6 @@
     animation: fadeIn 0.5s ease;
 }
 
-/* Tooltip Styles */
 [title] {
     position: relative;
     cursor: help;

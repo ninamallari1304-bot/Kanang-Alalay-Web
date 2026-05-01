@@ -1,6 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap');
 
-/* ── Overlay ── */
 .modal-overlay {
     position: fixed;
     inset: 0;
@@ -18,7 +17,6 @@
     to   { opacity: 1; }
 }
 
-/* ── Modal container ── */
 .registration-modal {
     background: #fff;
     border-radius: 20px;
@@ -35,7 +33,6 @@
     to   { transform: translateY(0);    opacity: 1; }
 }
 
-/* ── Modal Header — brand brown gradient ── */
 .modal-header {
     display: flex;
     justify-content: space-between;
@@ -74,7 +71,6 @@
     font-size: 1.3rem;
 }
 
-/* Close button */
 .close-btn {
     background: rgba(255, 255, 255, .15);
     border: 2px solid rgba(255, 255, 255, .2);
@@ -98,12 +94,10 @@
     border-color: rgba(255, 255, 255, .5);
 }
 
-/* ── Form body ── */
 form {
     padding: 28px 30px;
 }
 
-/* ── Form Grid ── */
 .form-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -119,7 +113,6 @@ form {
     grid-column: 1 / -1;
 }
 
-/* ── Labels ── */
 label {
     display: block;
     margin-bottom: 6px;
@@ -143,7 +136,6 @@ label.optional::after {
     font-size: .78rem;
 }
 
-/* ── Inputs / Selects ── */
 input,
 select,
 textarea {
@@ -189,7 +181,6 @@ textarea.error {
     75%       { transform: translateX(4px); }
 }
 
-/* ── Read-only ── */
 .readonly-field {
     background-color: #f0ebe6;
     color: #7A5C4E;
@@ -203,7 +194,6 @@ textarea.error {
     border-color: #E8D6CC;
 }
 
-/* ── Password field ── */
 .password-field { position: relative; }
 
 .password-input-wrapper { position: relative; }
@@ -230,7 +220,6 @@ textarea.error {
     color: #b85c2d;
 }
 
-/* ── Regenerate button ── */
 .regenerate-btn {
     margin-top: 8px;
     padding: 7px 14px;
@@ -258,7 +247,6 @@ textarea.error {
     box-shadow: 0 4px 10px rgba(90, 68, 56, .25);
 }
 
-/* ── Error / Hint text ── */
 .error-text {
     color: #dc3545;
     font-size: .78rem;
@@ -275,7 +263,6 @@ textarea.error {
     font-style: italic;
 }
 
-/* ── Form-level error ── */
 .form-error {
     background: #f8d7da;
     color: #721c24;
@@ -296,7 +283,6 @@ textarea.error {
     to   { transform: translateY(0);    opacity: 1; }
 }
 
-/* ── Modal Actions ── */
 .modal-actions {
     display: flex;
     justify-content: flex-end;
@@ -365,7 +351,6 @@ textarea.error {
     box-shadow: none;
 }
 
-/* ── Security Note ── */
 .security-note {
     margin-top: 24px;
     padding: 20px 22px;
@@ -404,13 +389,11 @@ textarea.error {
     font-size: .95rem;
 }
 
-/* ── Scrollbar ── */
 .registration-modal::-webkit-scrollbar { width: 7px; }
 .registration-modal::-webkit-scrollbar-track { background: #FFF8F3; border-radius: 4px; }
 .registration-modal::-webkit-scrollbar-thumb { background: #b85c2d; border-radius: 4px; }
 .registration-modal::-webkit-scrollbar-thumb:hover { background: #7d3a06; }
 
-/* ── Responsive ── */
 @media (max-width: 768px) {
     .registration-modal {
         width: 96%;

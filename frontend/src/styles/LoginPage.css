@@ -1,6 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap');
 
-/* ── Back to Home button ── */
 .back-to-home {
     position: absolute;
     top: 24px;
@@ -29,7 +28,6 @@
     transform: translateX(-2px);
 }
 
-/* ── Page wrapper ── */
 .login-page {
     min-height: 100vh;
     position: relative;
@@ -41,7 +39,6 @@
     font-family: 'DM Sans', system-ui, sans-serif;
 }
 
-/* ── Card ── */
 .login-card {
     background: #fff;
     border-radius: 24px;
@@ -57,7 +54,6 @@
     to   { transform: translateY(0);    opacity: 1; }
 }
 
-/* ── Logo mark ── */
 .login-logo {
     display: flex;
     justify-content: center;
@@ -72,7 +68,6 @@
     box-shadow: 0 8px 24px rgba(249, 107, 56, .35);
 }
 
-/* ── Headings ── */
 .login-title {
     margin: 0 0 6px;
     font-family: 'Playfair Display', Georgia, serif;
@@ -88,7 +83,6 @@
     text-align: center;
 }
 
-/* ── Field ── */
 .login-field {
     margin-bottom: 18px;
 }
@@ -153,11 +147,9 @@
 
 .pass-toggle:hover { color: #b85c2d; }
 
-/* ── Error ── */
 .login-error {
     background: #fff0f0;
     border: 1px solid #f5c6cb;
-    /* border-left: 4px solid #dc3545; */
     color: #721c24;
     padding: 10px 14px;
     border-radius: 8px;
@@ -172,7 +164,6 @@
     75%       { transform: translateX(5px); }
 }
 
-/* ── Forgot row ── */
 .forgot-row {
     text-align: right;
     margin-bottom: 20px;
@@ -193,7 +184,6 @@
 
 .forgot-link:hover { color: #F96B38; text-decoration: underline; }
 
-/* ── Primary button ── */
 .login-btn {
     width: 100%;
     padding: 13px;
@@ -225,7 +215,6 @@
     transform: none;
 }
 
-/* ── Spinner ── */
 .spin {
     animation: spin .7s linear infinite;
 }
@@ -234,7 +223,6 @@
     to { transform: rotate(360deg); }
 }
 
-/* ── OTP panel extras ── */
 .otp-input-row {
     margin-bottom: 14px;
 }
@@ -292,7 +280,6 @@
 .back-link:hover,
 .resend-link:hover:not(:disabled) { color: #F96B38; }
 
-/* ── Footer note ── */
 .login-footer-note {
     margin-top: 22px;
     font-size: .78rem;
@@ -302,10 +289,6 @@
     border-top: 1px solid #E8D6CC;
     padding-top: 16px;
 }
-
-/* ════════════════════════════════════════════════════════════════════
-   FORGOT PASSWORD MODAL
-   ════════════════════════════════════════════════════════════════════ */
 
 .fp-overlay {
     position: fixed;
@@ -342,7 +325,6 @@
     to   { transform: translateY(0)    scale(1);   opacity: 1; }
 }
 
-/* Close button */
 .fp-close {
     position: absolute;
     top: 16px;
@@ -366,7 +348,6 @@
     color: #fff;
 }
 
-/* ── Progress stepper ── */
 .fp-steps {
     display: flex;
     align-items: center;
@@ -419,7 +400,6 @@
     background: #2ECC71;
 }
 
-/* ── Modal headings ── */
 .fp-title {
     margin: 0 0 6px;
     font-family: 'Playfair Display', Georgia, serif;
@@ -436,7 +416,6 @@
     line-height: 1.5;
 }
 
-/* ── Feedback message ── */
 .fp-msg {
     padding: 10px 14px;
     border-radius: 9px;
@@ -447,18 +426,15 @@
 }
 
 .fp-msg-info    { background: #FFF8F3; color: #7d3a06;  border: 1px solid #E8D6CC; }
-.fp-msg-error   { background: #fff0f0; color: #721c24;  border: 1px solid #f5c6cb; 
-        /* border-left: 3px solid #dc3545; */ }
+.fp-msg-error   { background: #fff0f0; color: #721c24;  border: 1px solid #f5c6cb; }
 .fp-msg-success { background: #eefbf5; color: #1E7D56;  border: 1px solid #b7e4cc; }
 
-/* ── Body ── */
 .fp-body {
     display: flex;
     flex-direction: column;
     gap: 0;
 }
 
-/* ── Field ── */
 .fp-field {
     margin-bottom: 16px;
 }
@@ -505,7 +481,6 @@
     box-shadow: 0 0 0 3px rgba(249, 107, 56, .12);
 }
 
-/* OTP centered input (no left icon) */
 .fp-input.otp-center {
     padding-left: 14px;
     text-align: center;
@@ -531,7 +506,6 @@
 
 .fp-eye:hover { color: #b85c2d; }
 
-/* ── Primary button (modal) ── */
 .fp-btn {
     width: 100%;
     padding: 12px;
@@ -563,7 +537,6 @@
     transform: none;
 }
 
-/* ── Resend row ── */
 .fp-resend-row {
     display: flex;
     justify-content: space-between;
@@ -588,7 +561,6 @@
 .fp-link.muted { color: #7A5C4E; }
 .fp-link.muted:hover { color: #b85c2d; }
 
-/* ── Password strength ── */
 .fp-strength-wrap {
     display: flex;
     align-items: center;
@@ -624,7 +596,6 @@
     text-align: right;
 }
 
-/* ── Done state ── */
 .fp-done {
     align-items: center;
     text-align: center;
@@ -650,7 +621,6 @@
     line-height: 1.5;
 }
 
-/* ── Responsive ── */
 @media (max-width: 480px) {
     .login-card  { padding: 32px 20px 28px; }
     .login-title { font-size: 1.4rem; }

@@ -4,10 +4,6 @@
 .nurse-sidebar .sidebar-menu li.active { background: rgba(255,255,255,.12); border-left-color: #ffd8c4; }
 .nurse-sidebar .sidebar-menu li:hover  { background: rgba(255,255,255,.08); }
 
-/* ── Topbar ── */
-.nurse-topbar { /* inherits admin-topbar */ }
-
-/* ── Loading state ── */
 .nurse-loading {
     display: flex;
     align-items: center;
@@ -19,9 +15,6 @@
 }
 .nurse-loading svg { color: var(--d-orange); font-size: 1.5rem; }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   STATUS BADGES
-───────────────────────────────────────────────────────────────────────── */
 .status-badge {
     display: inline-block;
     padding: 3px 10px;
@@ -56,9 +49,6 @@
     flex-shrink: 0;
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   TOAST
-───────────────────────────────────────────────────────────────────────── */
 .toast-container {
     position: fixed;
     bottom: 24px;
@@ -84,9 +74,6 @@
 .toast.error   { background: #C0392B; }
 .toast.warn    { background: #E65100; }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   MODAL SHARED
-───────────────────────────────────────────────────────────────────────── */
 .modal-header-nurse {
     padding: 18px 22px;
     background: linear-gradient(135deg, #b85c2d, #7d3a06);
@@ -130,15 +117,11 @@
     margin-top: 4px;
 }
 
-/* Modal widths */
 .modal-sm  { max-width: 460px; padding: 0; }
 .modal-md  { max-width: 520px; padding: 0; }
 .modal-lg  { max-width: 640px; padding: 0; }
 .modal-xl  { max-width: 560px; padding: 0; }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   FORM FIELDS
-───────────────────────────────────────────────────────────────────────── */
 .form-field { margin-bottom: 13px; }
 .form-field label {
     display: block;
@@ -175,7 +158,6 @@ textarea.form-input { resize: vertical; }
 
 .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
-/* Primary save button */
 .btn-modal-save {
     padding: 9px 22px;
     border-radius: 9px;
@@ -192,9 +174,6 @@ textarea.form-input { resize: vertical; }
 .btn-modal-save:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(249,107,56,.4); }
 .btn-modal-save:disabled { background: #ccc; cursor: not-allowed; box-shadow: none; transform: none; }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   ACTION DROPDOWN (⋮)
-───────────────────────────────────────────────────────────────────────── */
 .action-menu-wrapper   { position: relative; display: inline-block; }
 .action-menu-trigger {
     background: none;
@@ -241,9 +220,6 @@ textarea.form-input { resize: vertical; }
 .action-menu-item:hover      { background: var(--d-cream); }
 .action-menu-item svg        { color: var(--d-muted); width: 18px; flex-shrink: 0; }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   HOME — HEADER & PILLS
-───────────────────────────────────────────────────────────────────────── */
 .nurse-header         { margin-bottom: 22px; }
 .nurse-header h2      { margin: 0 0 4px; font-family: var(--d-font-head); font-size: 1.55rem; color: var(--d-ink); }
 .nurse-header .last-login { margin: 0 0 12px; color: var(--d-muted); font-size: .88rem; }
@@ -260,17 +236,11 @@ textarea.form-input { resize: vertical; }
 }
 .nurse-info-pill.on-duty { background: #EEFBF5; border-color: rgba(30,125,86,.2); color: #1E7D56; }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   HOME — GRIDS
-───────────────────────────────────────────────────────────────────────── */
 .home-top-grid    { display: grid; grid-template-columns: 1fr 1.2fr 0.8fr; gap: 16px; margin-bottom: 18px; }
 .home-bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .home-card        { padding: 18px 20px; margin-bottom: 0 !important; }
 .home-card h6     { margin: 0 0 14px; font-family: var(--d-font-head); font-size: 1rem; color: var(--d-ink); }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   SCHEDULE LIST (home)
-───────────────────────────────────────────────────────────────────────── */
 .sched-list { display: flex; flex-direction: column; gap: 12px; }
 
 .sched-item {
@@ -300,9 +270,6 @@ textarea.form-input { resize: vertical; }
     margin-top: 12px;
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   TODAY'S STATUS
-───────────────────────────────────────────────────────────────────────── */
 .nurse-stat-row {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
@@ -346,9 +313,6 @@ textarea.form-input { resize: vertical; }
 .compliance-rate-value.good        { color: #E65100; }
 .compliance-rate-value.poor        { color: #C0392B; }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   COMPLIANCE BAR
-───────────────────────────────────────────────────────────────────────── */
 .compliance-bar {
     width: 100%;
     height: 10px;
@@ -364,9 +328,6 @@ textarea.form-input { resize: vertical; }
     transition: width .5s ease;
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   VOICE REMINDER CARD
-───────────────────────────────────────────────────────────────────────── */
 .voice-card h6              { display: flex; align-items: center; gap: 8px; }
 .voice-card h6 svg          { color: var(--d-orange); }
 .voice-current-label        { font-size: .8rem; font-weight: 700; color: var(--d-muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
@@ -375,7 +336,6 @@ textarea.form-input { resize: vertical; }
 .voice-btn-col              { display: flex; flex-direction: column; gap: 8px; }
 .voice-btn-col .btn-outline-sm { justify-content: center; font-size: .78rem; }
 
-/* Voice mic (modal) */
 .voice-mic-center { text-align: center; margin-bottom: 18px; }
 .voice-mic-btn {
     width: 68px;
@@ -396,9 +356,6 @@ textarea.form-input { resize: vertical; }
 .voice-mic-label.idle     { color: var(--d-muted); }
 .voice-mic-label.recording{ color: #dc3545; font-weight: 700; }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   RESIDENTS (home preview list)
-───────────────────────────────────────────────────────────────────────── */
 .resident-list-item           { border-bottom: 1px solid var(--d-border); padding-bottom: 10px; margin-bottom: 10px; }
 .resident-list-item:last-child{ border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
 .resident-list-name           { font-weight: 600; font-size: .88rem; color: var(--d-ink); }
@@ -406,9 +363,6 @@ textarea.form-input { resize: vertical; }
 .resident-list-overdue        { color: #C0392B; font-weight: 700; font-size: .76rem; }
 .resident-list-nextmed        { color: var(--d-muted); font-size: .76rem; }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   QUICK ACTIONS
-───────────────────────────────────────────────────────────────────────── */
 .quick-actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .quick-action-btn {
     display: flex;
@@ -430,9 +384,6 @@ textarea.form-input { resize: vertical; }
 .quick-action-btn svg   { color: var(--d-orange); font-size: .9rem; flex-shrink: 0; }
 .quick-action-btn:hover { background: var(--d-orange-lt); border-color: var(--d-orange); color: var(--d-orange-dk); }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   RESIDENTS PAGE — card-row layout
-───────────────────────────────────────────────────────────────────────── */
 .res-page-header  { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
 .res-page-label   { font-size: .8rem; font-weight: 700; color: var(--d-muted); text-transform: uppercase; letter-spacing: .05em; }
 .res-page-controls{ display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -517,9 +468,6 @@ textarea.form-input { resize: vertical; }
 .page-num-btn     { width: 26px; height: 26px; border-radius: 6px; border: 1.5px solid var(--d-border); background: #fff; color: var(--d-muted); font-weight: 700; font-size: .78rem; cursor: pointer; transition: all .18s; }
 .page-num-btn.active { border-color: var(--d-orange); background: var(--d-orange); color: #fff; }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   MEDICINES PAGE
-───────────────────────────────────────────────────────────────────────── */
 .med-pills-row   { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
 .med-filters-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
 .filters-label   { font-size: .76rem; font-weight: 700; color: var(--d-muted); text-transform: uppercase; letter-spacing: .05em; }
@@ -557,7 +505,6 @@ textarea.form-input { resize: vertical; }
 .sched-overdue-min    { font-size: .72rem; color: #C0392B; font-weight: 700; }
 .sched-med-condition  { font-size: .72rem; color: var(--d-muted); }
 
-/* Table text helpers */
 .td-sm     { font-size: .84rem; }
 .td-xs     { font-size: .82rem; }
 .td-nowrap { white-space: nowrap; }
@@ -577,7 +524,6 @@ textarea.form-input { resize: vertical; }
 }
 .sched-show-more button:hover { text-decoration: underline; }
 
-/* Action buttons */
 .sched-btn-verify  { font-size: .78rem; padding: 6px 14px; background: #dc3545; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; font-family: var(--d-font-body); transition: opacity .2s; }
 .sched-btn-prepare { font-size: .78rem; padding: 6px 14px; background: #1E7D56; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; font-family: var(--d-font-body); transition: opacity .2s; }
 .sched-btn-view    { font-size: .78rem; padding: 6px 14px; background: #e0e0e0; color: #555;   border: none; border-radius: 8px; cursor: pointer; font-family: var(--d-font-body); transition: background .2s; }
@@ -586,14 +532,12 @@ textarea.form-input { resize: vertical; }
 .sched-btn-view:hover    { background: #d0d0d0; }
 .sched-btn-administer    { font-size: .78rem; padding: 6px 14px; }
 
-/* Active medication grouped */
 .active-med-resident-cell { vertical-align: top; padding-top: 14px !important; }
 .active-med-res-name      { font-size: .88rem; font-weight: 700; }
 .active-med-res-room      { font-size: .74rem; color: var(--d-muted); }
 .active-med-overdue-tag   { font-size: .72rem; color: #C0392B; font-weight: 700; margin-top: 3px; }
 .med-frequency            { font-size: .72rem; color: var(--d-muted); }
 
-/* Inventory Status */
 .inv-status-section       { margin-top: 20px; border-top: 1.5px solid var(--d-border); padding-top: 18px; }
 .inv-status-section h5    { margin: 0 0 14px; font-family: var(--d-font-head); font-size: 1.05rem; color: var(--d-ink); }
 .inv-stock-ok  { font-weight: 600; color: #1E7D56; }
@@ -603,9 +547,6 @@ textarea.form-input { resize: vertical; }
 .inv-action-row{ display: flex; gap: 12px; margin-top: 16px; justify-content: center; }
 .inv-action-row .btn-primary-sm { padding: 10px 28px; }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   VERIFY PAGE
-───────────────────────────────────────────────────────────────────────── */
 .verify-wrapper   { max-width: 480px; margin: 0 auto; padding: 20px 0; text-align: center; }
 .verify-scan-box  { background: var(--d-cream); border: 2px dashed var(--d-border); border-radius: 16px; padding: 36px 28px; margin-bottom: 20px; }
 .verify-scan-box svg { font-size: 4rem; color: var(--d-orange); display: block; margin: 0 auto 14px; }
@@ -615,7 +556,6 @@ textarea.form-input { resize: vertical; }
 .verify-voice-box h6 { margin: 0 0 8px; font-family: var(--d-font-head); font-size: .9rem; }
 .verify-voice-box p  { font-size: .84rem; color: var(--d-muted); margin: 0 0 14px; }
 
-/* QR modal */
 .qr-modal-icon  { font-size: 3rem; color: var(--d-orange); display: block; margin: 0 auto 10px; }
 .qr-modal-hint  { color: var(--d-muted); font-size: .88rem; text-align: center; margin-bottom: 18px; }
 .qr-input-row   { display: flex; gap: 8px; margin-bottom: 14px; }
@@ -629,12 +569,8 @@ textarea.form-input { resize: vertical; }
 .qr-result-field small   { color: #7A5C4E; font-weight: 700; font-size: .7rem; text-transform: uppercase; display: block; }
 .qr-result-field div     { font-weight: 600; font-size: .88rem; }
 
-/* Edit schedule info strip */
 .edit-sched-info { background: var(--d-cream); border-radius: 9px; padding: 10px 14px; margin-bottom: 14px; font-size: .84rem; }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   RESIDENT CARDS (grid view)
-───────────────────────────────────────────────────────────────────────── */
 .resident-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
 .resident-card {
     background: var(--d-cream);
@@ -649,13 +585,9 @@ textarea.form-input { resize: vertical; }
 
 .alert-danger-sm { margin-top: 8px; background: #FFF0F0; color: #C0392B; padding: 6px 10px; border-radius: 7px; font-size: .78rem; font-weight: 700; border: 1px solid #FFCDD2; }
 
-/* No-data center */
 .no-data-center { text-align: center; padding: 20px 0; color: var(--d-muted); font-size: .84rem; }
 .no-data-center svg { font-size: 1.8rem; display: block; margin: 0 auto 8px; opacity: .25; }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   RESPONSIVE
-───────────────────────────────────────────────────────────────────────── */
 @media (max-width: 1100px) {
     .home-top-grid { grid-template-columns: 1fr 1fr; }
     .home-top-grid > :last-child { grid-column: 1 / -1; }
@@ -678,32 +610,22 @@ textarea.form-input { resize: vertical; }
     .med-filters-row { flex-direction: column; align-items: flex-start; }
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   HELPERS (generated from JS cleanup)
-───────────────────────────────────────────────────────────────────────── */
 .ml-auto      { margin-left: auto; }
 .mr-8         { margin-right: 8px; }
 .mb-18        { margin-bottom: 18px; }
 .table-scroll { overflow-x: auto; }
 
-/* History modal scroll */
 .history-scroll { overflow-x: auto; max-height: 420px; overflow-y: auto; }
 
-/* Voice card buttons */
 .voice-btn { justify-content: center; font-size: .78rem; }
 
-/* Resident action buttons */
 .res-btn { font-size: .72rem; padding: 5px 9px; }
 
-/* Sched name icons */
 .done-check   { color: #1E7D56; margin-right: 4px; }
 .overdue-icon { color: #C0392B; font-size: .76rem; margin-right: 4px; }
 
-/* Full-width home buttons */
 .home-full-width-btn { width: 100%; justify-content: center; margin-top: 12px; }
-/* ─────────────────────────────────────────────────────────────────────────
-   MODAL: Section Labels (shared across Add Resident, etc.)
-───────────────────────────────────────────────────────────────────────── */
+
 .modal-section-label {
     font-size: .72rem;
     font-weight: 700;
@@ -720,9 +642,6 @@ textarea.form-input { resize: vertical; }
     margin-top: 0;
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   MODAL: Add Resident
-───────────────────────────────────────────────────────────────────────── */
 .add-resident-modal {
     max-width: 580px;
     padding: 0;
@@ -734,20 +653,15 @@ textarea.form-input { resize: vertical; }
     padding: 22px 24px;
 }
 
-/* Scrollbar styling for modal */
 .add-resident-body::-webkit-scrollbar { width: 6px; }
 .add-resident-body::-webkit-scrollbar-track { background: var(--d-cream); border-radius: 10px; }
 .add-resident-body::-webkit-scrollbar-thumb { background: var(--d-border); border-radius: 10px; }
 .add-resident-body::-webkit-scrollbar-thumb:hover { background: var(--d-orange); }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   MODAL: View Full Profile
-───────────────────────────────────────────────────────────────────────── */
 .profile-modal-body {
     padding: 0;
 }
 
-/* Profile header */
 .profile-header-card {
     display: flex;
     align-items: center;
@@ -791,7 +705,6 @@ textarea.form-input { resize: vertical; }
     margin-bottom: 8px;
 }
 
-/* Profile content grid */
 .profile-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -829,7 +742,6 @@ textarea.form-input { resize: vertical; }
     display: inline-block;
 }
 
-/* Profile info rows */
 .profile-info-row {
     display: flex;
     justify-content: space-between;
@@ -858,7 +770,6 @@ textarea.form-input { resize: vertical; }
     text-align: right;
 }
 
-/* Today's medication in profile */
 .profile-modal-body .custom-table {
     margin: 0;
 }
@@ -869,14 +780,10 @@ textarea.form-input { resize: vertical; }
     border-top: 1.5px solid var(--d-border);
 }
 
-/* Profile medication section wrapper */
 .profile-meds-section {
     padding: 0 24px;
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   VALIDATION BANNER (inside modals)
-───────────────────────────────────────────────────────────────────────── */
 .validation-banner {
     display: flex;
     align-items: center;
@@ -902,9 +809,6 @@ textarea.form-input { resize: vertical; }
     to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   LOGOUT CONFIRM MODAL
-───────────────────────────────────────────────────────────────────────── */
 .logout-confirm-header {
     display: flex;
     align-items: center;

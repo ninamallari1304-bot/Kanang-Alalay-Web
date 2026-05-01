@@ -1,6 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;1,700&family=DM+Sans:wght@300;400;500;600&display=swap');
 
-/* ── CSS Variables (consistent with BookingPage & Dashboard) ── */
 :root {
   --hp-orange:     #F96B38;
   --hp-orange-dk:  #D94E1B;
@@ -19,9 +18,6 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
-/* ══════════════════════════════════════
-   BASE
-══════════════════════════════════════ */
 .home-page {
   background-color: var(--hp-cream);
   font-family: var(--hp-font-body);
@@ -29,9 +25,6 @@
   overflow-x: hidden;
 }
 
-/* ══════════════════════════════════════
-   HERO SECTION
-══════════════════════════════════════ */
 .hero-section {
   position: relative;
   overflow: hidden;
@@ -44,7 +37,6 @@
   color: var(--hp-white);
 }
 
-/* Subtle texture overlay */
 .hero-section::before {
   content: '';
   position: absolute;
@@ -54,7 +46,6 @@
   pointer-events: none;
 }
 
-/* Warm bottom fade into next section */
 .hero-section::after {
   content: '';
   position: absolute;
@@ -113,7 +104,6 @@
   font-weight: 300;
 }
 
-/* ── Hero Buttons ── */
 .hero-buttons {
   display: flex;
   justify-content: center;
@@ -136,7 +126,6 @@
   border: 2px solid transparent;
 }
 
-/* Book a Visit — gold solid */
 .hero-buttons .btn-light {
   background: var(--hp-gold);
   color: var(--hp-ink);
@@ -152,7 +141,6 @@
   box-shadow: 0 10px 28px rgba(244,176,65,0.45);
 }
 
-/* Make a Donation — outlined gold */
 .hero-buttons .btn-outline-light {
   background: transparent;
   color: var(--hp-gold);
@@ -166,7 +154,6 @@
   box-shadow: 0 10px 28px rgba(244,176,65,0.35);
 }
 
-/* Staff Login — subtle dark */
 .hero-buttons .btn-primary {
   background: rgba(255,255,255,0.12);
   color: var(--hp-white);
@@ -186,9 +173,6 @@
   .hero-buttons .btn { width: 100%; max-width: 300px; }
 }
 
-/* ══════════════════════════════════════
-   SECTION TITLE (shared)
-══════════════════════════════════════ */
 .section-title {
   font-family: var(--hp-font-head);
   font-size: clamp(1.6rem, 3vw, 2.2rem);
@@ -208,9 +192,6 @@
   margin: 14px auto 0;
 }
 
-/* ══════════════════════════════════════
-   INTRO SECTION
-══════════════════════════════════════ */
 .intro-section {
   background: var(--hp-cream-2);
   padding: 72px 0;
@@ -242,9 +223,6 @@
   margin: 0 auto;
 }
 
-/* ══════════════════════════════════════
-   ABOUT SECTION
-══════════════════════════════════════ */
 .about-section {
   background: var(--hp-white);
   padding: 80px 0;
@@ -258,9 +236,6 @@
   max-width: 700px;
 }
 
-/* ══════════════════════════════════════
-   SERVICES SECTION
-══════════════════════════════════════ */
 .services-section {
   background: var(--hp-cream);
   padding: 80px 0;
@@ -308,9 +283,6 @@
   line-height: 1.7;
 }
 
-/* ══════════════════════════════════════
-   GALLERY SECTION
-══════════════════════════════════════ */
 .gallery-section {
   background: var(--hp-cream-2);
   padding: 80px 0;
@@ -320,7 +292,6 @@
   margin-bottom: 32px;
 }
 
-/* Carousel styling */
 .gallery-section .carousel {
   border-radius: 18px;
   overflow: hidden;
@@ -343,9 +314,6 @@
   background-color: var(--hp-orange);
 }
 
-/* ══════════════════════════════════════
-   CTA SECTION
-══════════════════════════════════════ */
 .cta-section {
   position: relative;
   overflow: hidden;
@@ -399,9 +367,6 @@
   box-shadow: 0 10px 28px rgba(249,107,56,0.5);
 }
 
-/* ══════════════════════════════════════
-   FOOTER SECTION
-══════════════════════════════════════ */
 .footer-section {
   background: var(--hp-ink);
   padding: 52px 0 36px;
@@ -445,15 +410,11 @@
   color: var(--hp-gold);
 }
 
-/* Footer bottom divider */
 .footer-section .row {
   padding-bottom: 28px;
   border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
-/* ══════════════════════════════════════
-   RESPONSIVE
-══════════════════════════════════════ */
 @media (max-width: 992px) {
   .services-section .col-md-3 {
     margin-bottom: 8px;

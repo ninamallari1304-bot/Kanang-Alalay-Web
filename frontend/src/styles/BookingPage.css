@@ -26,13 +26,11 @@ body {
   color: var(--ink);
 }
 
-/* ── Page Shell ── */
 .bp-shell {
   min-height: 100vh;
   background: var(--cream);
 }
 
-/* ── Hero Banner ── */
 .bp-hero {
   position: relative;
   overflow: hidden;
@@ -93,7 +91,6 @@ body {
   line-height: 1.6;
 }
 
-/* ── Back Button ── */
 .bp-back {
   position: absolute;
   top: 24px;
@@ -118,14 +115,12 @@ body {
   background: rgba(255, 255, 255, 0.35);
 }
 
-/* ── Main Container ── */
 .bp-body {
   max-width: 1200px;
   margin: 0 auto;
   padding: 40px 24px 60px;
 }
 
-/* ── Compact Guidelines at Top ── */
 .bp-guidelines-top {
   background: var(--white);
   border-radius: 12px;
@@ -171,7 +166,6 @@ body {
   opacity: 0.6;
 }
 
-/* ── Form Container (full width) ── */
 .bp-form-container {
   background: var(--white);
   border-radius: 16px;
@@ -180,7 +174,6 @@ body {
   margin-bottom: 24px;
 }
 
-/* ── Section ── */
 .bp-section {
   margin-bottom: 32px;
 }
@@ -189,7 +182,6 @@ body {
   margin-bottom: 0;
 }
 
-/* ── Section Title ── */
 .bp-section-title {
   font-size: 18px;
   font-weight: 700;
@@ -198,7 +190,6 @@ body {
   font-family: var(--font-head);
 }
 
-/* ── Fields ── */
 .bp-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -281,7 +272,6 @@ body {
   color: var(--green);
 }
 
-/* ── Schedule Row (calendar + time side by side) ── */
 .bp-schedule-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -289,7 +279,6 @@ body {
   align-items: start;
 }
 
-/* ── Calendar Widget ── */
 .bp-calendar-section .react-calendar {
   width: 100%;
   border: 2px solid var(--border);
@@ -354,7 +343,6 @@ body {
   font-size: 14px;
 }
 
-/* ── Time Selection ── */
 .bp-time-section label {
   display: block;
   font-size: 13px;
@@ -402,7 +390,6 @@ body {
   font-weight: 600;
 }
 
-/* ── Submit Button ── */
 .bp-submit {
   width: 100%;
   padding: 18px;
@@ -448,7 +435,6 @@ body {
   to { transform: rotate(360deg); }
 }
 
-/* ── Alert ── */
 .bp-alert {
   border-radius: 12px;
   padding: 14px 18px;
@@ -471,7 +457,6 @@ body {
   color: #1E7D56;
 }
 
-/* ── Confirmation Modal ── */
 .bp-modal-overlay {
   position: fixed;
   inset: 0;
@@ -600,7 +585,6 @@ body {
   cursor: not-allowed;
 }
 
-/* ── Success Screen ── */
 .bp-success {
   min-height: 100vh;
   display: flex;
@@ -715,7 +699,6 @@ body {
   cursor: pointer;
 }
 
-/* ── Responsive ── */
 @media (max-width: 768px) {
   .bp-hero {
     padding: 40px 20px 50px;

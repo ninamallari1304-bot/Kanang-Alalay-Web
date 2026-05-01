@@ -56,7 +56,6 @@
 }
 .back-btn:hover { background: var(--vp-orange-lt); border-color: var(--vp-orange); transform: translateX(-2px); }
 
-/* ── Error banner ── */
 .profile-error-banner {
   background: #FFF0F0;
   border: 1.5px solid #FFCDD2;
@@ -68,7 +67,6 @@
   margin-bottom: 20px;
 }
 
-/* ── Profile Card ── */
 .profile-card {
   background: var(--vp-white);
   border-radius: var(--vp-radius);
@@ -86,7 +84,6 @@
   margin-bottom: 32px;
 }
 
-/* Avatar with status dot */
 .profile-avatar-wrap { position: relative; display: inline-flex; }
 .profile-avatar {
   font-size: 88px;
@@ -131,7 +128,6 @@
   margin-top: 6px;
 }
 
-/* ── Info Grid ── */
 .profile-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -176,7 +172,6 @@
 .info-text p { margin: 0; font-size: 1rem; color: var(--vp-ink); font-weight: 600; }
 .not-provided { color: var(--vp-muted); font-style: italic; font-weight: 400; font-size: .9rem; }
 
-/* ── Member since ── */
 .profile-member-since {
   margin-top: 20px;
   font-size: .82rem;
@@ -186,7 +181,6 @@
   border-top: 1px dashed var(--vp-border);
 }
 
-/* ── Footer ── */
 .profile-footer {
   margin-top: 28px;
   padding-top: 24px;

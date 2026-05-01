@@ -1,8 +1,5 @@
-/* HelpCenter.css — shares page-wrapper, content-container, page-header, back-btn from ViewProfile.css */
-
 .help-container { max-width: 860px; }
 
-/* ── Hero Banner ── */
 .help-hero-banner {
   background: linear-gradient(135deg, #b85c2d, #7d3a06);
   border-radius: 20px;
@@ -42,7 +39,6 @@
   position: relative;
 }
 
-/* ── Quick Links ── */
 .help-quick-links {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -87,7 +83,6 @@
   margin-top: 2px;
 }
 
-/* ── FAQ Section ── */
 .help-faq-section { margin-bottom: 32px; }
 .help-section-title {
   font-family: 'Playfair Display', Georgia, serif;
@@ -143,7 +138,6 @@
   padding-top: 14px;
 }
 
-/* ── Support Cards ── */
 .help-card-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -203,7 +197,6 @@
 }
 .outline-btn:hover { background: #FFF8F3; box-shadow: 0 4px 12px rgba(249,107,56,.15); }
 
-/* ── User info ── */
 .help-user-info {
   text-align: center;
   font-size: .82rem;
