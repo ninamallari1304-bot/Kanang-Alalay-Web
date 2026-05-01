@@ -1,9 +1,3 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   NurseDashboard.css
-   Nurse / Caregiver dashboard — inherits Dashboard.css + AdminDashboard.css
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/* ── Sidebar ── */
 .nurse-sidebar { background: #b85c2d !important; }
 .nurse-sidebar .sidebar-header { border-bottom-color: rgba(255,255,255,.1); }
 .nurse-sidebar .brand-text h5 { color: #ffd8c4; }
