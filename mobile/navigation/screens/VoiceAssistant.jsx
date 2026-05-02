@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useRef } from 'react'
 import {
   View,
   Text,
@@ -7,10 +7,9 @@ import {
   ScrollView,
   TextInput,
   Alert,
-  Animated,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import * as Speech from 'expo-speech-recognition'
+import * as Speech from 'expo-speech'
 
 export default function VoiceAssistant({ navigation }) {
   const [isListening, setIsListening] = useState(false)
@@ -24,77 +23,16 @@ export default function VoiceAssistant({ navigation }) {
     }
   ])
   const [inputText, setInputText] = useState('')
-  const pulseAnim = useRef(new Animated.Value(1)).current
   const scrollViewRef = useRef()
 
-  useEffect(() => {
-    if (isListening) {
-      startPulseAnimation()
-    } else {
-      stopPulseAnimation()
-    }
-  }, [isListening])
-
-  const startPulseAnimation = () => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.2,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start()
+  const startListening = () => {
+    const message = 'Speech recognition is not available in Expo Go. Please type your question instead.'
+    Alert.alert('Feature unavailable', message)
+    Speech.speak(message)
   }
 
-  const stopPulseAnimation = () => {
-    pulseAnim.stopAnimation()
-    pulseAnim.setValue(1)
-  }
-
-  const startListening = async () => {
-    try {
-      const { granted } = await Speech.requestPermissionsAsync()
-      if (!granted) {
-        Alert.alert('Permission Required', 'Microphone permission is required for voice input.')
-        return
-      }
-
-      setIsListening(true)
-      setTranscript('')
-
-      await Speech.startAsync({
-        language: 'en-US',
-        onResult: (result) => {
-          setTranscript(result.transcript)
-          if (result.isFinal) {
-            handleVoiceInput(result.transcript)
-          }
-        },
-        onError: (error) => {
-          console.error('Speech recognition error:', error)
-          setIsListening(false)
-          Alert.alert('Error', 'Speech recognition failed. Please try again.')
-        }
-      })
-    } catch (error) {
-      console.error('Error starting speech recognition:', error)
-      Alert.alert('Error', 'Failed to start voice recognition.')
-    }
-  }
-
-  const stopListening = async () => {
-    try {
-      await Speech.stopAsync()
-      setIsListening(false)
-    } catch (error) {
-      console.error('Error stopping speech recognition:', error)
-    }
+  const stopListening = () => {
+    setIsListening(false)
   }
 
   const handleVoiceInput = (text) => {
@@ -226,16 +164,16 @@ export default function VoiceAssistant({ navigation }) {
           />
 
           <TouchableOpacity
-            style={[styles.voiceBtn, isListening && styles.voiceBtnActive]}
-            onPress={isListening ? stopListening : startListening}
+            style={styles.voiceBtn}
+            onPress={startListening}
           >
-            <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+            <View>
               <Ionicons
-                name={isListening ? "stop" : "mic"}
+                name="mic"
                 size={24}
-                color={isListening ? "#fff" : "#E45C2B"}
+                color="#E45C2B"
               />
-            </Animated.View>
+            </View>
           </TouchableOpacity>
         </View>
 

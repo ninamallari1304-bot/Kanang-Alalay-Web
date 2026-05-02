@@ -11,7 +11,7 @@ import {
   Alert,
 } from 'react-native'
 import { Ionicons, MaterialIcons } from '@expo/vector-icons'
-import * as Speech from 'expo-speech-recognition'
+import * as Speech from 'expo-speech'
 
 export default function AdministerMedication({ navigation, route }) {
   const { resident, medication } = route.params;
@@ -93,46 +93,15 @@ export default function AdministerMedication({ navigation, route }) {
   }
 
   // Voice recording functions
-  const startRecording = async () => {
-    try {
-      const { granted } = await Speech.requestPermissionsAsync()
-      if (!granted) {
-        Alert.alert('Permission Required', 'Microphone permission is required for voice recording.')
-        return
-      }
-
-      setIsRecording(true)
-      setIsListening(true)
-      setVoiceNote('')
-
-      await Speech.startAsync({
-        language: 'en-US',
-        onResult: (result) => {
-          if (result.isFinal) {
-            setVoiceNote(prev => prev + result.transcript + ' ')
-          }
-        },
-        onError: (error) => {
-          console.error('Speech recognition error:', error)
-          setIsRecording(false)
-          setIsListening(false)
-          Alert.alert('Error', 'Speech recognition failed. Please try again.')
-        }
-      })
-    } catch (error) {
-      console.error('Error starting recording:', error)
-      Alert.alert('Error', 'Failed to start voice recording.')
-    }
+  const startRecording = () => {
+    const message = 'Speech recognition is not available in Expo Go. Please type your note below instead.'
+    Alert.alert('Feature unavailable', message)
+    Speech.speak(message)
   }
 
-  const stopRecording = async () => {
-    try {
-      await Speech.stopAsync()
-      setIsRecording(false)
-      setIsListening(false)
-    } catch (error) {
-      console.error('Error stopping recording:', error)
-    }
+  const stopRecording = () => {
+    setIsRecording(false)
+    setIsListening(false)
   }
 
   const saveVoiceNote = () => {
@@ -349,14 +318,8 @@ export default function AdministerMedication({ navigation, route }) {
               </TouchableOpacity>
 
               <Text style={styles.recordingStatus}>
-                {isRecording ? 'Listening... Tap to stop' : 'Tap to start recording'}
+                Speech recognition is not available in Expo Go. Please type your note below instead.
               </Text>
-
-              {isListening && (
-                <View style={styles.listeningIndicator}>
-                  <Text style={styles.listeningText}>🎤 Listening...</Text>
-                </View>
-              )}
             </View>
 
             <View style={styles.voiceTextArea}>
