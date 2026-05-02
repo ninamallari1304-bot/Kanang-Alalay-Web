@@ -37,6 +37,7 @@ import AboutApp from './navigation/screens/profile screens/AboutApp';
 import AccountSettings from './navigation/screens/profile screens/AccountSettings';
 import DataSynch from './navigation/screens/profile screens/DataSynch';
 import VoiceLanguage from './navigation/screens/profile screens/VoiceLanguage';
+import VoiceAssistant from './navigation/screens/VoiceAssistant';
 
 import FullInventory from './navigation/screens/inventory screens/FullInventory';
 import MedicationStock from './navigation/screens/MedicationStock';
@@ -68,6 +69,7 @@ export default function App() {
           <Stack.Screen name="AboutApp" component={AboutApp} options={{ headerShown: false }} />
           <Stack.Screen name="DataSynch" component={DataSynch} options={{ headerShown: false }} />
           <Stack.Screen name="VoiceLanguage" component={VoiceLanguage} options={{ headerShown: false }} />
+          <Stack.Screen name="VoiceAssistant" component={VoiceAssistant} options={{ headerShown: false }} />
           <Stack.Screen name="AccountSettings" component={AccountSettings} options={{ headerShown: false }} />
 
           <Stack.Screen name="FullInv" component={FullInventory} options={{ headerShown: false }} />

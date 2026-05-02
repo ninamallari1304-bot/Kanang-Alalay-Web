@@ -7,8 +7,11 @@ import {
   Modal,
   Pressable,
   Animated,
+  TextInput,
+  Alert,
 } from 'react-native'
 import { Ionicons, MaterialIcons } from '@expo/vector-icons'
+import * as Speech from 'expo-speech-recognition'
 
 export default function AdministerMedication({ navigation, route }) {
   const { resident, medication } = route.params;
@@ -18,6 +21,12 @@ export default function AdministerMedication({ navigation, route }) {
   const spinAnim = useRef(new Animated.Value(0)).current
   const progressAnim = useRef(new Animated.Value(0)).current
   const checkScale = useRef(new Animated.Value(0)).current
+
+  // Voice recording states
+  const [isRecording, setIsRecording] = useState(false)
+  const [voiceNote, setVoiceNote] = useState('')
+  const [showVoiceModal, setShowVoiceModal] = useState(false)
+  const [isListening, setIsListening] = useState(false)
 
   useEffect(() => {
     if (modalState === 'loading') {
@@ -83,6 +92,63 @@ export default function AdministerMedication({ navigation, route }) {
     navigation.reset({ index: 0, routes: [{ name: 'AllRes' }] })
   }
 
+  // Voice recording functions
+  const startRecording = async () => {
+    try {
+      const { granted } = await Speech.requestPermissionsAsync()
+      if (!granted) {
+        Alert.alert('Permission Required', 'Microphone permission is required for voice recording.')
+        return
+      }
+
+      setIsRecording(true)
+      setIsListening(true)
+      setVoiceNote('')
+
+      await Speech.startAsync({
+        language: 'en-US',
+        onResult: (result) => {
+          if (result.isFinal) {
+            setVoiceNote(prev => prev + result.transcript + ' ')
+          }
+        },
+        onError: (error) => {
+          console.error('Speech recognition error:', error)
+          setIsRecording(false)
+          setIsListening(false)
+          Alert.alert('Error', 'Speech recognition failed. Please try again.')
+        }
+      })
+    } catch (error) {
+      console.error('Error starting recording:', error)
+      Alert.alert('Error', 'Failed to start voice recording.')
+    }
+  }
+
+  const stopRecording = async () => {
+    try {
+      await Speech.stopAsync()
+      setIsRecording(false)
+      setIsListening(false)
+    } catch (error) {
+      console.error('Error stopping recording:', error)
+    }
+  }
+
+  const saveVoiceNote = () => {
+    if (voiceNote.trim()) {
+      Alert.alert('Voice Note Saved', 'Your voice note has been recorded and saved.')
+      setShowVoiceModal(false)
+      setVoiceNote('')
+    } else {
+      Alert.alert('No Content', 'Please record a voice note first.')
+    }
+  }
+
+  const clearVoiceNote = () => {
+    setVoiceNote('')
+  }
+
   return (
     <View style={styles.container}>
 
@@ -135,9 +201,14 @@ export default function AdministerMedication({ navigation, route }) {
         </View>
 
         {/* Voice Note */}
-        <TouchableOpacity style={styles.voiceBtn}>
-          <Ionicons name="mic" size={24} color="#8B5E3C" />
-          <Text style={styles.voiceText}>Record Voice Note</Text>
+        <TouchableOpacity
+          style={[styles.voiceBtn, isRecording && styles.voiceBtnRecording]}
+          onPress={() => setShowVoiceModal(true)}
+        >
+          <Ionicons name={isRecording ? "mic" : "mic-outline"} size={24} color={isRecording ? "#E45C2B" : "#8B5E3C"} />
+          <Text style={[styles.voiceText, isRecording && styles.voiceTextRecording]}>
+            {isRecording ? 'Recording...' : 'Record Voice Note'}
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -231,6 +302,93 @@ export default function AdministerMedication({ navigation, route }) {
               </>
             )}
 
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Voice Recording Modal */}
+      <Modal
+        transparent
+        visible={showVoiceModal}
+        animationType="slide"
+        onRequestClose={() => {
+          if (isRecording) stopRecording()
+          setShowVoiceModal(false)
+        }}
+      >
+        <Pressable
+          style={styles.overlay}
+          onPress={() => {
+            if (isRecording) stopRecording()
+            setShowVoiceModal(false)
+          }}
+        >
+          <Pressable style={styles.voiceModal} onPress={() => {}}>
+            <View style={styles.voiceModalHeader}>
+              <Text style={styles.voiceModalTitle}>Voice Note</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  if (isRecording) stopRecording()
+                  setShowVoiceModal(false)
+                }}
+              >
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.voiceRecordingArea}>
+              <TouchableOpacity
+                style={[styles.recordBtn, isRecording && styles.recordBtnActive]}
+                onPress={isRecording ? stopRecording : startRecording}
+              >
+                <Ionicons
+                  name={isRecording ? "stop" : "mic"}
+                  size={32}
+                  color={isRecording ? "#fff" : "#E45C2B"}
+                />
+              </TouchableOpacity>
+
+              <Text style={styles.recordingStatus}>
+                {isRecording ? 'Listening... Tap to stop' : 'Tap to start recording'}
+              </Text>
+
+              {isListening && (
+                <View style={styles.listeningIndicator}>
+                  <Text style={styles.listeningText}>🎤 Listening...</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.voiceTextArea}>
+              <TextInput
+                style={styles.voiceInput}
+                multiline
+                placeholder="Your voice note will appear here..."
+                value={voiceNote}
+                onChangeText={setVoiceNote}
+                editable={!isRecording}
+              />
+            </View>
+
+            <View style={styles.voiceModalActions}>
+              <TouchableOpacity
+                style={styles.voiceCancelBtn}
+                onPress={clearVoiceNote}
+                disabled={isRecording}
+              >
+                <Text style={[styles.voiceCancelText, isRecording && styles.disabledText]}>Clear</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.voiceSaveBtn, (!voiceNote.trim() || isRecording) && styles.disabledBtn]}
+                onPress={saveVoiceNote}
+                disabled={!voiceNote.trim() || isRecording}
+              >
+                <Text style={[styles.voiceSaveText, (!voiceNote.trim() || isRecording) && styles.disabledText]}>
+                  Save Note
+                </Text>
+              </TouchableOpacity>
+            </View>
           </Pressable>
         </Pressable>
       </Modal>
@@ -361,9 +519,145 @@ const styles = StyleSheet.create({
     gap: 8,
   },
 
-  voiceText: {
-    color: '#8B5E3C',
+  voiceBtnRecording: {
+    backgroundColor: '#FFE6E6',
+    borderColor: '#E45C2B',
+    borderWidth: 1,
+  },
+
+  voiceTextRecording: {
+    color: '#E45C2B',
+  },
+
+  // Voice Modal Styles
+  voiceModal: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    width: '90%',
+    maxHeight: '80%',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+  },
+
+  voiceModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+
+  voiceModalTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
+    color: '#7A4A2E',
+  },
+
+  voiceRecordingArea: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+
+  recordBtn: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: '#E45C2B',
+  },
+
+  recordBtnActive: {
+    backgroundColor: '#E45C2B',
+    shadowColor: '#E45C2B',
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+  },
+
+  recordingStatus: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+
+  listeningIndicator: {
+    marginTop: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#E8F5E8',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+  },
+
+  listeningText: {
+    color: '#4CAF50',
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+
+  voiceTextArea: {
+    marginBottom: 20,
+  },
+
+  voiceInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 12,
+    padding: 16,
+    minHeight: 120,
+    maxHeight: 200,
+    fontSize: 16,
+    color: '#333',
+    backgroundColor: '#fafafa',
+  },
+
+  voiceModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+
+  voiceCancelBtn: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 10,
+    backgroundColor: '#f5f5f5',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+
+  voiceCancelText: {
+    color: '#666',
+    fontWeight: '600',
+  },
+
+  voiceSaveBtn: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 10,
+    backgroundColor: '#E45C2B',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+
+  voiceSaveText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+
+  disabledBtn: {
+    backgroundColor: '#ccc',
+  },
+
+  disabledText: {
+    color: '#999',
   },
 
   // Modal
