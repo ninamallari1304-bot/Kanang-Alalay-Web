@@ -69,6 +69,7 @@ export const getLowStock = async () => {
 };
 export const getInventoryItem = (id) => api.get(`/inventory/${id}`);
 export const createInventoryItem = (data) => api.post("/inventory", data);
+export const scanInventory = (code) => api.post('/inventory/scan', { code });
 export const updateInventory = (id, data) => api.put(`/inventory/${id}`, data);
 export const deleteInventoryItem = (id) => api.delete(`/inventory/${id}`);
 export const decrementInventoryByName = async (name) => {

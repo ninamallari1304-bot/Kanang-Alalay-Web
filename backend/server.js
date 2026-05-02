@@ -231,12 +231,49 @@ app.post('/api/inventory', async (req, res) => {
     try {
         const item = new Inventory({
             ...req.body,
-            itemId: `INV-${Date.now().toString().slice(-6)}`
+            itemId: req.body.itemId || `INV-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`,
+            qrCode: req.body.qrCode || `INVQR-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 100000)}`
         });
         await item.save();
         res.status(201).json({ success: true, data: item });
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Error adding inventory item' });
+        console.error('Inventory create error:', error);
+        const message = error.code === 11000 ? 'Duplicate inventory identifier. Please retry.' : 'Error adding inventory item';
+        res.status(500).json({ success: false, message });
+    }
+});
+
+app.post('/api/inventory/scan', async (req, res) => {
+    try {
+        const { code } = req.body;
+        if (!code) {
+            return res.status(400).json({ success: false, message: 'Scan code is required.' });
+        }
+
+        const scanCode = code.toString().trim().toUpperCase();
+        const item = await Inventory.findOne({
+            $or: [
+                { itemId: scanCode },
+                { qrCode: scanCode },
+                { _id: mongoose.Types.ObjectId.isValid(scanCode) ? scanCode : null }
+            ].filter(Boolean)
+        });
+
+        if (!item) {
+            return res.status(404).json({ success: false, message: 'Inventory item not found for provided code.' });
+        }
+
+        if (item.quantity <= 0) {
+            return res.status(400).json({ success: false, message: 'Inventory stock is depleted.' });
+        }
+
+        item.quantity -= 1;
+        await item.save();
+
+        res.json({ success: true, data: item, message: 'Inventory item scanned and stock decremented.' });
+    } catch (error) {
+        console.error('Inventory scan error:', error);
+        res.status(500).json({ success: false, message: 'Server error while processing inventory scan.' });
     }
 });
 

@@ -64,19 +64,21 @@ export default function FullInventory({ navigation }) {
 
     setCreatingItem(true);
     try {
-      await createInventoryItem({
+      const response = await createInventoryItem({
         name: newItemName.trim(),
         quantity,
         unit: newItemUnit || 'pcs',
         category: 'medication',
         minThreshold: 10,
       });
+      const createdItem = response.data?.data;
       setAddModalVisible(false);
       setNewItemName('');
       setNewItemQuantity('');
       setNewItemUnit('pcs');
       await loadInventory();
-      Alert.alert('Success', 'Medication added to inventory.');
+      const qrNotice = createdItem?.qrCode ? `\nQR Code: ${createdItem.qrCode}` : '';
+      Alert.alert('Success', `Medication added to inventory.${qrNotice}`);
     } catch (error) {
       console.error('Error creating inventory item:', error);
       Alert.alert('Error', 'Failed to add medication to inventory.');

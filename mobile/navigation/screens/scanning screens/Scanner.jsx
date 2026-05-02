@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import React, { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { scanMedication } from '../../../services/api';
+import { scanInventory, scanMedication } from '../../../services/api';
 import * as Speech from 'expo-speech';
 import { Camera, CameraView } from 'expo-camera';
 
@@ -35,17 +35,27 @@ export default function Scanner({ navigation, route }) {
 
     setIsHandlingScan(true);
     try {
-      const res = await scanMedication(data);
+      let res;
+      try {
+        res = await scanInventory(data);
+      } catch (inventoryError) {
+        if (inventoryError.response?.status === 404) {
+          res = await scanMedication(data);
+        } else {
+          throw inventoryError;
+        }
+      }
+
       const med = res.data.data;
       setLastResult({
-        medicationName: med.name,
+        medicationName: med.name || med.itemId || 'Inventory item',
         action: 'removed_from_inventory',
         at: new Date().toISOString(),
       });
-      Speech.speak(`Medication ${med.name} scanned and removed from stock.`, { language: 'en' });
+      Speech.speak(`${med.name || med.itemId} scanned and removed from stock.`, { language: 'en' });
     } catch (error) {
       console.error('Error:', error);
-      Speech.speak('Error processing medication. Please try again.', { language: 'en' });
+      Speech.speak('Error processing scan. Please try again.', { language: 'en' });
     } finally {
       setTimeout(() => setIsHandlingScan(false), 900);
     }

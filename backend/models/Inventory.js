@@ -9,6 +9,13 @@ const inventorySchema = new mongoose.Schema(
       trim: true
     },
 
+    qrCode: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true
+    },
+
     name: {
       type: String,
       required: true,
@@ -70,6 +77,16 @@ inventorySchema.pre('save', function (next) {
     this.status = 'low_stock';
   } else {
     this.status = 'available';
+  }
+  next();
+});
+
+inventorySchema.pre('validate', function (next) {
+  if (!this.qrCode) {
+    this.qrCode = `INVQR-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 100000)}`;
+  }
+  if (!this.itemId) {
+    this.itemId = `INV-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`;
   }
   next();
 });
