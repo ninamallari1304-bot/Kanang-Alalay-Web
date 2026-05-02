@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import {
   View,
   Text,
@@ -10,10 +10,16 @@ import {
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import * as Speech from 'expo-speech'
+import {
+  ExpoSpeechRecognitionModule,
+  useSpeechRecognitionEvent,
+} from 'expo-speech-recognition'
 
 export default function VoiceAssistant({ navigation }) {
   const [isListening, setIsListening] = useState(false)
   const [transcript, setTranscript] = useState('')
+  const [isAvailable, setIsAvailable] = useState(false)
+  const [speechError, setSpeechError] = useState('')
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -25,13 +31,87 @@ export default function VoiceAssistant({ navigation }) {
   const [inputText, setInputText] = useState('')
   const scrollViewRef = useRef()
 
-  const startListening = () => {
-    const message = 'Speech recognition is not available in Expo Go. Please type your question instead.'
-    Alert.alert('Feature unavailable', message)
-    Speech.speak(message)
+  useEffect(() => {
+    const checkAvailability = async () => {
+      try {
+        const available = await ExpoSpeechRecognitionModule.isRecognitionAvailable()
+        setIsAvailable(available)
+      } catch (err) {
+        console.warn('Speech recognition availability error:', err)
+        setIsAvailable(false)
+      }
+    }
+    checkAvailability()
+  }, [])
+
+  useSpeechRecognitionEvent('start', () => {
+    setIsListening(true)
+    setSpeechError('')
+  })
+
+  useSpeechRecognitionEvent('end', () => {
+    setIsListening(false)
+  })
+
+  useSpeechRecognitionEvent('result', (event) => {
+    const transcriptText =
+      event?.results?.[0]?.transcript || event?.results?.[0]?.alternatives?.[0]?.transcript || ''
+    setTranscript(transcriptText)
+    if (event?.results?.[0]?.isFinal || event?.interpretation) {
+      if (transcriptText.trim()) {
+        addMessage('user', transcriptText.trim())
+        processQuery(transcriptText.trim())
+      }
+    }
+  })
+
+  useSpeechRecognitionEvent('error', (event) => {
+    const message = event?.message || 'Speech recognition failed.'
+    setSpeechError(message)
+    console.error('Speech recognition error:', event)
+    Speech.speak('Speech recognition failed. Please try typing your question.', {
+      language: 'en',
+    })
+  })
+
+  const startListening = async () => {
+    if (!isAvailable) {
+      const message = 'Speech recognition is not available on this device or in Expo Go. Please use a developer build with speech permissions.'
+      Alert.alert('Feature unavailable', message)
+      Speech.speak(message)
+      return
+    }
+
+    try {
+      const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync()
+      if (!permission.granted) {
+        Alert.alert(
+          'Permission required',
+          'Please grant microphone and speech recognition permission to use voice input.'
+        )
+        return
+      }
+
+      setTranscript('')
+      setSpeechError('')
+      await ExpoSpeechRecognitionModule.start({
+        lang: 'en-US',
+        interimResults: true,
+        continuous: false,
+      })
+    } catch (error) {
+      console.error('Speech start error:', error)
+      setSpeechError(error?.message || 'Unable to start speech recognition.')
+      Alert.alert('Speech error', 'Unable to start speech recognition. Please try again.')
+    }
   }
 
-  const stopListening = () => {
+  const stopListening = async () => {
+    try {
+      await ExpoSpeechRecognitionModule.stop()
+    } catch (error) {
+      console.warn('Speech stop error:', error)
+    }
     setIsListening(false)
   }
 
@@ -165,17 +245,23 @@ export default function VoiceAssistant({ navigation }) {
 
           <TouchableOpacity
             style={styles.voiceBtn}
-            onPress={startListening}
+            onPress={isListening ? stopListening : startListening}
           >
             <View>
               <Ionicons
-                name="mic"
+                name={isListening ? 'stop-circle' : 'mic'}
                 size={24}
                 color="#E45C2B"
               />
             </View>
           </TouchableOpacity>
         </View>
+
+        {speechError ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{speechError}</Text>
+          </View>
+        ) : null}
 
         {isListening && (
           <View style={styles.listeningIndicator}>
@@ -309,6 +395,21 @@ const styles = StyleSheet.create({
 
   voiceBtnActive: {
     backgroundColor: '#E45C2B',
+  },
+
+  errorContainer: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#FDECEA',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F5C2C7',
+  },
+
+  errorText: {
+    color: '#B00020',
+    textAlign: 'center',
+    fontSize: 14,
   },
 
   listeningIndicator: {

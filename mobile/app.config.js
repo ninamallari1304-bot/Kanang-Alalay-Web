@@ -30,6 +30,16 @@ module.exports = {
     },
     extra: {
       apiUrl: process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") || "https://kanang-alalay-backend.onrender.com"
-    }
+    },
+    plugins: [
+      [
+        "expo-speech-recognition",
+        {
+          microphonePermission: "Allow $(PRODUCT_NAME) to use the microphone.",
+          speechRecognitionPermission: "Allow $(PRODUCT_NAME) to use speech recognition.",
+          androidSpeechServicePackages: ["com.google.android.googlequicksearchbox"]
+        }
+      ]
+    ]
   }
 };
