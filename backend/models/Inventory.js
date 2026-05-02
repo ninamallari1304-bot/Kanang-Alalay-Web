@@ -69,6 +69,12 @@ const inventorySchema = new mongoose.Schema(
 
 // OPTIONAL: Auto-update status before saving
 inventorySchema.pre('save', function (next) {
+  if (!this.itemId) {
+    this.itemId = `INV-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`;
+  }
+  if (!this.qrCode) {
+    this.qrCode = `INVQR-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 100000)}`;
+  }
   if (this.expirationDate && this.expirationDate < new Date()) {
     this.status = 'expired';
   } else if (this.quantity === 0) {

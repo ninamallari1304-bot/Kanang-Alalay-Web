@@ -230,14 +230,18 @@ app.get('/api/inventory/low-stock', async (req, res) => {
 app.post('/api/inventory', async (req, res) => {
     try {
         const item = new Inventory({
-            ...req.body,
-            itemId: req.body.itemId || `INV-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`,
-            qrCode: req.body.qrCode || `INVQR-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 100000)}`
+            name: req.body.name,
+            quantity: req.body.quantity || 0,
+            unit: req.body.unit || 'pcs',
+            category: req.body.category || 'General',
+            minThreshold: req.body.minThreshold || 10,
+            expirationDate: req.body.expirationDate,
+            notes: req.body.notes
         });
         await item.save();
         res.status(201).json({ success: true, data: item });
     } catch (error) {
-        console.error('Inventory create error:', error);
+        console.error('Inventory create error:', error?.message || error);
         const message = error.code === 11000 ? 'Duplicate inventory identifier. Please retry.' : 'Error adding inventory item';
         res.status(500).json({ success: false, message });
     }
