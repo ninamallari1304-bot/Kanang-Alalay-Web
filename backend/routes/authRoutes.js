@@ -56,14 +56,6 @@ router.post('/login', async (req, res) => {
             });
         }
 
-        const WEB_ALLOWED_ROLES = ['admin', 'head_caregiver'];
-        if (!WEB_ALLOWED_ROLES.includes(user.role)) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access restricted. This account is for mobile app use only. Please use the mobile application to access caregiver features.'
-            });
-        }
-
         const token = jwt.sign(
             { userId: user._id, role: user.role, username: user.username, email: user.email },
             process.env.JWT_SECRET || 'fallback_secret',

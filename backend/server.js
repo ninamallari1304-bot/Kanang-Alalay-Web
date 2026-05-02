@@ -18,6 +18,7 @@ const paymentRoutes = require('./routes/PaymentRoutes');
 const headCaregiverRoutes = require('./routes/headCaregiverRoutes');
 const residentRoutes = require('./routes/residentRoutes');
 const medicationRoutes = require('./routes/medicationRoutes');
+const { seedDefaultUsers } = require('./utils/seedDefaultUsers');
 
 const app = express();
 
@@ -56,8 +57,14 @@ mongoose.connect(process.env.MONGODB_URI, {
     serverSelectionTimeoutMS: 10000,
     socketTimeoutMS: 45000,
     family: 4
-}).then(() => {
+}).then(async () => {
     console.log('MongoDB Atlas connected successfully!');
+    try {
+        await seedDefaultUsers();
+        console.log('✅ Default backend users ensured.');
+    } catch (seedError) {
+        console.error('Failed to seed default users:', seedError);
+    }
 }).catch((err) => {
     console.error(`Connection failed: ${err.message}`);
     process.exit(1);
