@@ -90,7 +90,7 @@ export default function InventoryScreen({ navigation }) {
         />
       </View>
 
-      {user?.role === 'head_caregiver' && (
+      {(user?.role === 'head_caregiver' || user?.role === 'admin') && (
         <TouchableOpacity style={styles.headBtn} onPress={() => navigation.navigate("StockManagement")}> 
           <Text style={styles.headText}>MANAGE MEDICATION STOCK</Text>
         </TouchableOpacity>
@@ -208,6 +208,20 @@ const styles = StyleSheet.create({
   },
 
   headText: {
+    color: "#FFF",
+    fontWeight: "bold",
+  },
+
+  addBtn: {
+    backgroundColor: "#3B82F6",
+    marginHorizontal: 16,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+
+  addBtnText: {
     color: "#FFF",
     fontWeight: "bold",
   },
