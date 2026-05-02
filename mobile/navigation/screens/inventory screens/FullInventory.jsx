@@ -8,14 +8,22 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Modal,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { getInventory } from "../../../services/api";
+import { useAuth } from "../../../contexts/AuthContext";
+import { getInventory, createInventoryItem } from "../../../services/api";
 
 export default function FullInventory({ navigation }) {
+  const { user } = useAuth();
   const [medications, setMedications] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [addModalVisible, setAddModalVisible] = useState(false);
+  const [newItemName, setNewItemName] = useState("");
+  const [newItemQuantity, setNewItemQuantity] = useState("");
+  const [newItemUnit, setNewItemUnit] = useState("pcs");
+  const [creatingItem, setCreatingItem] = useState(false);
 
   useEffect(() => {
     loadInventory();
@@ -25,7 +33,7 @@ export default function FullInventory({ navigation }) {
     setLoading(true);
     try {
       const response = await getInventory();
-      const inventoryData = response.data || [];
+      const inventoryData = response.data?.data || [];
       setMedications(inventoryData.map(item => ({
         id: item._id,
         name: item.name?.toUpperCase() || 'UNKNOWN MEDICATION',
@@ -44,6 +52,38 @@ export default function FullInventory({ navigation }) {
   const filteredMedications = medications.filter((item) =>
     item.name.toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleCreateInventoryItem = async () => {
+    const quantity = Number(newItemQuantity);
+    if (!newItemName.trim()) {
+      return Alert.alert('Validation', 'Item name is required.');
+    }
+    if (!Number.isFinite(quantity) || quantity < 0) {
+      return Alert.alert('Validation', 'Please enter a valid quantity.');
+    }
+
+    setCreatingItem(true);
+    try {
+      await createInventoryItem({
+        name: newItemName.trim(),
+        quantity,
+        unit: newItemUnit || 'pcs',
+        category: 'medication',
+        minThreshold: 10,
+      });
+      setAddModalVisible(false);
+      setNewItemName('');
+      setNewItemQuantity('');
+      setNewItemUnit('pcs');
+      await loadInventory();
+      Alert.alert('Success', 'Medication added to inventory.');
+    } catch (error) {
+      console.error('Error creating inventory item:', error);
+      Alert.alert('Error', 'Failed to add medication to inventory.');
+    } finally {
+      setCreatingItem(false);
+    }
+  };
 
   const renderItem = ({ item }) => (
     <View style={styles.itemContainer}>
@@ -93,7 +133,13 @@ export default function FullInventory({ navigation }) {
         />
       </View>
 
-{/* Inventory Card */}
+      {(user?.role === 'head_caregiver' || user?.role === 'admin') && (
+        <TouchableOpacity style={styles.addBtn} onPress={() => setAddModalVisible(true)}>
+          <Text style={styles.addBtnText}>Add Medication</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Inventory Card */}
       <View style={styles.card}>
         <FlatList
           data={filteredMedications}
@@ -107,6 +153,44 @@ export default function FullInventory({ navigation }) {
           }
         />
       </View>
+
+      <Modal transparent visible={addModalVisible} animationType="slide" onRequestClose={() => setAddModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Add Medication</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Medication name"
+              placeholderTextColor="#999"
+              value={newItemName}
+              onChangeText={setNewItemName}
+            />
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Quantity"
+              placeholderTextColor="#999"
+              value={newItemQuantity}
+              onChangeText={setNewItemQuantity}
+              keyboardType="numeric"
+            />
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Unit (pcs, bottle, pack)"
+              placeholderTextColor="#999"
+              value={newItemUnit}
+              onChangeText={setNewItemUnit}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setAddModalVisible(false)}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={handleCreateInventoryItem} disabled={creatingItem}>
+                {creatingItem ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveText}>Save</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -192,5 +276,74 @@ const styles = StyleSheet.create({
   separator: {
     height: 1,
     backgroundColor: "#E5E5E5",
+  },
+  addBtn: {
+    backgroundColor: "#E1903A",
+    borderRadius: 25,
+    paddingVertical: 12,
+    marginBottom: 16,
+    alignItems: "center",
+  },
+  addBtnText: {
+    color: "#FFF",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalCard: {
+    width: "100%",
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 20,
+    elevation: 6,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#7A4B2A",
+    marginBottom: 15,
+  },
+  modalInput: {
+    backgroundColor: "#F5F5F5",
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 12,
+    color: "#333",
+  },
+  modalButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+  },
+  cancelBtn: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E1903A",
+    paddingVertical: 12,
+    marginRight: 8,
+    alignItems: "center",
+  },
+  saveBtn: {
+    flex: 1,
+    borderRadius: 14,
+    backgroundColor: "#E1903A",
+    paddingVertical: 12,
+    marginLeft: 8,
+    alignItems: "center",
+  },
+  cancelText: {
+    color: "#E1903A",
+    fontWeight: "bold",
+  },
+  saveText: {
+    color: "#FFF",
+    fontWeight: "bold",
   },
 });

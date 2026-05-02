@@ -217,6 +217,16 @@ app.get('/api/inventory', async (req, res) => {
     }
 });
 
+app.get('/api/inventory/low-stock', async (req, res) => {
+    try {
+        const items = await Inventory.find();
+        const lowStockItems = items.filter(item => item.quantity <= (item.minThreshold ?? 10));
+        res.json({ success: true, data: lowStockItems });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Error fetching low stock inventory' });
+    }
+});
+
 app.post('/api/inventory', async (req, res) => {
     try {
         const item = new Inventory({

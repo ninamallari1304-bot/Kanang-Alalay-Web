@@ -17,14 +17,17 @@ export default function InventoryScreen({ navigation }) {
 
   const fetchInventory = async () => {
     try {
-      const [inventoryRes, lowStockRes] = await Promise.all([
-        getInventory(),
-        getLowStock()
-      ]);
-      setInventory(inventoryRes.data);
-      setLowStockItems(lowStockRes.data);
+      const inventoryRes = await getInventory();
+      const lowStockRes = await getLowStock();
+      setInventory(inventoryRes.data?.data || []);
+      setLowStockItems(lowStockRes.data?.data || []);
     } catch (error) {
-      console.error('Fetch inventory error:', error);
+      console.error('Fetch inventory error:', {
+        message: error.message,
+        url: error.config?.url,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
     } finally {
       setLoading(false);
     }

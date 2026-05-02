@@ -54,7 +54,19 @@ export const updateMedication = (id, data) =>
 export const getTodaySchedule = () => api.get('/head-caregiver/schedule');
 
 export const getInventory = () => api.get("/inventory");
-export const getLowStock = () => api.get("/inventory/low-stock");
+export const getLowStock = async () => {
+  try {
+    return await api.get("/inventory/low-stock");
+  } catch (error) {
+    if (error.response?.status === 404) {
+      const inventoryRes = await getInventory();
+      const inventoryItems = inventoryRes.data?.data || [];
+      const lowStockItems = inventoryItems.filter(item => item.quantity <= (item.minThreshold ?? 10));
+      return { data: { success: true, data: lowStockItems } };
+    }
+    throw error;
+  }
+};
 export const getInventoryItem = (id) => api.get(`/inventory/${id}`);
 export const createInventoryItem = (data) => api.post("/inventory", data);
 export const updateInventory = (id, data) => api.put(`/inventory/${id}`, data);
