@@ -10,14 +10,11 @@ import {
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import * as Speech from 'expo-speech'
-import {
-  ExpoSpeechRecognitionModule,
-  useSpeechRecognitionEvent,
-} from 'expo-speech-recognition'
 
 export default function VoiceAssistant({ navigation }) {
   const [isListening, setIsListening] = useState(false)
   const [transcript, setTranscript] = useState('')
+  const [speechRecognitionModule, setSpeechRecognitionModule] = useState(null)
   const [isAvailable, setIsAvailable] = useState(false)
   const [speechError, setSpeechError] = useState('')
   const [messages, setMessages] = useState([
@@ -32,58 +29,73 @@ export default function VoiceAssistant({ navigation }) {
   const scrollViewRef = useRef()
 
   useEffect(() => {
-    const checkAvailability = async () => {
+    const loadSpeechRecognition = async () => {
       try {
-        const available = await ExpoSpeechRecognitionModule.isRecognitionAvailable()
+        const module = await import('expo-speech-recognition')
+        const nativeModule = module?.ExpoSpeechRecognitionModule
+        if (!nativeModule) {
+          throw new Error('Native speech recognition module unavailable')
+        }
+        setSpeechRecognitionModule(nativeModule)
+        const available = await nativeModule.isRecognitionAvailable()
         setIsAvailable(available)
       } catch (err) {
-        console.warn('Speech recognition availability error:', err)
+        console.warn('Speech recognition load failed:', err)
         setIsAvailable(false)
+        setSpeechError('Voice recognition is unavailable in this environment.')
       }
     }
-    checkAvailability()
+    loadSpeechRecognition()
   }, [])
 
-  useSpeechRecognitionEvent('start', () => {
-    setIsListening(true)
-    setSpeechError('')
-  })
+  useEffect(() => {
+    if (!speechRecognitionModule) return
 
-  useSpeechRecognitionEvent('end', () => {
-    setIsListening(false)
-  })
-
-  useSpeechRecognitionEvent('result', (event) => {
-    const transcriptText =
-      event?.results?.[0]?.transcript || event?.results?.[0]?.alternatives?.[0]?.transcript || ''
-    setTranscript(transcriptText)
-    if (event?.results?.[0]?.isFinal || event?.interpretation) {
-      if (transcriptText.trim()) {
-        addMessage('user', transcriptText.trim())
-        processQuery(transcriptText.trim())
-      }
-    }
-  })
-
-  useSpeechRecognitionEvent('error', (event) => {
-    const message = event?.message || 'Speech recognition failed.'
-    setSpeechError(message)
-    console.error('Speech recognition error:', event)
-    Speech.speak('Speech recognition failed. Please try typing your question.', {
-      language: 'en',
+    const startListener = speechRecognitionModule.addListener('start', () => {
+      setIsListening(true)
+      setSpeechError('')
     })
-  })
+    const endListener = speechRecognitionModule.addListener('end', () => {
+      setIsListening(false)
+    })
+    const resultListener = speechRecognitionModule.addListener('result', (event) => {
+      const transcriptText =
+        event?.results?.[0]?.transcript || event?.results?.[0]?.alternatives?.[0]?.transcript || ''
+      setTranscript(transcriptText)
+      if (event?.results?.[0]?.isFinal || event?.interpretation) {
+        if (transcriptText.trim()) {
+          addMessage('user', transcriptText.trim())
+          processQuery(transcriptText.trim())
+        }
+      }
+    })
+    const errorListener = speechRecognitionModule.addListener('error', (event) => {
+      const message = event?.message || 'Speech recognition failed.'
+      setSpeechError(message)
+      console.error('Speech recognition error:', event)
+      Speech.speak('Speech recognition failed. Please try typing your question.', {
+        language: 'en',
+      })
+    })
+
+    return () => {
+      startListener.remove()
+      endListener.remove()
+      resultListener.remove()
+      errorListener.remove()
+    }
+  }, [speechRecognitionModule])
 
   const startListening = async () => {
-    if (!isAvailable) {
-      const message = 'Speech recognition is not available on this device or in Expo Go. Please use a developer build with speech permissions.'
+    if (!isAvailable || !speechRecognitionModule) {
+      const message = 'Speech recognition is not available in this environment. Please type your question.'
       Alert.alert('Feature unavailable', message)
       Speech.speak(message)
       return
     }
 
     try {
-      const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync()
+      const permission = await speechRecognitionModule.requestPermissionsAsync()
       if (!permission.granted) {
         Alert.alert(
           'Permission required',
@@ -94,7 +106,7 @@ export default function VoiceAssistant({ navigation }) {
 
       setTranscript('')
       setSpeechError('')
-      await ExpoSpeechRecognitionModule.start({
+      await speechRecognitionModule.start({
         lang: 'en-US',
         interimResults: true,
         continuous: false,
@@ -108,7 +120,9 @@ export default function VoiceAssistant({ navigation }) {
 
   const stopListening = async () => {
     try {
-      await ExpoSpeechRecognitionModule.stop()
+      if (speechRecognitionModule) {
+        await speechRecognitionModule.stop()
+      }
     } catch (error) {
       console.warn('Speech stop error:', error)
     }
