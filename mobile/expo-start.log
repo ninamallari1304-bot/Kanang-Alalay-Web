@@ -1,0 +1,9 @@
+env: load .env
+env: export EXPO_PUBLIC_API_URL
+Starting project at C:\Users\johnm\Downloads\Kanang-Alalay-Mobile-App-main
+◇ injected env (8) from backend\.env // tip: ◈ encrypted .env [www.dotenvx.com]
+› Port 8081 is being used by another process
+Input is required, but 'npx expo' is in non-interactive mode.
+Required input:
+> Use port 8082 instead?
+› Skipping dev server
