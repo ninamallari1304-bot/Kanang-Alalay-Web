@@ -3,7 +3,8 @@ const User = require('../models/User');
 
 const protect = async (req, res, next) => {
     try {
-        const token = req.header('Authorization')?.replace('Bearer ', '');
+        const authHeader = req.header('Authorization') || req.header('x-auth-token');
+        const token = authHeader?.startsWith('Bearer ') ? authHeader.replace(/^Bearer\s+/i, '') : authHeader;
 
         if (!token) {
             return res.status(401).json({ success: false, message: 'Authentication required. No token provided.' });
