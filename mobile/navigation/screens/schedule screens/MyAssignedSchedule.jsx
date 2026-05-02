@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import ScheduleFilters from "../../../components/ScheduleFilters";
-import { getTodaySchedule } from "../../services/api";
+import { getTodaySchedule } from "../../../services/api";
 
 export default function MyAssignedSchedule({ navigation }) {
   const [assignedSchedule, setAssignedSchedule] = useState([]);

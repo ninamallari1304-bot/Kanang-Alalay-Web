@@ -9,7 +9,7 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { getAlerts, markAllAlertsRead } from "../../services/api";
+import { getAlerts, markAllAlertsRead } from "../../../services/api";
 
 export default function AllAlerts({navigation}) {
   const [activeTab, setActiveTab] = useState("Unread");

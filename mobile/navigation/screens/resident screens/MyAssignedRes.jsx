@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import ResidentFilters from '../../../components/ResidentFilters';
-import { getMyAssignedResidents } from '../../services/api';
+import { getMyAssignedResidents } from '../../../services/api';
 
 export default function MyAssignedRes({ navigation }) {
   const [residentsData, setResidentsData] = useState([]);

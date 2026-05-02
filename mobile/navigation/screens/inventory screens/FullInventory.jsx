@@ -10,7 +10,7 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { getInventory } from "../../services/api";
+import { getInventory } from "../../../services/api";
 
 export default function FullInventory({ navigation }) {
   const [medications, setMedications] = useState([]);

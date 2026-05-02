@@ -11,7 +11,7 @@ import {
 } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
-import { getResidents } from '../../services/api';
+import { getResidents } from '../../../services/api';
 
 const QUICK_FILTERS = [
   { id: 'condition', label: 'By Condition', icon: <Ionicons name="heart-outline" size={15} color="#8B5E3C" /> },

@@ -9,7 +9,7 @@ import {
   Alert,
 } from 'react-native'
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons'
-import { getResidentById, getResidentMedications, getMedicationHistory } from '../../services/api'
+import { getResidentById, getResidentMedications, getMedicationHistory } from '../../../services/api'
 
 const TABS = ['Overview', 'Medications', 'History']
 
