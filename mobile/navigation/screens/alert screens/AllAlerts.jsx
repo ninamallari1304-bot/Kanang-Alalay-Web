@@ -340,7 +340,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 16,
   },
-});
 
   showingText: {
     color: "#7A4A1D",
