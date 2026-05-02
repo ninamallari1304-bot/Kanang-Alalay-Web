@@ -2,9 +2,11 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useAuth } from "../../contexts/AuthContext";
 import { getInventory, getLowStock } from "../../services/api";
 
 export default function InventoryScreen({ navigation }) {
+  const { user } = useAuth();
   const [inventory, setInventory] = useState([]);
   const [lowStockItems, setLowStockItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -85,6 +87,11 @@ export default function InventoryScreen({ navigation }) {
         />
       </View>
 
+      {user?.role === 'head_caregiver' && (
+        <TouchableOpacity style={styles.headBtn} onPress={() => navigation.navigate("StockManagement")}> 
+          <Text style={styles.headText}>MANAGE MEDICATION STOCK</Text>
+        </TouchableOpacity>
+      )}
       <TouchableOpacity style={styles.fullBtn} onPress={() => navigation.navigate("FullInv")}>
         <Text style={styles.fullText}>VIEW FULL INVENTORY</Text>
       </TouchableOpacity>
@@ -186,6 +193,20 @@ const styles = StyleSheet.create({
   medSub: {
     fontSize: 12,
     color: "#A75C2B",
+  },
+
+  headBtn: {
+    backgroundColor: "#3B82F6",
+    marginHorizontal: 16,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+
+  headText: {
+    color: "#FFF",
+    fontWeight: "bold",
   },
 
   fullBtn: {

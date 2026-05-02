@@ -39,6 +39,7 @@ import DataSynch from './navigation/screens/profile screens/DataSynch';
 import VoiceLanguage from './navigation/screens/profile screens/VoiceLanguage';
 
 import FullInventory from './navigation/screens/inventory screens/FullInventory';
+import MedicationStock from './navigation/screens/MedicationStock';
 import AllAlerts from './navigation/screens/alert screens/AllAlerts';
 import ResidentsStack from './navigation/screens/ResidentsStack';
 import ResidentProfile from './navigation/screens/resident screens/ResidentProfile';
@@ -70,6 +71,7 @@ export default function App() {
           <Stack.Screen name="AccountSettings" component={AccountSettings} options={{ headerShown: false }} />
 
           <Stack.Screen name="FullInv" component={FullInventory} options={{ headerShown: false }} />
+          <Stack.Screen name="StockManagement" component={MedicationStock} options={{ headerShown: false }} />
 
           <Stack.Screen name="AllAlerts" component={AllAlerts} options={{ headerShown: false }} />
           

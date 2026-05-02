@@ -16,6 +16,19 @@ async function seedDefaultUsers() {
       department: 'Head Office'
     },
     {
+      staffId: 'LSAE-HC-0001',
+      username: 'headcaregiver',
+      email: 'headcaregiver@kanangalalay.org',
+      password: 'headcaregiver123',
+      firstName: 'Head',
+      lastName: 'Caregiver',
+      role: 'head_caregiver',
+      isActive: true,
+      isVerified: true,
+      shift: 'morning',
+      department: 'Care Management'
+    },
+    {
       staffId: 'LSAE-CG-0001',
       username: 'caregiver',
       email: 'caregiver@kanangalalay.org',

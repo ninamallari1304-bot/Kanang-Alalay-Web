@@ -41,6 +41,9 @@ export const deleteResident = (id) => api.delete(`/residents/${id}`);
 export const getResidentMedications = (residentId) =>
   api.get(`/medications/resident/${residentId}`);
 export const getMedicationById = (id) => api.get(`/medications/${id}`);
+export const getMedications = () => api.get('/medications');
+export const scanMedication = (code) => api.post('/medications/scan', { code });
+export const updateMedicationStock = (id, data) => api.post(`/medications/${id}/stock`, data);
 export const createMedication = (data) => api.post("/medications", data);
 export const administerMedication = (data) =>
   api.post("/medications/administer", data);

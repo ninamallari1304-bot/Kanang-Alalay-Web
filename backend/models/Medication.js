@@ -5,7 +5,21 @@ const medicationSchema = new mongoose.Schema({
         type: String,
         required: true,
         unique: true,
-        uppercase: true
+        uppercase: true,
+        trim: true,
+        default: function () {
+            return this.name ? this.name.replace(/\s+/g, '_').toUpperCase() : undefined;
+        }
+    },
+    uniqueCode: {
+        type: String,
+        required: true,
+        unique: true,
+        uppercase: true,
+        trim: true,
+        default: function () {
+            return this.name ? this.name.replace(/\s+/g, '_').toUpperCase() : undefined;
+        }
     },
     name: {
         type: String,
