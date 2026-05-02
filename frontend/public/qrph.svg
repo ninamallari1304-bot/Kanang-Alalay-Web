@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="220" viewBox="0 0 220 220">
+  <defs>
+    <style>
+      .qr-bg { fill: #ffffff; }
+      .qr-text { font-family: Arial, sans-serif; font-size: 14px; text-anchor: middle; fill: #333333; }
+      .qr-border { fill: none; stroke: #cccccc; stroke-width: 2; }
+    </style>
+  </defs>
+  
+  <!-- Background -->
+  <rect class="qr-bg" width="220" height="220"/>
+  
+  <!-- Border -->
+  <rect class="qr-border" x="1" y="1" width="218" height="218"/>
+  
+  <!-- QR Code placeholder grid pattern -->
+  <g fill="#000000" opacity="0.8">
+    <!-- Top-left corner patterns -->
+    <rect x="20" y="20" width="40" height="40"/>
+    <rect x="30" y="30" width="20" height="20" fill="#ffffff"/>
+    
+    <!-- Top-right corner patterns -->
+    <rect x="160" y="20" width="40" height="40"/>
+    <rect x="170" y="30" width="20" height="20" fill="#ffffff"/>
+    
+    <!-- Bottom-left corner patterns -->
+    <rect x="20" y="160" width="40" height="40"/>
+    <rect x="30" y="170" width="20" height="20" fill="#ffffff"/>
+    
+    <!-- Random data pattern in center -->
+    <rect x="70" y="70" width="15" height="15"/>
+    <rect x="90" y="85" width="12" height="12"/>
+    <rect x="110" y="75" width="18" height="18"/>
+    <rect x="75" y="110" width="14" height="14"/>
+    <rect x="100" y="120" width="16" height="16"/>
+    <rect x="130" y="100" width="13" height="13"/>
+    <rect x="85" y="145" width="15" height="15"/>
+    <rect x="120" y="140" width="12" height="12"/>
+  </g>
+  
+  <!-- Text label -->
+  <text x="110" y="200" class="qr-text">QRPH Payment</text>
+</svg>

@@ -495,10 +495,13 @@ export default function DonationPage() {
                 <div className="dp-qrph-box">
                   <div className="dp-qrph-label">Scan to Pay via QRPH</div>
                   <img
-                    src="/qrph.png"
+                    src="/images/QRPH.jpg"
                     alt="QRPH Code"
                     className="dp-qrph-img"
-                    onError={(e) => { e.target.src = 'https://via.placeholder.com/220x220?text=QRPH+Code'; }}
+                    onError={(e) => { 
+                      // Fallback to a data URL SVG placeholder if image fails to load
+                      e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="220" height="220" viewBox="0 0 220 220"%3E%3Crect fill="%23f0f0f0" width="220" height="220"/%3E%3Crect fill="none" stroke="%23ccc" stroke-width="2" x="1" y="1" width="218" height="218"/%3E%3Ctext x="110" y="110" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="%23666"%3EQRPH Payment Code%3C/text%3E%3C/svg%3E';
+                    }}
                   />
                   <div className="dp-qrph-hint">
                     Scan this QR code with your mobile banking app (GCash, Maya, etc.) to complete payment.

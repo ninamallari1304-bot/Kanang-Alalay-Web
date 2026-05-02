@@ -5,6 +5,8 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
+const http = require('http');
+const socketIo = require('socket.io');
 
 const Donation = require('./models/Donation');
 const Booking = require('./models/Booking');
@@ -274,6 +276,44 @@ app.use((err, req, res, next) =>
 );
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+const server = http.createServer(app);
+
+// Initialize socket.io
+const io = socketIo(server, {
+    cors: {
+        origin: (origin, callback) => {
+            if (!origin) return callback(null, true);
+            const isLocalDevOrigin = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
+            if (isLocalDevOrigin) return callback(null, true);
+            const allowedOrigins = [
+                process.env.FRONTEND_URL,
+                'https://kanang-alalay.vercel.app',
+                'https://lsae-kanangalalay.online'
+            ].filter(Boolean);
+            if (allowedOrigins.includes(origin)) return callback(null, true);
+            callback(null, true); // Allow for development
+        },
+        methods: ['GET', 'POST'],
+        credentials: true
+    },
+    transports: ['websocket', 'polling']
+});
+
+// Socket.io event handlers
+io.on('connection', (socket) => {
+    console.log(`[Socket] User connected: ${socket.id}`);
+    
+    socket.on('disconnect', () => {
+        console.log(`[Socket] User disconnected: ${socket.id}`);
+    });
+    
+    socket.on('message', (data) => {
+        console.log('[Socket] Message received:', data);
+        io.emit('message', data);
+    });
+});
+
+server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+    console.log(`Socket.io ready for connections at port ${PORT}`);
 });
