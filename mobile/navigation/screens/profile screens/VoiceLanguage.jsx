@@ -5,14 +5,17 @@ import * as Speech from 'expo-speech';
 
 export default function VoiceLanguage({navigation}) {
   const [englishSelected, setEnglishSelected] = useState(true);
+  const [filipinoSelected, setFilipinoSelected] = useState(false);
   const [voiceGuidance, setVoiceGuidance] = useState(true);
+  const [voiceType, setVoiceType] = useState('female');
+  const [speechSpeed, setSpeechSpeed] = useState(1.0);
+
   const testVoice = () => {
     if (voiceGuidance) {
       Speech.speak("This is a test of the voice guidance feature.", {
-        language: englishSelected ? 'en' : 'tl',
+        language: englishSelected ? 'en' : 'fil',
         pitch: 1.0,
         rate: speechSpeed,
-        voice: voiceType === 'female' ? 'en-us-x-sfg#female_2-local' : 'en-us-x-tpd#male_2-local'
       });
     }
   };
@@ -39,7 +42,10 @@ export default function VoiceLanguage({navigation}) {
             <Text style={styles.languageText}>ENGLISH</Text>
             <Switch
               value={englishSelected}
-              onValueChange={setEnglishSelected}
+              onValueChange={(value) => {
+                setEnglishSelected(value);
+                setFilipinoSelected(!value);
+              }}
               trackColor={{ false: "#D1D1D1", true: "#FFD700" }}
               thumbColor={englishSelected ? "#FFA500" : "#f4f3f4"}
             />
@@ -47,7 +53,18 @@ export default function VoiceLanguage({navigation}) {
         </View>
 
         <View style={styles.languageCard}>
-          <Text style={styles.languageText}>FILIPINO</Text>
+          <View style={styles.languageRow}>
+            <Text style={styles.languageText}>FILIPINO</Text>
+            <Switch
+              value={filipinoSelected}
+              onValueChange={(value) => {
+                setFilipinoSelected(value);
+                setEnglishSelected(!value);
+              }}
+              trackColor={{ false: "#D1D1D1", true: "#FFD700" }}
+              thumbColor={filipinoSelected ? "#FFA500" : "#f4f3f4"}
+            />
+          </View>
         </View>
 
         {/* Enable Voice Guidance */}
@@ -75,13 +92,17 @@ export default function VoiceLanguage({navigation}) {
 
         {/* Speech Speed */}
         <View style={styles.optionCard}>
-          <Text style={styles.optionText}>Speech Speed: {speechSpeed.toFixed(1)}</Text>
-          <TouchableOpacity onPress={() => setSpeechSpeed(Math.max(0.5, speechSpeed - 0.1))}>
-            <Text style={styles.adjustBtn}>-</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setSpeechSpeed(Math.min(2.0, speechSpeed + 0.1))}>
-            <Text style={styles.adjustBtn}>+</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={styles.optionText}>Speech Speed: {speechSpeed.toFixed(1)}x</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity onPress={() => setSpeechSpeed(Math.max(0.5, speechSpeed - 0.1))}>
+                <Text style={styles.adjustBtn}>−</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setSpeechSpeed(Math.min(2.0, speechSpeed + 0.1))}>
+                <Text style={styles.adjustBtn}>+</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -182,8 +203,9 @@ const styles = StyleSheet.create({
   },
 
   adjustBtn: {
-    fontSize: 20,
+    fontSize: 24,
     color: "#E67E50",
-    marginHorizontal: 10,
+    marginHorizontal: 12,
+    fontWeight: "bold",
   },
 });
