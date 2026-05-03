@@ -5,13 +5,10 @@ import 'react-calendar/dist/Calendar.css';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import '../styles/BookingPage.css';
+import { API_URL } from '../config/api';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const uid = () => 'BK-' + Math.random().toString(36).slice(2, 9).toUpperCase();
-const API_BASE = (() => {
-    return process.env.REACT_APP_API_URL ||
-        (process.env.NODE_ENV === 'production' ? 'https://kanang-alalay-backend.onrender.com/api' : 'http://localhost:5000/api');
-})();
 
 const TIME_SLOTS = [
     { value: '09:00', label: '9:00 AM - 11:00 AM' },
@@ -214,11 +211,11 @@ const BookingPage = () => {
                 notes:            modalData.notes,
             };
 
-            console.log('Booking API_BASE:', API_BASE);
+            console.log('Booking API_BASE:', API_URL);
             console.log('Booking payload:', payload);
-            console.log('Booking URL:', `${API_BASE}/bookings`);
+            console.log('Booking URL:', `${API_URL}/bookings`);
 
-            const response = await axios.post(`${API_BASE}/bookings`, payload, { timeout: 30000 });
+            const response = await axios.post(`${API_URL}/bookings`, payload, { timeout: 30000 });
 
             if (response.data.success) {
                 setReceipt({

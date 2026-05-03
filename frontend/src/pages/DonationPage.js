@@ -2,16 +2,11 @@
 import React, { useState, useRef } from 'react';
 import axios from 'axios';
 import '../styles/DonationPage.css';
+import { API_URL } from '../config/api';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => `₱${Number(n).toLocaleString()}`;
 const today = () => new Date().toISOString().split('T')[0];
-const API_BASE = (() => {
-  return process.env.REACT_APP_API_URL ||
-    (process.env.NODE_ENV === 'production'
-      ? 'https://kanang-alalay-backend.onrender.com/api'
-      : 'http://localhost:5000/api');
-})();
 
 const PRESETS = [500, 1000, 2000, 5000, 10000];
 const TIMES   = ['9:00 AM - 11:00 AM', '3:00 PM - 5:00 PM'];
@@ -249,7 +244,7 @@ export default function DonationPage() {
         console.log(pair[0] + ': ' + pair[1]);
       }
 
-      const response = await axios.post(`${API_BASE}/donations`, formData, {
+      const response = await axios.post(`${API_URL}/donations`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 30000,
       });
