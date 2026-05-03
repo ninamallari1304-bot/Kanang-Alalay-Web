@@ -18,7 +18,8 @@ export default function ByWard({ navigation }) {
     setLoading(true);
     try {
       const response = await getResidents();
-      const residents = response.data || [];
+      const residentsArray = response.data?.data || response.data || [];
+      const residents = Array.isArray(residentsArray) ? residentsArray : [];
       setResidentsData(residents.map(resident => ({
         id: resident._id,
         name: `${resident.firstName} ${resident.lastName}`,

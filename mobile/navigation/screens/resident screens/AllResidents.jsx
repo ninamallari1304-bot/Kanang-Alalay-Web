@@ -16,7 +16,8 @@ export default function AllResidents({ navigation }) {
   const fetchResidents = async () => {
     try {
       const res = await getResidents();
-      setResidents(res.data || []);
+      const residentsArray = res.data?.data || res.data || [];
+      setResidents(Array.isArray(residentsArray) ? residentsArray : []);
     } catch (error) {
       console.error('Fetch residents error:', error);
       setResidents([]);

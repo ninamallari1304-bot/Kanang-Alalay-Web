@@ -15,6 +15,24 @@ router.get('/', protect, async (req, res) => {
     }
 });
 
+// GET /api/residents/assigned  — residents assigned to logged-in user
+router.get('/assigned', protect, async (req, res) => {
+    try {
+        const userName = `${req.user.firstName} ${req.user.lastName}`;
+        const residents = await Resident.find({
+            status: 'active',
+            $or: [
+                { assignedNurse: userName },
+                { assignedCaregiver: userName }
+            ]
+        }).sort({ roomNumber: 1 });
+        res.json({ success: true, data: residents, count: residents.length });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Server error fetching assigned residents' });
+    }
+});
+
 // GET /api/residents/statistics
 router.get('/statistics', protect, async (req, res) => {
     try {

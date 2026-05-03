@@ -30,8 +30,9 @@ export default function HomeScreen({ navigation }) {
       ]);
 
       const todayData = scheduleRes?.data?.data || scheduleRes?.data || [];
+      const residentsArray = residentsRes.data?.data || residentsRes.data || [];
       setStats({
-        residents: Array.isArray(residentsRes.data) ? residentsRes.data.length : residentsRes.data?.length || 0,
+        residents: Array.isArray(residentsArray) ? residentsArray.length : 0,
         lowStockCount: 0,
         unreadAlerts: 0
       });

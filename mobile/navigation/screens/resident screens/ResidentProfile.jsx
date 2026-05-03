@@ -35,7 +35,8 @@ export default function SearchResidents({ navigation }) {
     setLoading(true)
     try {
       const response = await getResidents()
-      const residentsData = response.data || []
+      const residentsArray = response.data?.data || response.data || []
+      const residentsData = Array.isArray(residentsArray) ? residentsArray : []
       setResidents(residentsData.map(resident => ({
         id: resident._id,
         name: `${resident.firstName} ${resident.lastName}`,
