@@ -214,6 +214,10 @@ const BookingPage = () => {
                 notes:            modalData.notes,
             };
 
+            console.log('Booking API_BASE:', API_BASE);
+            console.log('Booking payload:', payload);
+            console.log('Booking URL:', `${API_BASE}/bookings`);
+
             const response = await axios.post(`${API_BASE}/bookings`, payload, { timeout: 30000 });
 
             if (response.data.success) {
