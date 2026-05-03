@@ -4,26 +4,37 @@ if (process.env.NODE_ENV !== 'production') {
     require('dotenv').config();
 }
 
+const emailUser = (process.env.EMAIL_USER || '').trim();
+const emailPass = (process.env.EMAIL_PASS || '').replace(/\s+/g, '');
+
 console.log('Mailer env:', {
     NODE_ENV: process.env.NODE_ENV,
-    EMAIL_USER_set: Boolean(process.env.EMAIL_USER),
-    EMAIL_PASS_set: Boolean(process.env.EMAIL_PASS)
+    EMAIL_USER_set: Boolean(emailUser),
+    EMAIL_PASS_set: Boolean(emailPass),
+    EMAIL_PASS_length: emailPass.length
 });
 
 const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
+    service: 'gmail',
     auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
+        user: emailUser,
+        pass: emailPass
+    },
+    secure: false,
+    requireTLS: true,
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 15000,
+    tls: {
+        rejectUnauthorized: false
     }
 });
 
 transporter.verify((error) => {
     if (error) {
         console.error('SMTP CONNECTION FAILED:', error.message);
-        console.error('   → Check EMAIL_USER and EMAIL_PASS in your .env file');
+        console.error('   → Check EMAIL_USER and EMAIL_PASS in your Render environment variables');
+        console.error('   → Gmail app passwords may be shown with spaces; the service will strip whitespace automatically');
         console.error('   → Gmail requires an App Password, NOT your account password');
         console.error('   → Steps: Enable 2FA on Gmail → myaccount.google.com/apppasswords → create App Password');
     } else {
