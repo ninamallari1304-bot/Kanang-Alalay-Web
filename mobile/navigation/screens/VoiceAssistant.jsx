@@ -89,7 +89,7 @@ export default function VoiceAssistant({ navigation }) {
         shouldDuckAndroid: true,
       })
 
-      const recorder = new AudioModule.AudioRecorder()
+      const recorder = new AudioModule.AudioRecorder(RecordingPresets.HIGH_QUALITY)
       await recorder.prepareToRecordAsync(RecordingPresets.HIGH_QUALITY)
       recorder.record()
 
