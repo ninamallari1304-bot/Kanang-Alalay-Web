@@ -29,13 +29,14 @@ export default function ByWard({ navigation }) {
       })));
     } catch (error) {
       console.error('Error loading residents:', error);
+      setResidentsData([]);
       Alert.alert('Error', 'Failed to load residents');
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredResidents = residentsData.filter(r => {
+  const filteredResidents = (residentsData || []).filter(r => {
     const matchesSearch = r.name.toLowerCase().includes(search.toLowerCase());
     const matchesWard = selectedWard === 'ALL' || r.ward === selectedWard;
     return matchesSearch && matchesWard;

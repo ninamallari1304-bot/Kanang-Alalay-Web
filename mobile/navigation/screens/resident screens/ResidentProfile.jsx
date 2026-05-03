@@ -45,6 +45,7 @@ export default function SearchResidents({ navigation }) {
       })))
     } catch (error) {
       console.error('Error loading residents:', error)
+      setResidents([])
       Alert.alert('Error', 'Failed to load residents')
     } finally {
       setLoading(false)
@@ -72,7 +73,7 @@ export default function SearchResidents({ navigation }) {
     }
   }
 
-  const filtered = residents.filter((r) => {
+  const filtered = (residents || []).filter((r) => {
     if (!query) return true
     const q = query.toLowerCase()
     return (

@@ -16,15 +16,16 @@ export default function AllResidents({ navigation }) {
   const fetchResidents = async () => {
     try {
       const res = await getResidents();
-      setResidents(res.data);
+      setResidents(res.data || []);
     } catch (error) {
       console.error('Fetch residents error:', error);
+      setResidents([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredResidents = residents.filter(r =>
+  const filteredResidents = (residents || []).filter(r =>
     r.name.toLowerCase().includes(search.toLowerCase())
   );
 

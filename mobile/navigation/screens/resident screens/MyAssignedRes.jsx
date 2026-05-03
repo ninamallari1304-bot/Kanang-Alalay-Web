@@ -27,13 +27,14 @@ export default function MyAssignedRes({ navigation }) {
       })));
     } catch (error) {
       console.error('Error loading assigned residents:', error);
+      setResidentsData([]);
       Alert.alert('Error', 'Failed to load assigned residents');
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredResidents = residentsData.filter(r =>
+  const filteredResidents = (residentsData || []).filter(r =>
     r.name.toLowerCase().includes(search.toLowerCase())
   );
 
