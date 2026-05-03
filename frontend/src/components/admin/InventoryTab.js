@@ -263,6 +263,7 @@ const InventoryTab = ({ inventory, setInventory, stats, setShowAddInventory }) =
                                 <th>Stock</th>
                                 <th>Min Threshold</th>
                                 <th>Expiration</th>
+                                <th>QR Code</th>
                                 <th>Status</th>
                                 <th>Actions</th>
                             </tr>
@@ -292,6 +293,14 @@ const InventoryTab = ({ inventory, setInventory, stats, setShowAddInventory }) =
                                             {item.expirationDate
                                                 ? new Date(item.expirationDate).toLocaleDateString()
                                                 : <span style={{ color: '#ccc' }}>—</span>}
+                                        </td>
+                                        <td style={{ textAlign: 'center' }}>
+                                            <img
+                                                src={`${API_BASE_URL}/inventory/${item._id}/qr`}
+                                                alt="QR Code"
+                                                style={{ width: 60, height: 60, border: '1px solid #E8D6CC', borderRadius: 4 }}
+                                                onError={(e) => { e.target.style.display = 'none'; }}
+                                            />
                                         </td>
                                         <td>
                                             <span style={{

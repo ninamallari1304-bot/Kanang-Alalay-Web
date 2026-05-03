@@ -8,6 +8,7 @@ const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const http = require('http');
 const socketIo = require('socket.io');
+const qrcode = require('qrcode');
 
 const Donation = require('./models/Donation');
 const Booking = require('./models/Booking');
@@ -283,6 +284,39 @@ app.post('/api/inventory/scan', async (req, res) => {
     }
 });
 
+app.get('/api/inventory/:id/qr', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const item = await Inventory.findById(id);
+        if (!item) {
+            return res.status(404).json({ success: false, message: 'Inventory item not found.' });
+        }
+
+        const qrCodeText = item.qrCode;
+        const qrCodeDataURL = await qrcode.toDataURL(qrCodeText, {
+            errorCorrectionLevel: 'M',
+            type: 'image/png',
+            quality: 0.92,
+            margin: 1,
+            color: {
+                dark: '#000000',
+                light: '#FFFFFF'
+            }
+        });
+
+        // Convert data URL to buffer
+        const base64Data = qrCodeDataURL.replace(/^data:image\/png;base64,/, '');
+        const buffer = Buffer.from(base64Data, 'base64');
+
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Content-Disposition', 'inline; filename="qr-code.png"');
+        res.send(buffer);
+    } catch (error) {
+        console.error('QR code generation error:', error);
+        res.status(500).json({ success: false, message: 'Error generating QR code.' });
+    }
+});
+
 app.post('/api/voice/transcribe', upload.single('audio'), async (req, res) => {
     try {
         if (!process.env.OPENAI_API_KEY) {
@@ -351,7 +385,28 @@ app.post('/api/voice/respond', async (req, res) => {
                 messages: [
                     {
                         role: 'system',
-                        content: 'You are a helpful medication assistant for a caregiving team. Answer questions about medications, administration, and general care in a safe and supportive way.',
+                        content: `You are a helpful medication assistant for the Kanang-Alalay caregiving system. You have access to information about the backend system including:
+
+SYSTEM CAPABILITIES:
+- User management: Admin, Head Caregiver, Caregiver roles
+- Inventory management: Track medications, supplies, quantities, expiration dates
+- Resident management: Patient records, care plans
+- Booking system: Appointment scheduling and management
+- Donation tracking: Financial contributions and records
+- Medication administration: Logging and monitoring
+- Alert system: Notifications for low stock, medication reminders
+- Payment processing: Transaction handling
+
+CURRENT SYSTEM FEATURES:
+- QR code generation for inventory items
+- Real-time notifications via Socket.io
+- Role-based access control
+- Voice transcription and response generation
+- Multi-platform support (web, mobile)
+
+As a medication assistant, provide safe, accurate information about medications, administration guidelines, and general caregiving practices. Always emphasize safety and consulting healthcare professionals for medical decisions.
+
+If asked about system capabilities or data, explain what the Kanang-Alalay system can do based on the above features.`,
                     },
                     {
                         role: 'user',

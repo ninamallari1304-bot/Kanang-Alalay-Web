@@ -11,6 +11,7 @@ import {
   Modal,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import QRCode from 'react-native-qrcode-svg';
 import { useAuth } from "../../../contexts/AuthContext";
 import { getInventory, createInventoryItem } from "../../../services/api";
 
@@ -24,6 +25,8 @@ export default function FullInventory({ navigation }) {
   const [newItemQuantity, setNewItemQuantity] = useState("");
   const [newItemUnit, setNewItemUnit] = useState("pcs");
   const [creatingItem, setCreatingItem] = useState(false);
+  const [qrModalVisible, setQrModalVisible] = useState(false);
+  const [selectedItemForQr, setSelectedItemForQr] = useState(null);
 
   useEffect(() => {
     loadInventory();
@@ -101,6 +104,15 @@ export default function FullInventory({ navigation }) {
           {item.remaining <= 10 ? 'Critical stock' : 'In stock'} • {item.remaining} remaining
         </Text>
       </View>
+      <TouchableOpacity
+        style={styles.qrButton}
+        onPress={() => {
+          setSelectedItemForQr(item);
+          setQrModalVisible(true);
+        }}
+      >
+        <Ionicons name="qr-code" size={24} color="#E1903A" />
+      </TouchableOpacity>
     </View>
   );
 
@@ -190,6 +202,37 @@ export default function FullInventory({ navigation }) {
                 {creatingItem ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveText}>Save</Text>}
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* QR Code Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={qrModalVisible}
+        onRequestClose={() => setQrModalVisible(false)}
+      >
+        <View style={styles.qrModalOverlay}>
+          <View style={styles.qrModalContent}>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setQrModalVisible(false)}
+            >
+              <Ionicons name="close" size={24} color="#7A4B2A" />
+            </TouchableOpacity>
+            <Text style={styles.qrTitle}>QR Code for {selectedItemForQr?.name}</Text>
+            {selectedItemForQr && (
+              <View style={styles.qrContainer}>
+                <QRCode
+                  value={selectedItemForQr.qrCode}
+                  size={200}
+                  color="#7A4B2A"
+                  backgroundColor="#FFFFFF"
+                />
+              </View>
+            )}
+            <Text style={styles.qrText}>Scan this code to decrement stock</Text>
           </View>
         </View>
       </Modal>
@@ -290,6 +333,41 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontWeight: "bold",
     fontSize: 14,
+  },
+  qrButton: {
+    padding: 8,
+  },
+  qrModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  qrModalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 15,
+    padding: 20,
+    alignItems: "center",
+    width: "80%",
+  },
+  closeButton: {
+    alignSelf: "flex-end",
+    marginBottom: 10,
+  },
+  qrTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#7A4B2A",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  qrContainer: {
+    marginBottom: 20,
+  },
+  qrText: {
+    fontSize: 14,
+    color: "#7A4B2A",
+    textAlign: "center",
   },
   modalOverlay: {
     flex: 1,

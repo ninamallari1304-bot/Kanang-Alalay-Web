@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import {
   View,
   Text,
@@ -7,29 +7,64 @@ import {
   ScrollView,
   TextInput,
   Alert,
+  Switch,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import * as Speech from 'expo-speech'
 import { Audio } from 'expo-av'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { API_URL } from '../../config'
+import { useAuth } from '../../contexts/AuthContext'
 
 export default function VoiceAssistant({ navigation }) {
+  const { user } = useAuth()
   const [recording, setRecording] = useState(null)
   const [isRecording, setIsRecording] = useState(false)
   const [transcribing, setTranscribing] = useState(false)
   const [thinking, setThinking] = useState(false)
+  const [ttsEnabled, setTtsEnabled] = useState(true)
   const [transcript, setTranscript] = useState('')
   const [speechError, setSpeechError] = useState('')
   const [messages, setMessages] = useState([
     {
       id: 1,
       type: 'bot',
-      text: 'Hello! I\'m your medication assistant. Ask me questions like "What medication is best for a coughing woman?" or "How to administer insulin?"',
+      text: `Hello! I'm your medication assistant for the Kanang-Alalay system. As a ${user?.role?.replace('_', ' ') || 'caregiver'}, you can ask me questions about medications, administration guidelines, or system features.`,
       timestamp: new Date(),
     }
   ])
   const [inputText, setInputText] = useState('')
   const scrollViewRef = useRef()
+
+  useEffect(() => {
+    if (user?.role) {
+      loadConversationHistory()
+    }
+  }, [user?.role])
+
+  const loadConversationHistory = async () => {
+    try {
+      const key = `voice_assistant_${user.role}`
+      const stored = await AsyncStorage.getItem(key)
+      if (stored) {
+        const history = JSON.parse(stored)
+        setMessages(history)
+      }
+    } catch (error) {
+      console.error('Load conversation history error:', error)
+    }
+  }
+
+  const saveConversationHistory = async (newMessages) => {
+    try {
+      if (user?.role) {
+        const key = `voice_assistant_${user.role}`
+        await AsyncStorage.setItem(key, JSON.stringify(newMessages))
+      }
+    } catch (error) {
+      console.error('Save conversation history error:', error)
+    }
+  }
 
   const startRecording = async () => {
     try {
@@ -45,10 +80,10 @@ export default function VoiceAssistant({ navigation }) {
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         staysActiveInBackground: false,
-        interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
+        interruptionModeIOS: Audio.InterruptionModeIOS.DoNotMix,
         playsInSilentModeIOS: true,
         shouldDuckAndroid: true,
-        interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
+        interruptionModeAndroid: Audio.InterruptionModeAndroid.DoNotMix,
       })
 
       const recordingObject = new Audio.Recording()
@@ -140,7 +175,11 @@ export default function VoiceAssistant({ navigation }) {
       text,
       timestamp: new Date(),
     }
-    setMessages(prev => [...prev, newMessage])
+    setMessages(prev => {
+      const updated = [...prev, newMessage]
+      saveConversationHistory(updated)
+      return updated
+    })
   }
 
   const processQuery = async (query) => {
@@ -168,13 +207,17 @@ export default function VoiceAssistant({ navigation }) {
       }
 
       addMessage('bot', answer)
-      Speech.speak(answer, { language: 'en' })
+      if (ttsEnabled) {
+        Speech.speak(answer, { language: 'en' })
+      }
     } catch (error) {
       console.error('OpenAI response error:', error)
       const fallback = 'I could not get a response from OpenAI right now. Please try again.'
       setSpeechError(error.message || 'OpenAI response failed.')
       addMessage('bot', fallback)
-      Speech.speak(fallback, { language: 'en' })
+      if (ttsEnabled) {
+        Speech.speak(fallback, { language: 'en' })
+      }
     } finally {
       setThinking(false)
     }
@@ -189,7 +232,16 @@ export default function VoiceAssistant({ navigation }) {
         {
           text: 'Clear',
           style: 'destructive',
-          onPress: () => setMessages([messages[0]])
+          onPress: () => {
+            const defaultMessage = [{
+              id: 1,
+              type: 'bot',
+              text: `Hello! I'm your medication assistant for the Kanang-Alalay system. As a ${user?.role?.replace('_', ' ') || 'caregiver'}, you can ask me questions about medications, administration guidelines, or system features.`,
+              timestamp: new Date(),
+            }]
+            setMessages(defaultMessage)
+            saveConversationHistory(defaultMessage)
+          }
         },
       ]
     )
@@ -228,6 +280,16 @@ export default function VoiceAssistant({ navigation }) {
         <TouchableOpacity onPress={clearChat}>
           <Ionicons name="trash-outline" size={24} color="#E45C2B" />
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.ttsToggleRow}>
+        <Text style={styles.ttsLabel}>{ttsEnabled ? 'TTS: On' : 'TTS: Off'}</Text>
+        <Switch
+          value={ttsEnabled}
+          onValueChange={setTtsEnabled}
+          thumbColor={ttsEnabled ? '#E45C2B' : '#f4f3f4'}
+          trackColor={{ false: '#767577', true: '#ffc1b8' }}
+        />
       </View>
 
       {/* Chat Messages */}
@@ -464,5 +526,22 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
     fontStyle: 'italic',
+  },
+
+  ttsToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+
+  ttsLabel: {
+    color: '#333',
+    fontSize: 14,
+    fontWeight: '600',
   },
 })
