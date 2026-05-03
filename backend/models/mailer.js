@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
 
 if (process.env.NODE_ENV !== 'production') {
     require('dotenv').config();
@@ -10,56 +11,68 @@ const sendgridApiKey = (process.env.SENDGRID_API_KEY || '').trim();
 const fromEmail = process.env.FROM_EMAIL || emailUser;
 const useSendGrid = Boolean(sendgridApiKey);
 
+if (useSendGrid) {
+    sgMail.setApiKey(sendgridApiKey.replace(/\s+/g, ''));
+}
+
 console.log('Mailer config:', {
     NODE_ENV: process.env.NODE_ENV,
     EMAIL_USER: emailUser ? emailUser.substring(0, 3) + '***' : 'not set',
-    EMAIL_PROVIDER: useSendGrid ? 'sendgrid' : 'gmail',
+    EMAIL_PROVIDER: useSendGrid ? 'sendgrid-api' : 'gmail',
     FROM_EMAIL: fromEmail ? fromEmail : 'not set',
     EMAIL_PASS_length: emailPass.length,
     SENDGRID_API_KEY_length: sendgridApiKey ? sendgridApiKey.length : 0
 });
 
-const transporter = nodemailer.createTransport({
-    host: useSendGrid ? 'smtp.sendgrid.net' : 'smtp.gmail.com',
-    port: 587,
-    secure: false,
-    auth: {
-        user: useSendGrid ? 'apikey' : emailUser,
-        pass: useSendGrid ? sendgridApiKey.replace(/\s+/g, '') : emailPass
-    },
-    requireTLS: true,
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 10000
-});
+const transporter = !useSendGrid
+    ? nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        auth: {
+            user: emailUser,
+            pass: emailPass
+        },
+        requireTLS: true,
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 10000
+    })
+    : null;
 
-transporter.verify((error) => {
-    if (error) {
-        console.error('SMTP CONNECTION FAILED:', error.message);
-        if (useSendGrid) {
-            console.error('   → Check SENDGRID_API_KEY in your Render environment variables');
-            console.error('   → Ensure FROM_EMAIL is a verified sender in SendGrid');
-        } else {
+if (!useSendGrid) {
+    transporter.verify((error) => {
+        if (error) {
+            console.error('SMTP CONNECTION FAILED:', error.message);
             console.error('   → Check EMAIL_USER and EMAIL_PASS in your Render environment variables');
             console.error('   → Gmail app passwords may be shown with spaces; the service will strip whitespace automatically');
             console.error('   → Gmail requires an App Password, NOT your account password');
             console.error('   → Steps: Enable 2FA on Gmail → myaccount.google.com/apppasswords → create App Password');
+        } else {
+            console.log('SMTP connection verified. Mailer is ready.');
         }
-    } else {
-        console.log('SMTP connection verified. Mailer is ready.');
-    }
-});
+    });
+} else {
+    console.log('SendGrid Web API mode active. Mailer is ready.');
+}
 
 const sendEmail = async (to, subject, htmlContent) => {
     try {
         const mailOptions = {
             from: `"Kanang-Alalay Admin" <${fromEmail}>`,
-            to: to,
-            subject: subject,
+            to,
+            subject,
             html: htmlContent
         };
-        await transporter.sendMail(mailOptions);
-        console.log('Email sent successfully to:', to);
+
+        if (useSendGrid) {
+            await sgMail.send(mailOptions);
+            console.log('SendGrid email sent successfully to:', to);
+        } else {
+            await transporter.sendMail(mailOptions);
+            console.log('Email sent successfully to:', to);
+        }
+
         return true;
     } catch (error) {
         console.error('Error sending email:', error);
