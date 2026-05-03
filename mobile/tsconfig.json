@@ -3,10 +3,12 @@
     "allowJs": true,
     "checkJs": false,
     "jsx": "react",
-    "moduleResolution": "node",
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    "ignoreDeprecations": "6.0"
   },
   "exclude": [
     "node_modules",
