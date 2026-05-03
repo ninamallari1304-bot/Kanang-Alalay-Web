@@ -6,24 +6,26 @@ if (process.env.NODE_ENV !== 'production') {
 
 const emailUser = (process.env.EMAIL_USER || '').trim();
 const emailPass = (process.env.EMAIL_PASS || '').replace(/\s+/g, '');
+const sendgridApiKey = (process.env.SENDGRID_API_KEY || '').trim();
 const fromEmail = process.env.FROM_EMAIL || emailUser;
+const useSendGrid = Boolean(sendgridApiKey);
 
 console.log('Mailer config:', {
     NODE_ENV: process.env.NODE_ENV,
     EMAIL_USER: emailUser ? emailUser.substring(0, 3) + '***' : 'not set',
-    EMAIL_HOST: 'smtp.gmail.com',
-    EMAIL_PORT: 587,
+    EMAIL_PROVIDER: useSendGrid ? 'sendgrid' : 'gmail',
+    FROM_EMAIL: fromEmail ? fromEmail : 'not set',
     EMAIL_PASS_length: emailPass.length,
-    FROM_EMAIL: fromEmail ? fromEmail : 'not set'
+    SENDGRID_API_KEY_length: sendgridApiKey ? sendgridApiKey.length : 0
 });
 
 const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
+    host: useSendGrid ? 'smtp.sendgrid.net' : 'smtp.gmail.com',
     port: 587,
     secure: false,
     auth: {
-        user: emailUser,
-        pass: emailPass
+        user: useSendGrid ? 'apikey' : emailUser,
+        pass: useSendGrid ? sendgridApiKey.replace(/\s+/g, '') : emailPass
     },
     requireTLS: true,
     connectionTimeout: 10000,
@@ -34,10 +36,15 @@ const transporter = nodemailer.createTransport({
 transporter.verify((error) => {
     if (error) {
         console.error('SMTP CONNECTION FAILED:', error.message);
-        console.error('   → Check EMAIL_USER and EMAIL_PASS in your Render environment variables');
-        console.error('   → Gmail app passwords may be shown with spaces; the service will strip whitespace automatically');
-        console.error('   → Gmail requires an App Password, NOT your account password');
-        console.error('   → Steps: Enable 2FA on Gmail → myaccount.google.com/apppasswords → create App Password');
+        if (useSendGrid) {
+            console.error('   → Check SENDGRID_API_KEY in your Render environment variables');
+            console.error('   → Ensure FROM_EMAIL is a verified sender in SendGrid');
+        } else {
+            console.error('   → Check EMAIL_USER and EMAIL_PASS in your Render environment variables');
+            console.error('   → Gmail app passwords may be shown with spaces; the service will strip whitespace automatically');
+            console.error('   → Gmail requires an App Password, NOT your account password');
+            console.error('   → Steps: Enable 2FA on Gmail → myaccount.google.com/apppasswords → create App Password');
+        }
     } else {
         console.log('SMTP connection verified. Mailer is ready.');
     }
