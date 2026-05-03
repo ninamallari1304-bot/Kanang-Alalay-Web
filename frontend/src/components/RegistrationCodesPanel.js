@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { API_URL } from '../config/api';
 
 const RegistrationCodesPanel = () => {
     const [codes, setCodes] = useState([]);
@@ -13,7 +14,7 @@ const RegistrationCodesPanel = () => {
     const generateCodes = async () => {
         setGenerating(true);
         try {
-            const response = await axios.post('/api/admin/generate-codes', form, {
+            const response = await axios.post(`${API_URL}/admin/generate-codes`, form, {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             

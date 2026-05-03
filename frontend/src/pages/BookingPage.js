@@ -214,7 +214,7 @@ const BookingPage = () => {
                 notes:            modalData.notes,
             };
 
-            const response = await axios.post(`${API_BASE}/api/bookings`, payload, { timeout: 30000 });
+            const response = await axios.post(`${API_BASE}/bookings`, payload, { timeout: 30000 });
 
             if (response.data.success) {
                 setReceipt({

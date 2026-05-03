@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_URL } from '../../config/api';
 
 const UserManagementTab = () => {
   const [showModal, setShowModal] = useState(false);
@@ -29,7 +30,7 @@ const UserManagementTab = () => {
 
   const handleSaveUser = async () => {
     try {
-      await axios.post("/api/auth/register", { username: email.split('@')[0], email, password });
+      await axios.post(`${API_URL}/auth/register`, { username: email.split('@')[0], email, password });
       setShowModal(false);
       setShowOtpModal(true);
       setTimer(30); // 30s resend cooldown
@@ -40,7 +41,7 @@ const UserManagementTab = () => {
 
   const handleVerifyOtp = async () => {
     try {
-      await axios.post("/api/auth/verify-otp", { email, otpCode: otp });
+      await axios.post(`${API_URL}/auth/verify-otp`, { email, otpCode: otp });
       alert("Activated!");
       setShowOtpModal(false);
     } catch (err) {

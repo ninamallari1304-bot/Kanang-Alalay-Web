@@ -249,7 +249,7 @@ export default function DonationPage() {
         console.log(pair[0] + ': ' + pair[1]);
       }
 
-      const response = await axios.post(`${API_BASE}/api/donations`, formData, {
+      const response = await axios.post(`${API_BASE}/donations`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 30000,
       });

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
+import { API_URL } from "../config/api";
 
 const AlertsNotifications = () => {
   const [alerts, setAlerts] = useState([]);
@@ -13,7 +14,7 @@ const AlertsNotifications = () => {
 
   const fetchAlerts = async () => {
     try {
-      const response = await axios.get("/api/alerts");
+      const response = await axios.get(`${API_URL}/alerts`);
       setAlerts(response.data);
     } catch (error) {
       console.error("Error fetching alerts:", error);
