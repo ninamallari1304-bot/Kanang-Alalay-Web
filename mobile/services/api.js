@@ -37,7 +37,36 @@ api.interceptors.response.use(
   }
 );
 
-export const login = (username, password) => api.post("/auth/login", { username, password });
+const loginUrl = `${normalizedApiUrl}/api/auth/login`;
+
+export const login = async (username, password) => {
+  try {
+    return await api.post("/auth/login", { username, password });
+  } catch (error) {
+    console.warn('Login request failed with Axios:', error?.message || error);
+    if (error?.message === 'Network Error') {
+      console.warn('Falling back to fetch for login request.');
+      const response = await fetch(loginUrl, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        const fetchError = new Error(data.message || 'Login failed');
+        fetchError.response = { status: response.status, data };
+        throw fetchError;
+      }
+
+      return { data };
+    }
+    throw error;
+  }
+};
 
 export const register = (userData) => api.post("/auth/register", userData);
 

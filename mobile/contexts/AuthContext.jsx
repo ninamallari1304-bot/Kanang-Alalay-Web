@@ -43,7 +43,13 @@ export default function AuthProvider({ children }) {
       setUser(userData);
       return { success: true, data: response.data };
     } catch (error) {
-      console.error('Login request error:', error);
+      console.error('Login request error:', {
+        message: error.message,
+        code: error.code,
+        config: error.config,
+        response: error.response?.data || error.response,
+        request: error.request,
+      });
       const message = error.response?.data?.message || error.message || 'Login failed';
       return { success: false, message };
     }
