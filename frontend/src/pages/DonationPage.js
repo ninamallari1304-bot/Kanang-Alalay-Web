@@ -7,13 +7,10 @@ import '../styles/DonationPage.css';
 const fmt = (n) => `₱${Number(n).toLocaleString()}`;
 const today = () => new Date().toISOString().split('T')[0];
 const API_BASE = (() => {
-  const raw =
-    process.env.REACT_APP_API_BASE_URL ||
-    process.env.REACT_APP_API_URL ||
+  return process.env.REACT_APP_API_URL ||
     (process.env.NODE_ENV === 'production'
       ? 'https://kanang-alalay-backend.onrender.com/api'
       : 'http://localhost:5000/api');
-  return raw.replace(/\/api\/?$/, '');
 })();
 
 const PRESETS = [500, 1000, 2000, 5000, 10000];

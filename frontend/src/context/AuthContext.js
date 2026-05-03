@@ -53,11 +53,15 @@ export const AuthProvider = ({ children }) => {
             return false;
         }
 
+        console.log('Auth restoreSession:', { tokenExists: Boolean(token), storedUserRole: parsed.role });
+
         try {
             const res = await fetch(`${API_BASE_URL}/auth/validate-token`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
+            console.log('validate-token response status:', res.status);
             const data = await res.json();
+            console.log('validate-token response body:', data);
 
             if (!res.ok || !data.success) {
                 localStorage.removeItem('token');

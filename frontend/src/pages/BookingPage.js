@@ -9,11 +9,8 @@ import '../styles/BookingPage.css';
 // ── helpers ───────────────────────────────────────────────────────────────────
 const uid = () => 'BK-' + Math.random().toString(36).slice(2, 9).toUpperCase();
 const API_BASE = (() => {
-    const raw =
-        process.env.REACT_APP_API_BASE_URL ||
-        process.env.REACT_APP_API_URL ||
+    return process.env.REACT_APP_API_URL ||
         (process.env.NODE_ENV === 'production' ? 'https://kanang-alalay-backend.onrender.com/api' : 'http://localhost:5000/api');
-    return raw.replace(/\/api\/?$/, '');
 })();
 
 const TIME_SLOTS = [

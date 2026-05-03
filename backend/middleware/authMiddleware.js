@@ -7,10 +7,12 @@ const protect = async (req, res, next) => {
         const token = authHeader?.startsWith('Bearer ') ? authHeader.replace(/^Bearer\s+/i, '') : authHeader;
 
         if (!token) {
+            console.error('Auth protect: missing token');
             return res.status(401).json({ success: false, message: 'Authentication required. No token provided.' });
         }
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
+        const secret = process.env.JWT_SECRET || 'fallback_secret';
+        const decoded = jwt.verify(token, secret);
         const user = await User.findById(decoded.userId).select('-password');
 
         if (!user) {
@@ -25,6 +27,7 @@ const protect = async (req, res, next) => {
         req.token = token;
         next();
     } catch (error) {
+        console.error('Auth protect error:', error.name, error.message);
         if (error.name === 'JsonWebTokenError') {
             return res.status(401).json({ success: false, message: 'Invalid token.' });
         }
