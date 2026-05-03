@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef } from 'react'
 import {
   View,
   Text,
@@ -10,12 +10,15 @@ import {
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import * as Speech from 'expo-speech'
+import { Audio } from 'expo-av'
+import { API_URL } from '../../config'
 
 export default function VoiceAssistant({ navigation }) {
-  const [isListening, setIsListening] = useState(false)
+  const [recording, setRecording] = useState(null)
+  const [isRecording, setIsRecording] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
+  const [thinking, setThinking] = useState(false)
   const [transcript, setTranscript] = useState('')
-  const [speechRecognitionModule, setSpeechRecognitionModule] = useState(null)
-  const [isAvailable, setIsAvailable] = useState(false)
   const [speechError, setSpeechError] = useState('')
   const [messages, setMessages] = useState([
     {
@@ -28,111 +31,97 @@ export default function VoiceAssistant({ navigation }) {
   const [inputText, setInputText] = useState('')
   const scrollViewRef = useRef()
 
-  useEffect(() => {
-    const loadSpeechRecognition = async () => {
-      try {
-        const module = await import('expo-speech-recognition')
-        const nativeModule = module?.ExpoSpeechRecognitionModule
-        if (!nativeModule) {
-          throw new Error('Native speech recognition module unavailable')
-        }
-        setSpeechRecognitionModule(nativeModule)
-        const available = await nativeModule.isRecognitionAvailable()
-        setIsAvailable(available)
-      } catch (err) {
-        console.warn('Speech recognition load failed:', err)
-        setIsAvailable(false)
-        setSpeechError('Voice recognition is unavailable in this environment.')
-      }
-    }
-    loadSpeechRecognition()
-  }, [])
-
-  useEffect(() => {
-    if (!speechRecognitionModule) return
-
-    const startListener = speechRecognitionModule.addListener('start', () => {
-      setIsListening(true)
-      setSpeechError('')
-    })
-    const endListener = speechRecognitionModule.addListener('end', () => {
-      setIsListening(false)
-    })
-    const resultListener = speechRecognitionModule.addListener('result', (event) => {
-      const transcriptText =
-        event?.results?.[0]?.transcript || event?.results?.[0]?.alternatives?.[0]?.transcript || ''
-      setTranscript(transcriptText)
-      if (event?.results?.[0]?.isFinal || event?.interpretation) {
-        if (transcriptText.trim()) {
-          addMessage('user', transcriptText.trim())
-          processQuery(transcriptText.trim())
-        }
-      }
-    })
-    const errorListener = speechRecognitionModule.addListener('error', (event) => {
-      const message = event?.message || 'Speech recognition failed.'
-      setSpeechError(message)
-      console.error('Speech recognition error:', event)
-      Speech.speak('Speech recognition failed. Please try typing your question.', {
-        language: 'en',
-      })
-    })
-
-    return () => {
-      startListener.remove()
-      endListener.remove()
-      resultListener.remove()
-      errorListener.remove()
-    }
-  }, [speechRecognitionModule])
-
-  const startListening = async () => {
-    if (!isAvailable || !speechRecognitionModule) {
-      const message = 'Speech recognition is not available in this environment. Please type your question.'
-      Alert.alert('Feature unavailable', message)
-      Speech.speak(message)
-      return
-    }
-
+  const startRecording = async () => {
     try {
-      const permission = await speechRecognitionModule.requestPermissionsAsync()
+      const permission = await Audio.requestPermissionsAsync()
       if (!permission.granted) {
         Alert.alert(
           'Permission required',
-          'Please grant microphone and speech recognition permission to use voice input.'
+          'Microphone access is required to record your voice.'
         )
         return
       }
 
-      setTranscript('')
-      setSpeechError('')
-      await speechRecognitionModule.start({
-        lang: 'en-US',
-        interimResults: true,
-        continuous: false,
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        staysActiveInBackground: false,
+        interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
       })
+
+      const recordingObject = new Audio.Recording()
+      await recordingObject.prepareToRecordAsync(Audio.RECORDING_OPTIONS_PRESET_HIGH_QUALITY)
+      await recordingObject.startAsync()
+
+      setRecording(recordingObject)
+      setIsRecording(true)
+      setSpeechError('')
     } catch (error) {
-      console.error('Speech start error:', error)
-      setSpeechError(error?.message || 'Unable to start speech recognition.')
-      Alert.alert('Speech error', 'Unable to start speech recognition. Please try again.')
+      console.error('Recording start error:', error)
+      setSpeechError('Unable to start recording. Please try again.')
+      Alert.alert('Recording error', 'Unable to start recording. Please try again.')
     }
   }
 
-  const stopListening = async () => {
+  const stopRecording = async () => {
+    if (!recording) return
+
     try {
-      if (speechRecognitionModule) {
-        await speechRecognitionModule.stop()
+      await recording.stopAndUnloadAsync()
+      const uri = recording.getURI()
+      setRecording(null)
+      setIsRecording(false)
+      if (uri) {
+        await transcribeAudio(uri)
       }
     } catch (error) {
-      console.warn('Speech stop error:', error)
+      console.error('Recording stop error:', error)
+      setSpeechError('Unable to stop recording. Please try again.')
+      Alert.alert('Recording error', 'Unable to stop recording. Please try again.')
+      setIsRecording(false)
     }
-    setIsListening(false)
   }
 
-  const handleVoiceInput = (text) => {
-    if (text.trim()) {
-      addMessage('user', text.trim())
-      processQuery(text.trim())
+  const transcribeAudio = async (uri) => {
+    setTranscribing(true)
+    setSpeechError('')
+    setTranscript('')
+
+    try {
+      const formData = new FormData()
+      formData.append('audio', {
+        uri,
+        name: 'voice.m4a',
+        type: 'audio/m4a',
+      })
+
+      const response = await fetch(`${API_URL}/api/voice/transcribe`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      const result = await response.json()
+      if (!response.ok) {
+        const message = result.message || 'Failed to transcribe audio.'
+        throw new Error(message)
+      }
+
+      const transcription = result.data?.text || result.data?.transcript || result.text || ''
+      if (!transcription) {
+        throw new Error('No transcription returned.')
+      }
+
+      setTranscript(transcription)
+      addMessage('user', transcription)
+      await processQuery(transcription)
+    } catch (error) {
+      console.error('Transcription error:', error)
+      setSpeechError(error.message || 'Transcription failed.')
+      Alert.alert('Transcription failed', error.message || 'Please try again.')
+    } finally {
+      setTranscribing(false)
     }
   }
 
@@ -154,34 +143,41 @@ export default function VoiceAssistant({ navigation }) {
     setMessages(prev => [...prev, newMessage])
   }
 
-  const processQuery = (query) => {
-    const lowerQuery = query.toLowerCase()
+  const processQuery = async (query) => {
+    setThinking(true)
+    setSpeechError('')
 
-    // Simulate AI processing delay
-    setTimeout(() => {
-      let response = ''
+    try {
+      const response = await fetch(`${API_URL}/api/voice/respond`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: query }),
+      })
 
-      // Basic medication queries
-      if (lowerQuery.includes('cough') && lowerQuery.includes('woman')) {
-        response = 'For a woman with a cough, I recommend:\n\n• Dextromethorphan (Robitussin DM) for dry cough\n• Guaifenesin (Mucinex) for productive cough\n• Honey and lemon tea for natural relief\n\nPlease consult a doctor for proper diagnosis and prescription.'
-      } else if (lowerQuery.includes('fever') || lowerQuery.includes('temperature')) {
-        response = 'For fever management:\n\n• Acetaminophen (Tylenol) - 500mg every 4-6 hours\n• Ibuprofen (Advil) - 400mg every 6-8 hours\n• Keep hydrated and rest\n\nMonitor temperature and seek medical attention if fever exceeds 103°F (39.4°C).'
-      } else if (lowerQuery.includes('pain') || lowerQuery.includes('headache')) {
-        response = 'For pain relief:\n\n• Acetaminophen (Tylenol) - 500mg every 4-6 hours\n• Ibuprofen (Advil/Motrin) - 400mg every 6-8 hours\n• Naproxen (Aleve) - 220mg every 8-12 hours\n\nDo not exceed recommended dosage.'
-      } else if (lowerQuery.includes('blood pressure') || lowerQuery.includes('hypertension')) {
-        response = 'Common blood pressure medications:\n\n• ACE Inhibitors: Lisinopril, Enalapril\n• ARBs: Losartan, Valsartan\n• Beta-blockers: Metoprolol, Atenolol\n• Calcium channel blockers: Amlodipine\n\nAlways take as prescribed and monitor blood pressure regularly.'
-      } else if (lowerQuery.includes('diabetes') || lowerQuery.includes('insulin')) {
-        response = 'Insulin administration guidelines:\n\n• Check blood sugar before administering\n• Use correct insulin type and dosage\n• Rotate injection sites\n• Store insulin properly (refrigerated)\n• Monitor for signs of hypo/hyperglycemia\n\nConsult healthcare provider for specific instructions.'
-      } else if (lowerQuery.includes('antibiotic') || lowerQuery.includes('infection')) {
-        response = 'Important antibiotic information:\n\n• Always complete the full course\n• Take at regular intervals\n• Common side effects: nausea, diarrhea\n• Some antibiotics interact with other medications\n• Finish even if symptoms improve\n\nNever share antibiotics or use leftover prescriptions.'
-      } else if (lowerQuery.includes('administer') || lowerQuery.includes('give')) {
-        response = 'Medication administration best practices:\n\n• Verify patient identity (5 rights)\n• Check medication, dose, route, time\n• Educate patient about medication\n• Monitor for side effects\n• Document administration properly\n• Wash hands before and after'
-      } else {
-        response = 'I\'m here to help with medication-related questions. You can ask about:\n\n• Specific medication recommendations\n• Administration guidelines\n• Side effects and interactions\n• Storage requirements\n• General health information\n\nPlease consult a healthcare professional for medical advice.'
+      const result = await response.json()
+      if (!response.ok) {
+        const message = result.message || 'Failed to generate a response.'
+        throw new Error(message)
       }
 
-      addMessage('bot', response)
-    }, 1000)
+      const answer = result.data?.text || ''
+      if (!answer) {
+        throw new Error('OpenAI returned an empty response.')
+      }
+
+      addMessage('bot', answer)
+      Speech.speak(answer, { language: 'en' })
+    } catch (error) {
+      console.error('OpenAI response error:', error)
+      const fallback = 'I could not get a response from OpenAI right now. Please try again.'
+      setSpeechError(error.message || 'OpenAI response failed.')
+      addMessage('bot', fallback)
+      Speech.speak(fallback, { language: 'en' })
+    } finally {
+      setThinking(false)
+    }
   }
 
   const clearChat = () => {
@@ -259,11 +255,11 @@ export default function VoiceAssistant({ navigation }) {
 
           <TouchableOpacity
             style={styles.voiceBtn}
-            onPress={isListening ? stopListening : startListening}
+            onPress={isRecording ? stopRecording : startRecording}
           >
             <View>
               <Ionicons
-                name={isListening ? 'stop-circle' : 'mic'}
+                name={isRecording ? 'stop-circle' : 'mic'}
                 size={24}
                 color="#E45C2B"
               />
@@ -277,16 +273,37 @@ export default function VoiceAssistant({ navigation }) {
           </View>
         ) : null}
 
-        {isListening && (
+        {isRecording && (
           <View style={styles.listeningIndicator}>
             <Text style={styles.listeningText}>
-              🎤 Listening... Say your question
+              🎤 Recording... Tap the mic again to stop
             </Text>
-            {transcript && (
-              <Text style={styles.transcriptText}>"{transcript}"</Text>
-            )}
           </View>
         )}
+
+        {transcribing && (
+          <View style={styles.listeningIndicator}>
+            <Text style={styles.listeningText}>
+              ⏳ Transcribing your audio... please wait
+            </Text>
+          </View>
+        )}
+
+        {thinking && (
+          <View style={styles.listeningIndicator}>
+            <Text style={styles.listeningText}>
+              🤖 Generating OpenAI response... please wait
+            </Text>
+          </View>
+        )}
+
+        {!isRecording && transcript ? (
+          <View style={styles.listeningIndicator}>
+            <Text style={styles.transcriptText}>
+              Recognized: "{transcript}"
+            </Text>
+          </View>
+        ) : null}
       </View>
     </View>
   )

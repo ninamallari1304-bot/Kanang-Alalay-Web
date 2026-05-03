@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -54,6 +55,7 @@ const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }
+const upload = multer({ dest: uploadsDir });
 app.use('/uploads', express.static(uploadsDir));
 
 mongoose.connect(process.env.MONGODB_URI, {
@@ -278,6 +280,103 @@ app.post('/api/inventory/scan', async (req, res) => {
     } catch (error) {
         console.error('Inventory scan error:', error);
         res.status(500).json({ success: false, message: 'Server error while processing inventory scan.' });
+    }
+});
+
+app.post('/api/voice/transcribe', upload.single('audio'), async (req, res) => {
+    try {
+        if (!process.env.OPENAI_API_KEY) {
+            return res.status(500).json({ success: false, message: 'OpenAI API key is not configured.' });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: 'No audio file uploaded.' });
+        }
+
+        const formData = new FormData();
+        formData.append('file', fs.createReadStream(req.file.path), req.file.originalname);
+        formData.append('model', 'whisper-1');
+
+        const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+            },
+            body: formData,
+        });
+
+        const result = await response.json();
+
+        fs.unlink(req.file.path, (unlinkErr) => {
+            if (unlinkErr) console.warn('Audio temp file cleanup failed:', unlinkErr);
+        });
+
+        if (!response.ok) {
+            return res.status(response.status).json({
+                success: false,
+                message: result.error?.message || 'Audio transcription failed.',
+                error: result,
+            });
+        }
+
+        res.json({ success: true, data: result });
+    } catch (error) {
+        console.error('Voice transcription error:', error);
+        if (req.file) {
+            fs.unlink(req.file.path, () => {})
+        }
+        res.status(500).json({ success: false, message: 'Server error transcribing audio.' });
+    }
+});
+
+app.post('/api/voice/respond', async (req, res) => {
+    try {
+        if (!process.env.OPENAI_API_KEY) {
+            return res.status(500).json({ success: false, message: 'OpenAI API key is not configured.' });
+        }
+
+        const { message } = req.body;
+        if (!message || !message.trim()) {
+            return res.status(400).json({ success: false, message: 'Message text is required.' });
+        }
+
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+            },
+            body: JSON.stringify({
+                model: 'gpt-4',
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'You are a helpful medication assistant for a caregiving team. Answer questions about medications, administration, and general care in a safe and supportive way.',
+                    },
+                    {
+                        role: 'user',
+                        content: message,
+                    },
+                ],
+                temperature: 0.7,
+                max_tokens: 500,
+            }),
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+            return res.status(response.status).json({
+                success: false,
+                message: result.error?.message || 'OpenAI response generation failed.',
+                error: result,
+            });
+        }
+
+        const reply = result.choices?.[0]?.message?.content?.trim() || '';
+        res.json({ success: true, data: { text: reply, raw: result } });
+    } catch (error) {
+        console.error('Voice response error:', error);
+        res.status(500).json({ success: false, message: 'Server error generating OpenAI response.' });
     }
 });
 
