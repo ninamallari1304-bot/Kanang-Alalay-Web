@@ -9,26 +9,43 @@ const emailPass = (process.env.EMAIL_PASS || '').replace(/\s+/g, '');
 
 console.log('Mailer env:', {
     NODE_ENV: process.env.NODE_ENV,
-    EMAIL_USER_set: Boolean(emailUser),
-    EMAIL_PASS_set: Boolean(emailPass),
-    EMAIL_PASS_length: emailPass.length
+    EMAIL_USER: emailUser,
+    EMAIL_PASS_length: emailPass.length,
+    EMAIL_PASS_preview: emailPass.substring(0, 4) + '****'
 });
 
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: emailUser,
-        pass: emailPass
-    },
-    secure: false,
-    requireTLS: true,
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 15000,
-    tls: {
-        rejectUnauthorized: false
-    }
-});
+// Try Gmail SMTP first, fallback to alternative if needed
+let transporter;
+
+try {
+    transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+            user: emailUser,
+            pass: emailPass
+        },
+        secure: false,
+        requireTLS: true,
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 10000
+    });
+} catch (error) {
+    console.error('Failed to create Gmail transporter:', error.message);
+    // Fallback to manual SMTP config
+    transporter = nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        auth: {
+            user: emailUser,
+            pass: emailPass
+        },
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 10000
+    });
+}
 
 transporter.verify((error) => {
     if (error) {
