@@ -1,10 +1,19 @@
 const nodemailer = require('nodemailer');
-require('dotenv').config();
+
+if (process.env.NODE_ENV !== 'production') {
+    require('dotenv').config();
+}
+
+console.log('Mailer env:', {
+    NODE_ENV: process.env.NODE_ENV,
+    EMAIL_USER_set: Boolean(process.env.EMAIL_USER),
+    EMAIL_PASS_set: Boolean(process.env.EMAIL_PASS)
+});
 
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
+    port: 587,
+    secure: false,
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
