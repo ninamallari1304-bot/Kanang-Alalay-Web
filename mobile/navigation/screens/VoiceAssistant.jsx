@@ -11,7 +11,7 @@ import {
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import * as Speech from 'expo-speech'
-import { Audio } from 'expo-av'
+import { Audio } from 'expo-audio'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { API_URL } from '../../config'
 import { useAuth } from '../../contexts/AuthContext'
@@ -86,11 +86,11 @@ export default function VoiceAssistant({ navigation }) {
         interruptionModeAndroid: Audio.InterruptionModeAndroid.DoNotMix,
       })
 
-      const recordingObject = new Audio.Recording()
-      await recordingObject.prepareToRecordAsync(Audio.RECORDING_OPTIONS_PRESET_HIGH_QUALITY)
-      await recordingObject.startAsync()
+      const recorder = new Audio.Recorder()
+      await recorder.prepareToRecordAsync(Audio.RecordingPresets.HIGH_QUALITY)
+      await recorder.startAsync()
 
-      setRecording(recordingObject)
+      setRecording(recorder)
       setIsRecording(true)
       setSpeechError('')
     } catch (error) {

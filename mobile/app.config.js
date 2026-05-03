@@ -32,6 +32,7 @@ module.exports = {
       apiUrl: process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") || "https://kanang-alalay-backend.onrender.com"
     },
     plugins: [
+      "expo-audio",
       [
         "expo-speech-recognition",
         {
