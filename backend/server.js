@@ -30,6 +30,7 @@ const app = express();
 const allowedOrigins = [
     process.env.FRONTEND_URL,
     'https://kanang-alalay.vercel.app',
+    'https://kanang-alalay-shlyncl01s-projects.vercel.app',
     'https://lsae-kanangalalay.online',
     'http://localhost:3000'
 ].filter(Boolean);
