@@ -11,7 +11,12 @@ import {
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import * as Speech from 'expo-speech'
-import { Audio } from 'expo-av'
+import {
+  AudioModule,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  RecordingPresets,
+} from 'expo-audio'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { API_URL } from '../../config'
 import { useAuth } from '../../contexts/AuthContext'
@@ -68,7 +73,7 @@ export default function VoiceAssistant({ navigation }) {
 
   const startRecording = async () => {
     try {
-      const permission = await Audio.requestPermissionsAsync()
+      const permission = await requestRecordingPermissionsAsync()
       if (!permission.granted) {
         Alert.alert(
           'Permission required',
@@ -77,18 +82,16 @@ export default function VoiceAssistant({ navigation }) {
         return
       }
 
-      await Audio.setAudioModeAsync({
+      await setAudioModeAsync({
         allowsRecordingIOS: true,
         staysActiveInBackground: false,
-        interruptionModeIOS: Audio.InterruptionModeIOS.DoNotMix,
         playsInSilentModeIOS: true,
         shouldDuckAndroid: true,
-        interruptionModeAndroid: Audio.InterruptionModeAndroid.DoNotMix,
       })
 
-      const recorder = new Audio.Recording()
-      await recorder.prepareToRecordAsync(Audio.RECORDING_OPTIONS_PRESET_HIGH_QUALITY)
-      await recorder.startAsync()
+      const recorder = new AudioModule.AudioRecorder()
+      await recorder.prepareToRecordAsync(RecordingPresets.HIGH_QUALITY)
+      recorder.record()
 
       setRecording(recorder)
       setIsRecording(true)
@@ -104,8 +107,8 @@ export default function VoiceAssistant({ navigation }) {
     if (!recording) return
 
     try {
-      await recording.stopAndUnloadAsync()
-      const uri = recording.getURI()
+      await recording.stop()
+      const uri = recording.uri
       setRecording(null)
       setIsRecording(false)
       if (uri) {

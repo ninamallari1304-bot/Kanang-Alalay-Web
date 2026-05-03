@@ -2,14 +2,21 @@ import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_URL } from "../config";
 
+const normalizedApiUrl = String(API_URL || "").replace(/\/$/, "");
+if (!normalizedApiUrl || normalizedApiUrl === "undefined") {
+  console.error("Invalid API_URL in mobile/services/api.js:", API_URL);
+}
+
 const api = axios.create({
-  baseURL: `${API_URL}/api`,
+  baseURL: `${normalizedApiUrl}/api`,
   timeout: 10000,
   headers: {
     Accept: "application/json",
     "Content-Type": "application/json",
   },
 });
+
+console.log("Axios baseURL:", api.defaults.baseURL);
 
 api.interceptors.request.use(async (config) => {
   const token = await AsyncStorage.getItem("token");
