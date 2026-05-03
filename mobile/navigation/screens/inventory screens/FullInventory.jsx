@@ -83,8 +83,12 @@ export default function FullInventory({ navigation }) {
       const qrNotice = createdItem?.qrCode ? `\nQR Code: ${createdItem.qrCode}` : '';
       Alert.alert('Success', `Medication added to inventory.${qrNotice}`);
     } catch (error) {
-      console.error('Error creating inventory item:', error);
-      Alert.alert('Error', 'Failed to add medication to inventory.');
+      const errMsg =
+        error.response?.data?.message ||
+        error.message ||
+        'Failed to add medication to inventory.'
+      console.error('Error creating inventory item:', error.response?.data || error.message || error)
+      Alert.alert('Error', errMsg)
     } finally {
       setCreatingItem(false);
     }
