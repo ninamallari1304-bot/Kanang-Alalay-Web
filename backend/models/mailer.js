@@ -8,6 +8,7 @@ const emailUser = (process.env.EMAIL_USER || '').trim();
 const emailPass = (process.env.EMAIL_PASS || '').replace(/\s+/g, '');
 const emailHost = process.env.EMAIL_HOST || 'smtp.gmail.com';
 const emailPort = parseInt(process.env.EMAIL_PORT) || 587;
+const fromEmail = process.env.FROM_EMAIL || emailUser;
 
 console.log('Mailer config:', {
     NODE_ENV: process.env.NODE_ENV,
@@ -45,7 +46,7 @@ transporter.verify((error) => {
 const sendEmail = async (to, subject, htmlContent) => {
     try {
         const mailOptions = {
-            from: `"Kanang-Alalay Admin" <${process.env.EMAIL_USER}>`,
+            from: `"Kanang-Alalay Admin" <${fromEmail}>`,
             to: to,
             subject: subject,
             html: htmlContent
