@@ -328,8 +328,11 @@ app.post('/api/voice/transcribe', upload.single('audio'), async (req, res) => {
             return res.status(400).json({ success: false, message: 'No audio file uploaded.' });
         }
 
+        const audioBuffer = fs.readFileSync(req.file.path);
+        const audioBlob = new Blob([audioBuffer], { type: req.file.mimetype });
+
         const formData = new FormData();
-        formData.append('file', fs.createReadStream(req.file.path), req.file.originalname);
+        formData.append('file', audioBlob, req.file.originalname);
         formData.append('model', 'whisper-1');
 
         const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
