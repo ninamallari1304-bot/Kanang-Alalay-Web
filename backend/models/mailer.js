@@ -4,29 +4,23 @@ if (process.env.NODE_ENV !== 'production') {
     require('dotenv').config();
 }
 
-const emailUserRaw = (process.env.EMAIL_USER || '').trim();
-const emailPassRaw = (process.env.EMAIL_PASS || '').trim();
-const sendgridApiKey = (process.env.SENDGRID_API_KEY || '').trim();
-const emailHost = process.env.EMAIL_HOST || (sendgridApiKey ? 'smtp.sendgrid.net' : 'smtp.gmail.com');
-const emailPort = parseInt(process.env.EMAIL_PORT) || 587;
-const emailUser = sendgridApiKey ? 'apikey' : emailUserRaw;
-const emailPass = sendgridApiKey ? sendgridApiKey.replace(/\s+/g, '') : emailPassRaw.replace(/\s+/g, '');
-const fromEmail = process.env.FROM_EMAIL || emailUserRaw || process.env.EMAIL_FROM || '';
+const emailUser = (process.env.EMAIL_USER || '').trim();
+const emailPass = (process.env.EMAIL_PASS || '').replace(/\s+/g, '');
+const fromEmail = process.env.FROM_EMAIL || emailUser;
 
 console.log('Mailer config:', {
     NODE_ENV: process.env.NODE_ENV,
-    USE_SENDGRID: Boolean(sendgridApiKey),
-    EMAIL_USER: emailUserRaw ? emailUserRaw.substring(0, 3) + '***' : 'not set',
-    EMAIL_HOST: emailHost,
-    EMAIL_PORT: emailPort,
+    EMAIL_USER: emailUser ? emailUser.substring(0, 3) + '***' : 'not set',
+    EMAIL_HOST: 'smtp.gmail.com',
+    EMAIL_PORT: 587,
     EMAIL_PASS_length: emailPass.length,
     FROM_EMAIL: fromEmail ? fromEmail : 'not set'
 });
 
 const transporter = nodemailer.createTransport({
-    host: emailHost,
-    port: emailPort,
-    secure: emailPort === 465,
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
     auth: {
         user: emailUser,
         pass: emailPass
