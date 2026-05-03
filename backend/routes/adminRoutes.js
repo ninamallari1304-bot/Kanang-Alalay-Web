@@ -324,9 +324,10 @@ router.post('/inventory', async (req, res) => {
         await item.save();
         res.status(201).json({ success: true, data: item });
     } catch (error) {
-        console.error('Admin inventory create error:', error?.message || error);
+        console.error('Admin inventory create error:', error);
+        console.error('Admin inventory create request body:', req.body);
         const message = error.code === 11000 ? 'Duplicate inventory identifier. Please retry.' : 'Error adding inventory item';
-        res.status(500).json({ success: false, message });
+        res.status(500).json({ success: false, message, error: error.message });
     }
 });
 

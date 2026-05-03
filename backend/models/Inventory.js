@@ -68,7 +68,7 @@ const inventorySchema = new mongoose.Schema(
 );
 
 // OPTIONAL: Auto-update status before saving
-inventorySchema.pre('save', function (next) {
+inventorySchema.pre('save', function () {
   if (!this.itemId) {
     this.itemId = `INV-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`;
   }
@@ -84,17 +84,15 @@ inventorySchema.pre('save', function (next) {
   } else {
     this.status = 'available';
   }
-  next();
 });
 
-inventorySchema.pre('validate', function (next) {
+inventorySchema.pre('validate', function () {
   if (!this.qrCode) {
     this.qrCode = `INVQR-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 100000)}`;
   }
   if (!this.itemId) {
     this.itemId = `INV-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`;
   }
-  next();
 });
 
 module.exports = mongoose.model('Inventory', inventorySchema);

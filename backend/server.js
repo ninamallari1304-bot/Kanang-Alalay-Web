@@ -244,9 +244,10 @@ app.post('/api/inventory', async (req, res) => {
         await item.save();
         res.status(201).json({ success: true, data: item });
     } catch (error) {
-        console.error('Inventory create error:', error?.message || error);
+        console.error('Inventory create error:', error);
+        console.error('Inventory create request body:', req.body);
         const message = error.code === 11000 ? 'Duplicate inventory identifier. Please retry.' : 'Error adding inventory item';
-        res.status(500).json({ success: false, message });
+        res.status(500).json({ success: false, message, error: error.message });
     }
 });
 
@@ -476,9 +477,10 @@ app.post('/api/email/send-booking-status', async (req, res) => {
 app.use((req, res) =>
     res.status(404).json({ success: false, message: 'Endpoint not found' })
 );
-app.use((err, req, res, next) =>
-    res.status(500).json({ success: false, message: 'Internal server error', error: err.message })
-);
+app.use((err, req, res, next) => {
+    console.error('Unhandled server error:', err);
+    res.status(500).json({ success: false, message: 'Internal server error', error: err.message });
+});
 
 const PORT = process.env.PORT || 5000;
 const server = http.createServer(app);
