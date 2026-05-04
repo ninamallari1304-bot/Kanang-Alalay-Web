@@ -3,7 +3,7 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const RegistrationCode = require('../models/VerificationCode');
-const { sendEmail, generateOtpTemplate } = require('../models/mailer');
+const { sendEmail, generateOtpTemplate } = require('../utils/mailer');
 const { protect } = require('../middleware/authMiddleware');
 
 router.get('/profile', protect, async (req, res) => {
@@ -297,11 +297,9 @@ router.post('/forgot-password', async (req, res) => {
         try {
             await sendEmail(email, 'Reset your Kanang-Alalay Password', generateOtpTemplate(otpCode));
         } catch (mailError) {
-            console.error('Email send FAILED:', mailError.message);
-            return res.status(500).json({
-                success: false,
-                message: 'OTP generated but email could not be sent.'
-            });
+            // Log but do NOT return error — OTP is already saved in DB and visible in
+            // server logs. Blocking here breaks the flow and leaks email existence.
+            console.error('Email send FAILED (OTP still saved in DB):', mailError.message);
         }
 
         res.json({ success: true, message: 'If that email exists, an OTP has been sent.' });
@@ -321,12 +319,20 @@ router.post('/verify-reset-otp', async (req, res) => {
         const user = await User.findOne({ email });
         if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
 
+        if (!user.resetPasswordOtp) {
+            return res.status(400).json({ success: false, message: 'No active OTP found. Please request a new one.' });
+        }
         if (user.resetPasswordOtp !== otp) {
             return res.status(400).json({ success: false, message: 'Invalid OTP.' });
         }
         if (user.resetPasswordOtpExpires < new Date()) {
             return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
         }
+
+        // Mark OTP as verified by extending expiry to a short window (5 min) so
+        // reset-password-with-otp can still use it, but it won't be reusable later.
+        user.resetPasswordOtpExpires = new Date(Date.now() + 5 * 60 * 1000);
+        await user.save();
 
         res.json({ success: true, message: 'OTP verified. You may now reset your password.' });
     } catch (error) {
@@ -348,6 +354,9 @@ router.post('/reset-password-with-otp', async (req, res) => {
         const user = await User.findOne({ email });
         if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
 
+        if (!user.resetPasswordOtp) {
+            return res.status(400).json({ success: false, message: 'No active OTP found. Please restart the process.' });
+        }
         if (user.resetPasswordOtp !== otp) {
             return res.status(400).json({ success: false, message: 'Invalid OTP.' });
         }
@@ -355,7 +364,9 @@ router.post('/reset-password-with-otp', async (req, res) => {
             return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
         }
 
+        // Set new password — pre-save hook in User model will hash it
         user.password = password;
+        // Clear all reset OTP fields so they can't be reused
         user.resetPasswordOtp = undefined;
         user.resetPasswordOtpExpires = undefined;
         await user.save();

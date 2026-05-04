@@ -88,6 +88,7 @@ const ForgotPasswordModal = ({ onClose }) => {
 
     const handleResendOtp = async () => {
         if (resendTimer > 0) return;
+        setLoading(true);
         setInfo('Sending new OTP…');
         try {
             const res  = await fetch(`${API_BASE_URL}/auth/resend-reset-otp`, {
@@ -96,10 +97,16 @@ const ForgotPasswordModal = ({ onClose }) => {
                 body:    JSON.stringify({ email: email.trim() })
             });
             const data = await res.json();
-            setOk(data.message || 'New OTP sent.');
-            setResendTimer(60);
+            if (data.success) {
+                setOk(data.message || 'New OTP sent.');
+                setResendTimer(60);
+            } else {
+                setError(data.message || 'Failed to resend OTP.');
+            }
         } catch {
             setError('Failed to resend OTP.');
+        } finally {
+            setLoading(false);
         }
     };
 
