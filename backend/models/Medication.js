@@ -26,16 +26,31 @@ const medicationSchema = new mongoose.Schema({
         required: true,
         trim: true
     },
+    barcode: {
+        type: String,
+        uppercase: true,
+        trim: true,
+        unique: true,
+        sparse: true
+    },
     genericName: String,
     dosage: {
         value: Number,
         unit: String
     },
-    form: {
-        type: String,
-        enum: ['tablet', 'capsule', 'liquid', 'injection', 'cream', 'ointment']
-    },
+    strength: String,
+    form: String,
+    route: String,
+    manufacturer: String,
+    ndc: String,
     purpose: String,
+    instructions: String,
+    warnings: String,
+    sideEffects: String,
+    contraindications: String,
+    drugInteractions: String,
+    pregnancy: String,
+    storage: String,
     stock: {
         current: {
             type: Number,

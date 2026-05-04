@@ -78,7 +78,8 @@ router.get('/:id', authMiddleware, async (req, res) => {
             $or: [
                 { _id: mongoose.Types.ObjectId.isValid(queryValue) ? queryValue : null },
                 { medicationId: queryValue.toUpperCase() },
-                { uniqueCode: queryValue.toUpperCase() }
+                { uniqueCode: queryValue.toUpperCase() },
+                { barcode: queryValue }
             ].filter(Boolean)
         };
 
@@ -99,11 +100,23 @@ router.post('/', authMiddleware, roleMiddleware('admin', 'head_caregiver'), asyn
         const {
             medicationId,
             uniqueCode,
+            barcode,
             name,
             genericName,
             dosage,
+            strength,
             form,
+            route,
+            manufacturer,
+            ndc,
             purpose,
+            instructions,
+            warnings,
+            sideEffects,
+            contraindications,
+            drugInteractions,
+            pregnancy,
+            storage,
             stock,
             expiryDate,
             isActive
@@ -111,16 +124,28 @@ router.post('/', authMiddleware, roleMiddleware('admin', 'head_caregiver'), asyn
 
         const normalizedNameCode = name ? name.trim().replace(/\s+/g, '_').toUpperCase() : null;
         const safeMedicationId = (medicationId || normalizedNameCode || `MED-${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 1000)}`).toUpperCase();
-        const safeUniqueCode = (uniqueCode || normalizedNameCode || safeMedicationId).toUpperCase();
+        const safeUniqueCode = (uniqueCode || barcode || normalizedNameCode || safeMedicationId).toUpperCase();
 
         const medication = new Medication({
             medicationId: safeMedicationId,
             uniqueCode: safeUniqueCode,
+            barcode,
             name,
             genericName,
             dosage,
+            strength,
             form,
+            route,
+            manufacturer,
+            ndc,
             purpose,
+            instructions,
+            warnings,
+            sideEffects,
+            contraindications,
+            drugInteractions,
+            pregnancy,
+            storage,
             stock: {
                 current: stock?.current ?? 0,
                 minimum: stock?.minimum ?? 10,
@@ -202,6 +227,7 @@ router.post('/scan', authMiddleware, async (req, res) => {
             $or: [
                 { medicationId: scanCode },
                 { uniqueCode: scanCode },
+                { barcode: scanCode },
                 { _id: mongoose.Types.ObjectId.isValid(scanCode) ? scanCode : null }
             ].filter(Boolean)
         });

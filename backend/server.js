@@ -14,6 +14,7 @@ const Donation = require('./models/Donation');
 const Booking = require('./models/Booking');
 const Inventory = require('./models/Inventory');
 const User = require('./models/User');
+const Medication = require('./models/Medication');
 
 const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/adminRoutes');
@@ -132,6 +133,53 @@ mongoose.connect(process.env.MONGODB_URI, {
             await user.save();
         }
         console.log('✅ Default backend users ensured.');
+        try {
+            const defaultMedication = {
+                medicationId: 'TYLENOL_ACETAMINOPHEN_500MG',
+                uniqueCode: '300450449092',
+                barcode: '300450449092',
+                name: 'Tylenol (Acetaminophen) 500mg',
+                genericName: 'Acetaminophen',
+                dosage: { value: 500, unit: 'mg' },
+                strength: '500mg',
+                form: 'tablet',
+                route: 'Oral',
+                manufacturer: 'Johnson & Johnson',
+                ndc: '30045-0444-39',
+                purpose: 'Temporarily relieves minor aches and pains due to headache, muscular aches, backache, minor pain of arthritis, the common cold, toothache, and premenstrual and menstrual cramps. Temporarily reduces fever.',
+                instructions: 'Adults and children 12 years and over: Take 2 tablets every 4 to 6 hours while symptoms last. Do not take more than 8 tablets in 24 hours. Children under 12 years: Ask a doctor.',
+                warnings: 'Liver warning: This product contains acetaminophen. Severe liver damage may occur if you take more than 8 tablets in 24 hours, with other drugs containing acetaminophen, or if you drink 3 or more alcoholic drinks daily while using this product.',
+                sideEffects: 'Acetaminophen may cause severe skin reactions. Stop use and ask a doctor immediately if you develop skin redness, blistering, or rash.',
+                contraindications: 'Do not use if you have severe liver disease or are allergic to acetaminophen.',
+                drugInteractions: 'Ask a doctor before use if you are taking the blood thinning drug warfarin, other drugs containing acetaminophen, or if you have liver disease.',
+                pregnancy: 'If pregnant or breast-feeding, ask a health professional before use.',
+                storage: 'Store at room temperature between 20-25°C (68-77°F). Avoid high humidity.',
+                stock: {
+                    current: 100,
+                    minimum: 10,
+                    maximum: 200,
+                    unit: 'tablet'
+                },
+                isActive: true
+            };
+
+            const existingMedication = await Medication.findOne({
+                $or: [
+                    { uniqueCode: defaultMedication.uniqueCode },
+                    { barcode: defaultMedication.barcode },
+                    { medicationId: defaultMedication.medicationId }
+                ]
+            });
+
+            if (!existingMedication) {
+                await new Medication(defaultMedication).save();
+                console.log('✅ Default medication seeded: Tylenol (Acetaminophen) 500mg');
+            } else {
+                console.log('✅ Default medication already exists.');
+            }
+        } catch (medSeedError) {
+            console.error('Failed to seed default medication:', medSeedError);
+        }
     } catch (seedError) {
         console.error('Failed to seed default users:', seedError);
     }
