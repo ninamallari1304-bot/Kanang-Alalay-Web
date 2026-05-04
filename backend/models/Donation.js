@@ -106,13 +106,12 @@ const donationSchema = new mongoose.Schema({
 });
 
 // Generate donation ID before saving
-donationSchema.pre('save', function(next) {
+donationSchema.pre('save', function() {
     if (!this.donationId) {
         const timestamp = Date.now().toString().slice(-6);
         const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
         this.donationId = `DON-${timestamp}-${random}`;
     }
-    next();
 });
 
 module.exports = mongoose.model('Donation', donationSchema);
