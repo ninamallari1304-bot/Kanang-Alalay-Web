@@ -783,11 +783,15 @@ const HeadCaregiverDashboard = () => {
 
     const filteredRes = useMemo(() => {
         const q = searchQuery.toLowerCase().trim();
-        let arr = residents.filter(r =>
-            !q || r.name?.toLowerCase().includes(q) ||
-            r.room?.toLowerCase().includes(q) ||
-            r.conditions?.some(c=>c.toLowerCase().includes(q))
-        );
+        let arr = residents.filter(r => {
+            if (!q) return true;
+            const name = (r.name || `${r.firstName||''} ${r.lastName||''}`).toLowerCase();
+            const room = (r.room || '').toLowerCase();
+            const condMatch = (r.conditions || []).some(c =>
+                (typeof c === 'string' ? c : c?.name || '').toLowerCase().includes(q)
+            );
+            return name.includes(q) || room.includes(q) || condMatch;
+        });
         if (filterStatus !== 'All') {
             arr = arr.filter(r => (r.alertLevel||'stable').toLowerCase() === filterStatus.toLowerCase());
         }
@@ -838,16 +842,16 @@ const HeadCaregiverDashboard = () => {
             </div>
 
             {/* Stats Row */}
-            <div className="home-stats-row">
+            <div className="nurse-stat-row">
                 {[
                     { label:'Total Meds', val:stats.total, cls:'' },
                     { label:'On Time', val:stats.onTime, cls:'success' },
                     { label:'Delayed', val:stats.delayed, cls:'warn' },
                     { label:'Missed', val:stats.missed, cls:'danger' },
                     { label:'Pending', val:stats.pending, cls:'muted' },
-                    { label:'Residents', val:stats.totalResidents || residents.length, cls:'info' },
+                    { label:'Residents', val:stats.totalResidents || residents.length, cls:'' },
                 ].map(s => (
-                    <div key={s.label} className={`home-stat-card ${s.cls}`}>
+                    <div key={s.label} className={`nurse-stat-box ${s.cls}`}>
                         <strong>{s.val}</strong>
                         <span>{s.label}</span>
                     </div>
@@ -855,9 +859,9 @@ const HeadCaregiverDashboard = () => {
             </div>
 
             {/* Compliance Rate */}
-            <div className="card-white compliance-card">
-                <div className="compliance-header">
-                    <span className="compliance-label">Compliance Rate</span>
+            <div className="card-white mb-18">
+                <div className="compliance-text">
+                    <span>Compliance Rate &nbsp;</span>
                     <strong className={`compliance-rate-value ${stats.complianceRate>=90?'excellent':stats.complianceRate>=70?'good':'poor'}`}>
                         {stats.complianceRate}%
                         <span className="compliance-sub"> — {stats.complianceRate===0?'No data yet':stats.complianceRate>=90?'Excellent':stats.complianceRate>=70?'Good':'Needs Improvement'}</span>
@@ -912,7 +916,7 @@ const HeadCaregiverDashboard = () => {
                                 <div key={i} className="resident-list-item">
                                     <div className="resident-list-name">
                                         {r.name||`${r.firstName||''} ${r.lastName||''}`.trim()||'Unknown'}
-                                        {r.room && <span className="room-tag">Room {r.room}</span>}
+                                        {r.room && <span className="condition-tag" style={{marginLeft:6}}>Room {r.room}</span>}
                                     </div>
                                     <div className="resident-list-meta">Age: {r.age||'—'} {r.conditions?.length>0 && `· ${r.conditions.slice(0,2).map(c=>c?.name||c).join(', ')}`}</div>
                                     {r.medicationOverdue ? (

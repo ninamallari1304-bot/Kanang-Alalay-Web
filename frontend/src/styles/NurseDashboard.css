@@ -272,7 +272,7 @@ textarea.form-input { resize: vertical; }
 
 .nurse-stat-row {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     gap: 8px;
     margin-bottom: 14px;
 }
@@ -588,9 +588,23 @@ textarea.form-input { resize: vertical; }
 .no-data-center { text-align: center; padding: 20px 0; color: var(--d-muted); font-size: .84rem; }
 .no-data-center svg { font-size: 1.8rem; display: block; margin: 0 auto 8px; opacity: .25; }
 
+.compliance-sub { font-size: .78rem; font-weight: 500; color: var(--d-muted); }
+
+.room-tag {
+    display: inline-block;
+    background: var(--d-orange-lt);
+    color: var(--d-orange-dk);
+    font-size: .7rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: 6px;
+}
+
 @media (max-width: 1100px) {
     .home-top-grid { grid-template-columns: 1fr 1fr; }
     .home-top-grid > :last-child { grid-column: 1 / -1; }
+    .nurse-stat-row { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 768px) {
     .home-top-grid    { grid-template-columns: 1fr; }
@@ -608,6 +622,7 @@ textarea.form-input { resize: vertical; }
 @media (max-width: 480px) {
     .med-pills-row,
     .med-filters-row { flex-direction: column; align-items: flex-start; }
+    .nurse-stat-row  { grid-template-columns: repeat(2, 1fr); }
 }
 
 .ml-auto      { margin-left: auto; }

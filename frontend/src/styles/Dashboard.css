@@ -234,12 +234,162 @@ body {
   text-align: center;
 }
 
+.main-content-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Top Bar ──────────────────────────────────────────────── */
+.admin-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  height: 62px;
+  background: var(--d-white);
+  border-bottom: 1.5px solid var(--d-border);
+  flex-shrink: 0;
+  gap: 16px;
+}
+.nurse-topbar { border-bottom-color: var(--d-border); }
+
+.topbar-left { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+.topbar-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+.topbar-search-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--d-cream);
+  border: 1.5px solid var(--d-border);
+  border-radius: 10px;
+  padding: 0 12px;
+  max-width: 380px;
+  width: 100%;
+  transition: border-color .2s, box-shadow .2s;
+}
+.topbar-search-wrapper:focus-within {
+  border-color: var(--d-orange);
+  box-shadow: 0 0 0 3px rgba(249,107,56,.1);
+  background: var(--d-white);
+}
+.topbar-search-icon { color: var(--d-muted); font-size: .9rem; flex-shrink: 0; }
+.topbar-search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-family: var(--d-font-body);
+  font-size: .88rem;
+  color: var(--d-ink);
+  outline: none;
+  padding: 9px 0;
+}
+.topbar-search-input::placeholder { color: var(--d-muted); }
+
+.search-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--d-orange-lt);
+  border: none;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: .74rem;
+  color: var(--d-orange-dk);
+  cursor: pointer;
+  font-weight: 600;
+  font-family: var(--d-font-body);
+  flex-shrink: 0;
+  transition: background .18s;
+}
+.search-clear-btn:hover { background: #fcc5a0; }
+
+/* User menu in topbar */
+.topbar-user-menu { position: relative; }
+.topbar-user-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 7px 12px;
+  border-radius: 10px;
+  border: 1.5px solid var(--d-border);
+  background: var(--d-cream);
+  transition: all .2s;
+  white-space: nowrap;
+}
+.topbar-user-trigger:hover,
+.topbar-user-trigger.active { background: var(--d-orange-lt); border-color: var(--d-orange); }
+.topbar-user-avatar { font-size: 1.5rem; color: var(--d-orange); flex-shrink: 0; }
+.topbar-user-info { display: flex; flex-direction: column; min-width: 0; }
+.topbar-user-name {
+  font-size: .84rem;
+  font-weight: 700;
+  color: var(--d-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+}
+.topbar-user-role {
+  font-size: .68rem;
+  font-weight: 600;
+  color: var(--d-muted);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.topbar-arrow { font-size: .7rem; color: var(--d-muted); transition: transform .25s; flex-shrink: 0; }
+.topbar-arrow.rotate { transform: rotate(180deg); }
+
+.topbar-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  background: var(--d-white);
+  border: 1.5px solid var(--d-border);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.15);
+  list-style: none;
+  padding: 6px 0;
+  min-width: 200px;
+  z-index: 1000;
+  animation: fadeIn .18s ease;
+  overflow: hidden;
+}
+.topbar-dropdown li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 18px;
+  font-size: .86rem;
+  color: var(--d-ink);
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.topbar-dropdown li:hover { background: var(--d-orange-lt); color: var(--d-orange-dk); }
+.topbar-dropdown li svg { color: var(--d-muted); font-size: .9rem; flex-shrink: 0; }
+.topbar-dropdown li.dropdown-divider {
+  border-top: 1px solid var(--d-border);
+  margin-top: 4px;
+  padding-top: 11px;
+  color: #C0392B;
+}
+.topbar-dropdown li.dropdown-divider svg { color: #C0392B; }
+.topbar-dropdown li.dropdown-divider:hover { background: #fff0f0; color: #C0392B; }
+
+/* ── Spin animation ───────────────────────────────────────── */
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.spin { animation: spin .8s linear infinite; }
+
 .main-content {
   flex: 1;
   padding: 30px;
   overflow-y: auto;
   background: var(--d-cream);
 }
+
 
 .loading {
   display: flex;

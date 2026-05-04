@@ -89,7 +89,7 @@ router.post('/residents', async (req, res) => {
 
         const residentId = 'RES' + Date.now().toString().slice(-6);
         const resident = new Resident({
-            residentId, firstName, lastName, age, gender,
+            residentId, firstName, lastName, middleName: middleName || '', age, gender,
             roomNumber, floor: floor || '', bed: bed || '',
             alertLevel: alertLevel || 'stable',
             admissionDate: admissionDate ? new Date(admissionDate) : new Date(),
@@ -289,11 +289,22 @@ router.get('/residents/:id/history', async (req, res) => {
     try {
         const logs = await MedicationLog.find({ 
             residentId: req.params.id,
-            caregiverId: req.user._id
         })
         .sort({ scheduledTime: -1 })
         .limit(50);
         
+        res.json({ success: true, data: logs });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Alias used by the frontend
+router.get('/residents/:id/medication-history', async (req, res) => {
+    try {
+        const logs = await MedicationLog.find({ residentId: req.params.id })
+            .sort({ scheduledTime: -1 })
+            .limit(100);
         res.json({ success: true, data: logs });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
