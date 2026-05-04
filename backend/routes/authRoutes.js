@@ -48,11 +48,33 @@ router.post('/login', async (req, res) => {
             return res.status(401).json({ success: false, message: 'Invalid credentials.' });
         }
 
-        if (!user.isVerified || !user.isActive) {
+        // Block unverified / pending accounts — redirect to OTP flow
+        if (!user.isVerified || !user.isActive || user.status === 'pending') {
             return res.status(401).json({
                 success: false,
                 message: 'Account is not yet activated. Please verify your OTP first.',
                 userId: user._id
+            });
+        }
+
+        // Block accounts by status — return status + reason so UI shows the right banner
+        const BLOCKED_STATUSES = ['restricted', 'suspended', 'deactivated', 'on_leave', 'terminated'];
+        if (BLOCKED_STATUSES.includes(user.status)) {
+            return res.status(403).json({
+                success: false,
+                message: `Your account is ${user.status.replace('_', ' ')}. Please contact your administrator.`,
+                accountStatus: user.status,
+                reason: user.statusReason || ''
+            });
+        }
+
+        // Block caregiver role — web app is admin / head_caregiver only
+        const WEB_ALLOWED_ROLES = ['admin', 'head_caregiver'];
+        if (!WEB_ALLOWED_ROLES.includes(user.role)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Web access is not available for your role. Please use the mobile app.',
+                accountStatus: 'role_blocked'
             });
         }
 

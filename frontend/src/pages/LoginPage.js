@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { FaUser, FaLock, FaEye, FaEyeSlash, FaSpinner, FaEnvelope, FaKey, FaCheckCircle, FaTimes, FaArrowLeft } from 'react-icons/fa';
 import '../styles/LoginPage.css';
@@ -304,6 +304,7 @@ const ForgotPasswordModal = ({ onClose }) => {
 const LoginPage = () => {
     const { login, user, getHomeRoute, clearSession } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
 
     const [form, setForm]             = useState({ username: '', password: '' });
     const [showPass, setShowPass]     = useState(false);
@@ -338,7 +339,11 @@ const LoginPage = () => {
         setError('');
     };
 
-    const [blockedStatus, setBlockedStatus] = useState(null);
+    const [blockedStatus, setBlockedStatus] = useState(() => {
+        // ProtectedRoute may redirect here with a blockedStatus state flag (e.g. role_blocked)
+        const nav = location?.state?.blockedStatus;
+        return nav ? { status: nav, reason: '' } : null;
+    });
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -355,7 +360,7 @@ const LoginPage = () => {
             navigate(getHomeRoute(result.user.role), { replace: true });
         } else {
             const status = result.accountStatus;
-            if (status && ['deactivated', 'suspended', 'restricted'].includes(status)) {
+            if (status && ['deactivated', 'suspended', 'restricted', 'on_leave', 'terminated', 'role_blocked'].includes(status)) {
                 setBlockedStatus({ status, reason: result.reason || '' });
             } else if (result.needsOtp || result.userId) {
                 setPendingUserId(result.userId);
@@ -395,6 +400,33 @@ const LoginPage = () => {
             border: '#FFE082',
             color: '#E65100',
             iconBg: '#FFE0B2',
+        },
+        on_leave: {
+            icon: '\uD83C\uDFD6',
+            title: 'On Leave',
+            message: 'Your account is currently on leave of absence. Access will be restored upon your return. Contact your administrator if this is unexpected.',
+            bg: '#EFF6FF',
+            border: '#93C5FD',
+            color: '#1D4ED8',
+            iconBg: '#DBEAFE',
+        },
+        terminated: {
+            icon: '\uD83D\uDEAB',
+            title: 'Employment Terminated',
+            message: 'Your employment has been terminated and your account access has been revoked. Please contact HR if you believe this is an error.',
+            bg: '#F3F4F6',
+            border: '#D1D5DB',
+            color: '#374151',
+            iconBg: '#E5E7EB',
+        },
+        role_blocked: {
+            icon: '\uD83D\uDCF1',
+            title: 'Web Access Not Available',
+            message: 'Your account role does not have access to the web portal. Please use the mobile app to access your account.',
+            bg: '#F5F3FF',
+            border: '#C4B5FD',
+            color: '#5B21B6',
+            iconBg: '#EDE9FE',
         },
     };
 

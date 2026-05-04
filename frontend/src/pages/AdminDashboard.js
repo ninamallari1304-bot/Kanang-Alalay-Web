@@ -440,16 +440,21 @@ const AdminDashboard = () => {
 
         // ── Staff events ──────────────────────────────────────────────────────
         const handleStaffStatusUpdated = (updated) => {
-            setStaff(prev => prev.map(m =>
-                m._id === updated._id ? { ...m, ...updated } : m
-            ));
-            // Keep active staff count in sync
-            setStats(p => ({
-                ...p,
-                activeStaff: updated.status === 'active'
-                    ? p.activeStaff + 1
-                    : Math.max(0, p.activeStaff - 1),
-            }));
+            setStaff(prev => {
+                const existing = prev.find(m => m._id === updated._id);
+                const wasActive = existing?.status === 'active' || existing?.isActive;
+                const isNowActive = updated.status === 'active';
+                // Update activeStaff count only when the active state actually flips
+                if (wasActive !== isNowActive) {
+                    setStats(p => ({
+                        ...p,
+                        activeStaff: isNowActive
+                            ? p.activeStaff + 1
+                            : Math.max(0, p.activeStaff - 1),
+                    }));
+                }
+                return prev.map(m => m._id === updated._id ? { ...m, ...updated } : m);
+            });
         };
         const handleStaffListUpdated = () => { fetchStaffList(); };
 
@@ -1115,19 +1120,23 @@ const AdminDashboard = () => {
 
     const getStatusBadgeStyle = (status) => {
         switch(status) {
-            case 'active':      return { background: '#EEFBF5', color: '#1E7D56', label: 'Active' };
-            case 'pending':     return { background: '#FFF8E1', color: '#B8860B', label: 'Pending' };
-            case 'restricted':  return { background: '#FFF3E0', color: '#E65100', label: 'Restricted' };
-            case 'suspended':   return { background: '#FFF3CD', color: '#856404', label: 'Suspended' };
-            case 'deactivated': return { background: '#FFF0F0', color: '#C0392B', label: 'Deactivated' };
-            case 'on_leave':    return { background: '#E8F4FD', color: '#1565C0', label: 'On Leave' };
-            case 'terminated':  return { background: '#F3F4F6', color: '#4B5563', label: 'Terminated' };
-            default:            return { background: '#FFF8E1', color: '#B8860B', label: 'Pending' };
+            case 'active':      return { background: '#EEFBF5', color: '#1E7D56', border: '1px solid #A7F3D0', label: 'Active' };
+            case 'pending':     return { background: '#FFFBEB', color: '#D97706', border: '1px solid #FCD34D', label: 'Pending' };
+            case 'restricted':  return { background: '#FFF3E0', color: '#E65100', border: '1px solid #FFCC80', label: 'Restricted' };
+            case 'suspended':   return { background: '#FEF9C3', color: '#854D0E', border: '1px solid #FDE047', label: 'Suspended' };
+            case 'deactivated': return { background: '#FFF0F0', color: '#C0392B', border: '1px solid #FCA5A5', label: 'Deactivated' };
+            case 'on_leave':    return { background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #93C5FD', label: 'On Leave' };
+            case 'terminated':  return { background: '#F3F4F6', color: '#374151', border: '1px solid #D1D5DB', label: 'Terminated' };
+            default:            return { background: '#FFFBEB', color: '#D97706', border: '1px solid #FCD34D', label: 'Pending' };
         }
     };
 
     const getAccountStatus = (m) => {
-        if (m.status) return m.status;
+        // Trust the explicit status field first (covers all server-side statuses)
+        if (m.status && ['active', 'pending', 'restricted', 'suspended', 'deactivated', 'on_leave', 'terminated'].includes(m.status)) {
+            return m.status;
+        }
+        // Fallback derivation for legacy records
         if (!m.isVerified && !m.isActive) return 'pending';
         if (m.isActive) return 'active';
         return 'deactivated';
@@ -1285,10 +1294,10 @@ const AdminDashboard = () => {
                                             </span>
                                         </td>
                                         <td>
-                                            <span className="status" style={statusStyle}>{statusStyle.label}</span>
-                                            {m.actionReason && (
+                                            <span className="status" style={{ background: statusStyle.background, color: statusStyle.color, padding: '4px 10px', borderRadius: 20, fontSize: '.78rem', fontWeight: 700, display: 'inline-block' }}>{statusStyle.label}</span>
+                                            {m.statusReason && (
                                                 <small style={{ display: 'block', fontSize: '.7rem', color: '#dc3545', marginTop: 3 }}>
-                                                    {m.actionReason.substring(0, 40)}...
+                                                    {m.statusReason.substring(0, 40)}{m.statusReason.length > 40 ? '...' : ''}
                                                 </small>
                                             )}
                                         </td>
@@ -1398,20 +1407,37 @@ const AdminDashboard = () => {
                                                             </button>
                                                         </>)}
 
-                                                        {/* DEACTIVATED: can only reactivate or delete */}
-                                                        {accountStatus === 'deactivated' && (
+                                                        {/* DEACTIVATED: can reactivate or delete permanently */}
+                                                        {accountStatus === 'deactivated' && (<>
                                                             <button onClick={(e) => { e.stopPropagation(); handleReactivateUser(m._id, `${m.firstName} ${m.lastName}`); setOpenDropdown(null); }} className="dropdown-item">
                                                                 <FaCheckCircle style={{ color: '#28a745' }} /> Reactivate Account
+                                                            </button>
+                                                            <div style={{ height: 1, background: 'var(--d-border)', margin: '6px 0' }} />
+                                                            <button onClick={(e) => { e.stopPropagation(); deleteStaff(m._id); setOpenDropdown(null); }} className="dropdown-item" style={{ color: '#dc3545' }}>
+                                                                <FaTrash /> Delete Permanently
+                                                            </button>
+                                                        </>)}
+
+                                                        {/* ON LEAVE: can restore to active or deactivate */}
+                                                        {accountStatus === 'on_leave' && (<>
+                                                            <button onClick={(e) => { e.stopPropagation(); handleReactivateUser(m._id, `${m.firstName} ${m.lastName}`); setOpenDropdown(null); }} className="dropdown-item">
+                                                                <FaCheckCircle style={{ color: '#28a745' }} /> Return from Leave
+                                                            </button>
+                                                            <div style={{ height: 1, background: 'var(--d-border)', margin: '6px 0' }} />
+                                                            <button onClick={(e) => { e.stopPropagation(); handleDeactivateUser(m._id, `${m.firstName} ${m.lastName}`, accountStatus); setOpenDropdown(null); }} className="dropdown-item">
+                                                                <FaTrash style={{ color: '#dc3545' }} /> Deactivate (Permanent)
+                                                            </button>
+                                                        </>)}
+
+                                                        {/* TERMINATED: delete only */}
+                                                        {accountStatus === 'terminated' && (
+                                                            <button onClick={(e) => { e.stopPropagation(); deleteStaff(m._id); setOpenDropdown(null); }} className="dropdown-item" style={{ color: '#dc3545' }}>
+                                                                <FaTrash /> Delete Permanently
                                                             </button>
                                                         )}
 
                                                         <button onClick={(e) => { e.stopPropagation(); viewUserHistory(m._id, `${m.firstName} ${m.lastName}`); setOpenDropdown(null); }} className="dropdown-item">
                                                             <FaHistory style={{ color: '#3949AB' }} /> View Action History
-                                                        </button>
-
-                                                        <div style={{ height: 1, background: 'var(--d-border)', margin: '6px 0' }} />
-                                                        <button onClick={(e) => { e.stopPropagation(); deleteStaff(m._id); setOpenDropdown(null); }} className="dropdown-item" style={{ color: '#dc3545' }}>
-                                                            <FaTrash /> Delete Permanently
                                                         </button>
                                                     </div>
                                                 </div>
