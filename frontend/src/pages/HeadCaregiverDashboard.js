@@ -8,7 +8,8 @@ import {
     FaCog, FaQuestionCircle, FaMicrophone, FaTimes, FaCheck,
     FaSpinner, FaSync, FaEye, FaEdit, FaEllipsisV,
     FaExclamationCircle, FaHeartbeat, FaFileAlt,
-    FaBoxOpen
+    FaBoxOpen, FaClock, FaFilter,
+    FaBell,
 } from 'react-icons/fa';
 import '../styles/Dashboard.css';
 import '../styles/NurseDashboard.css';
@@ -123,7 +124,7 @@ const AddResidentModal = ({ onClose, onSaved, doFetch, toast }) => {
         if (!f.floor)             e.floor      = 'Select a floor';
         if (Object.keys(e).length) { setErrs(e); return; }
         setSaving(true);
-        const r = await doFetch('/nurse/residents', { method:'POST', body:JSON.stringify({
+        const r = await doFetch('/head-caregiver/residents', { method:'POST', body:JSON.stringify({
             firstName:     f.firstName.trim(),
             lastName:      f.lastName.trim(),
             middleName:    f.middleName.trim(),
@@ -148,7 +149,6 @@ const AddResidentModal = ({ onClose, onSaved, doFetch, toast }) => {
                 <MHeader icon={<FaPlus />} title="Add New Resident" onClose={onClose} />
                 <div className="modal-body add-resident-body">
 
-                    {/* ── Personal Information ── */}
                     <div className="modal-section-label">Personal Information</div>
                     <div className="form-grid-2">
                         <Field label="First Name" required error={errs.firstName}>
@@ -183,7 +183,6 @@ const AddResidentModal = ({ onClose, onSaved, doFetch, toast }) => {
                         </Field>
                     </div>
 
-                    {/* ── Room Assignment ── */}
                     <div className="modal-section-label">Room Assignment</div>
                     <div className="form-grid-2">
                         <Field label="Room Number" required error={errs.roomNumber}>
@@ -213,7 +212,6 @@ const AddResidentModal = ({ onClose, onSaved, doFetch, toast }) => {
                         </Field>
                     </div>
 
-                    {/* ── Medical ── */}
                     <div className="modal-section-label">Medical Information</div>
                     <Field label="Medical Conditions (comma-separated)">
                         <input className="form-input" value={f.conditions}
@@ -234,7 +232,7 @@ const AddResidentModal = ({ onClose, onSaved, doFetch, toast }) => {
             </div>
         </div>
     );
-}
+};
 
 // ════════════════════════════════════════════════════════════
 //  MODAL: Log Vital Signs
@@ -242,26 +240,22 @@ const AddResidentModal = ({ onClose, onSaved, doFetch, toast }) => {
 const VitalsModal = ({ resident, onClose, doFetch, toast }) => {
     const [f, setF] = useState({ bloodPressure:'', heartRate:'', temperature:'', oxygenSat:'', weight:'', notes:'' });
     const [saving, setSaving] = useState(false);
+    const [vitalsErr, setVitalsErr] = useState('');
     const set = (k, v) => setF(p=>({...p,[k]:v}));
 
-    const [vitalsErr, setVitalsErr] = useState('');
-
     const submit = async () => {
-        // Validate at least one vital is filled
         const hasSome = f.bloodPressure.trim() || f.heartRate.trim() || f.temperature.trim() || f.oxygenSat.trim() || f.weight.trim();
         if (!hasSome) { setVitalsErr('Please fill in at least one vital sign before saving.'); return; }
-        // Validate BP format if provided
         if (f.bloodPressure && !/^\d{2,3}\/\d{2,3}$/.test(f.bloodPressure.trim())) {
             setVitalsErr('Blood pressure must be in format 120/80.'); return;
         }
-        // Validate numeric ranges
         if (f.heartRate && (+f.heartRate < 20 || +f.heartRate > 300)) { setVitalsErr('Heart rate must be between 20–300 bpm.'); return; }
         if (f.temperature && (+f.temperature < 30 || +f.temperature > 45)) { setVitalsErr('Temperature must be between 30–45 °C.'); return; }
         if (f.oxygenSat && (+f.oxygenSat < 50 || +f.oxygenSat > 100)) { setVitalsErr('Oxygen saturation must be between 50–100%.'); return; }
         if (f.weight && (+f.weight < 1 || +f.weight > 300)) { setVitalsErr('Weight must be between 1–300 kg.'); return; }
         setVitalsErr('');
         setSaving(true);
-        const r = await doFetch(`/nurse/residents/${resident._id}/vitals`, { method:'POST', body:JSON.stringify(f) });
+        const r = await doFetch(`/head-caregiver/residents/${resident._id}/vitals`, { method:'POST', body:JSON.stringify(f) });
         setSaving(false);
         if (r.success) { toast(`Vitals logged for ${resident.name || resident.firstName || 'resident'}.`); onClose(); }
         else toast(r.message || 'Failed.', 'error');
@@ -279,27 +273,29 @@ const VitalsModal = ({ resident, onClose, doFetch, toast }) => {
                     )}
                     <div className="form-grid-2">
                         <Field label="Blood Pressure (mmHg)">
-                        <input
-                            className="form-input"
-                            value={f.bloodPressure}
-                            placeholder="e.g. 120/80"
-                            maxLength={7}
-                            onChange={e => {
-                                let val = e.target.value.replace(/[^0-9/]/g, '');
-                                // Auto-insert slash after 3 digits if not already there
-                                if (val.length === 3 && !val.includes('/') && f.bloodPressure.length < 3) {
-                                    val = val + '/';
-                                }
-                                set('bloodPressure', val);
-                            }}
-                        />
-                    </Field>
-                        <Field label="Heart Rate (bpm)"><input type="number" className="form-input" value={f.heartRate} onChange={e=>set('heartRate',e.target.value)} placeholder="e.g. 72" /></Field>
-                        <Field label="Temperature (°C)"><input type="number" step="0.1" className="form-input" value={f.temperature} onChange={e=>set('temperature',e.target.value)} placeholder="e.g. 36.5" /></Field>
-                        <Field label="Oxygen Saturation (%)"><input type="number" className="form-input" value={f.oxygenSat} onChange={e=>set('oxygenSat',e.target.value)} placeholder="e.g. 98" /></Field>
-                        <Field label="Weight (kg)"><input type="number" step="0.1" className="form-input" value={f.weight} onChange={e=>set('weight',e.target.value)} placeholder="e.g. 55" /></Field>
+                            <input className="form-input" value={f.bloodPressure} placeholder="e.g. 120/80"
+                                onChange={e => {
+                                    let val = e.target.value.replace(/[^0-9/]/g, '');
+                                    if (val.length === 3 && !val.includes('/')) { val = val + '/'; }
+                                    set('bloodPressure', val);
+                                }} />
+                        </Field>
+                        <Field label="Heart Rate (bpm)">
+                            <input type="number" className="form-input" value={f.heartRate} onChange={e=>set('heartRate',e.target.value)} placeholder="e.g. 72" />
+                        </Field>
+                        <Field label="Temperature (°C)">
+                            <input type="number" step="0.1" className="form-input" value={f.temperature} onChange={e=>set('temperature',e.target.value)} placeholder="e.g. 36.5" />
+                        </Field>
+                        <Field label="Oxygen Saturation (%)">
+                            <input type="number" className="form-input" value={f.oxygenSat} onChange={e=>set('oxygenSat',e.target.value)} placeholder="e.g. 98" />
+                        </Field>
+                        <Field label="Weight (kg)">
+                            <input type="number" step="0.1" className="form-input" value={f.weight} onChange={e=>set('weight',e.target.value)} placeholder="e.g. 55" />
+                        </Field>
                     </div>
-                    <Field label="Notes"><textarea rows={3} className="form-input" value={f.notes} onChange={e=>set('notes',e.target.value)} placeholder="Observations or remarks…" /></Field>
+                    <Field label="Notes">
+                        <textarea rows={3} className="form-input" value={f.notes} onChange={e=>set('notes',e.target.value)} placeholder="Observations or remarks…" />
+                    </Field>
                     <div className="modal-footer">
                         <button className="btn-outline-sm" onClick={onClose}>Cancel</button>
                         <SaveBtn saving={saving} label="✓ Save Vitals" onClick={submit} />
@@ -331,12 +327,8 @@ const ProfileModal = ({ resident, schedule, onClose }) => {
             <div className="registration-modal modal-lg">
                 <MHeader icon={<FaUserCircle />} title={`Resident Profile — ${resName}`} onClose={onClose} />
                 <div className="modal-body profile-modal-body">
-
-                    {/* Header card */}
                     <div className="profile-header-card">
-                        <div className="profile-avatar">
-                            <FaUserCircle />
-                        </div>
+                        <div className="profile-avatar"><FaUserCircle /></div>
                         <div className="profile-header-info">
                             <h3 className="profile-full-name">{resName}</h3>
                             <div className="profile-header-meta">
@@ -351,27 +343,24 @@ const ProfileModal = ({ resident, schedule, onClose }) => {
                     </div>
 
                     <div className="profile-grid">
-                        {/* Personal */}
                         <div className="profile-section">
                             <div className="profile-section-title">Personal Information</div>
-                            <InfoRow label="First Name"      value={resident.firstName} />
-                            <InfoRow label="Middle Name"     value={resident.middleName} />
-                            <InfoRow label="Last Name"       value={resident.lastName} />
-                            <InfoRow label="Age"             value={resident.age} />
-                            <InfoRow label="Gender"          value={resident.gender} />
-                            <InfoRow label="Admission Date"  value={resident.admissionDate ? new Date(resident.admissionDate).toLocaleDateString('en-PH', {year:'numeric',month:'long',day:'numeric'}) : null} />
+                            <InfoRow label="First Name" value={resident.firstName} />
+                            <InfoRow label="Middle Name" value={resident.middleName} />
+                            <InfoRow label="Last Name" value={resident.lastName} />
+                            <InfoRow label="Age" value={resident.age} />
+                            <InfoRow label="Gender" value={resident.gender} />
+                            <InfoRow label="Admission Date" value={resident.admissionDate ? new Date(resident.admissionDate).toLocaleDateString('en-PH', {year:'numeric',month:'long',day:'numeric'}) : null} />
                         </div>
 
-                        {/* Room */}
                         <div className="profile-section">
                             <div className="profile-section-title">Room Assignment</div>
                             <InfoRow label="Room Number" value={resident.room} />
                             <InfoRow label="Floor / Ward" value={resident.floor} />
-                            <InfoRow label="Bed"          value={resident.bed} />
-                            <InfoRow label="Alert Level"  value={resident.alertLevel ? resident.alertLevel.charAt(0).toUpperCase() + resident.alertLevel.slice(1) : null} />
+                            <InfoRow label="Bed" value={resident.bed} />
+                            <InfoRow label="Alert Level" value={resident.alertLevel ? resident.alertLevel.charAt(0).toUpperCase() + resident.alertLevel.slice(1) : null} />
                         </div>
 
-                        {/* Medical Conditions */}
                         <div className="profile-section profile-section-full">
                             <div className="profile-section-title">Medical Conditions</div>
                             {resident.conditions?.length > 0 ? (
@@ -385,16 +374,14 @@ const ProfileModal = ({ resident, schedule, onClose }) => {
                             )}
                         </div>
 
-                        {/* Assignment */}
                         <div className="profile-section profile-section-full">
                             <div className="profile-section-title">Assigned Personnel</div>
-                            <InfoRow label="Primary Nurse"    value={resident.primaryNurse} />
-                            <InfoRow label="Secondary Nurse"  value={resident.secondaryNurse} />
+                            <InfoRow label="Primary Nurse" value={resident.primaryNurse} />
+                            <InfoRow label="Secondary Nurse" value={resident.secondaryNurse} />
                         </div>
                     </div>
 
-                    {/* Today's Medication */}
-                    <div className="profile-section-title" style={{marginTop:16,marginBottom:10}}>Today&apos;s Medication Schedule</div>
+                    <div className="profile-section-title" style={{marginTop:16,marginBottom:10}}>Today's Medication Schedule</div>
                     {todayMeds.length === 0 ? (
                         <p style={{color:'var(--d-muted)',fontStyle:'italic',fontSize:'.88rem',margin:0}}>No medications scheduled today.</p>
                     ) : (
@@ -405,13 +392,9 @@ const ProfileModal = ({ resident, schedule, onClose }) => {
                             <tbody>
                                 {todayMeds.map(m => (
                                     <tr key={m._id}>
-                                        <td className="td-sm td-nowrap">
-                                            {m.scheduledTime ? new Date(m.scheduledTime).toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'}) : '—'}
-                                        </td>
-                                        <td><strong>{m.medicationName || '—'}</strong>
-                                            {m.condition && <div style={{fontSize:'.74rem',color:'var(--d-muted)'}}>For {m.condition}</div>}
-                                        </td>
-                                        <td className="td-sm">{m.dosage || '—'}</td>
+                                        <td>{m.scheduledTime ? new Date(m.scheduledTime).toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'}) : '—'}</td>
+                                        <td><strong>{m.medicationName || '—'}</strong></td>
+                                        <td>{m.dosage || '—'}</td>
                                         <td><Badge s={m.status} /></td>
                                     </tr>
                                 ))}
@@ -435,37 +418,36 @@ const HistoryModal = ({ resident, onClose, doFetch }) => {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
     useEffect(() => {
-        doFetch(`/nurse/residents/${resident._id}/history`).then(r => {
-            if (r.success) setLogs(r.data || []);
+        (async () => {
+            const r = await doFetch(`/head-caregiver/residents/${resident._id}/medication-history`);
+            setLogs(r.success ? (r.data || []) : []);
             setLoading(false);
-        });
-    }, [resident._id]);
+        })();
+    }, [resident._id, doFetch]);
 
     return (
         <div className="modal-overlay">
             <div className="registration-modal modal-lg">
                 <MHeader icon={<FaEye />} title={`Medication History — ${resident.name || [resident.firstName, resident.lastName].filter(Boolean).join(' ') || 'Resident'}`} onClose={onClose} />
                 <div className="modal-body">
-                    {loading
-                        ? <div className="no-data-center"><FaSpinner className="spin" /> Loading…</div>
-                        : logs.length === 0
-                        ? <div className="no-data-center">No medication history found.</div>
+                    {loading ? <div className="no-data-center"><FaSpinner className="spin" /> Loading…</div>
+                        : logs.length === 0 ? <div className="no-data-center">No medication history found.</div>
                         : <div className="history-scroll">
                             <table className="custom-table">
                                 <thead><tr><th>Date &amp; Time</th><th>Medication</th><th>Dosage</th><th>Status</th><th>Notes</th></tr></thead>
                                 <tbody>
                                     {logs.map(l => (
                                         <tr key={l._id}>
-                                            <td className="td-sm td-nowrap">{l.scheduledTime ? new Date(l.scheduledTime).toLocaleString('en-PH',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '—'}</td>
-                                            <td><strong>{l.medicationName || l.medicationId?.name || '—'}</strong></td>
-                                            <td className="td-sm">{l.dosage || '—'}</td>
+                                            <td>{l.scheduledTime ? new Date(l.scheduledTime).toLocaleString('en-PH',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '—'}</td>
+                                            <td><strong>{l.medicationName || '—'}</strong></td>
+                                            <td>{l.dosage || '—'}</td>
                                             <td><Badge s={l.status} /></td>
                                             <td className="td-muted">{l.notes || '—'}</td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
-                          </div>}
+                        </div>}
                     <div className="modal-footer">
                         <button className="btn-outline-sm" onClick={onClose}>Close</button>
                     </div>
@@ -492,10 +474,9 @@ const AddScheduleModal = ({ residents, medications, onClose, onSaved, doFetch, t
         if (f.scheduledTime && new Date(f.scheduledTime) < new Date(Date.now() - 60000)) {
             e.scheduledTime = 'Scheduled time cannot be in the past.';
         }
-        if (f.dosage && f.dosage.trim().length < 1) e.dosage = 'Enter a valid dosage';
         if (Object.keys(e).length) { setErrs(e); return; }
         setSaving(true);
-        const r = await doFetch('/nurse/schedule', { method:'POST', body:JSON.stringify(f) });
+        const r = await doFetch('/head-caregiver/schedule', { method:'POST', body:JSON.stringify(f) });
         setSaving(false);
         if (r.success) { toast('Medication scheduled.'); onSaved(r.data); onClose(); }
         else toast(r.message || 'Failed.', 'error');
@@ -519,12 +500,16 @@ const AddScheduleModal = ({ residents, medications, onClose, onSaved, doFetch, t
                         </select>
                     </Field>
                     <div className="form-grid-2">
-                        <Field label="Scheduled Date &amp; Time" required error={errs.scheduledTime}>
+                        <Field label="Scheduled Date & Time" required error={errs.scheduledTime}>
                             <input type="datetime-local" className={`form-input${errs.scheduledTime?' error':''}`} value={f.scheduledTime} onChange={e=>set('scheduledTime',e.target.value)} />
                         </Field>
-                        <Field label="Dosage Override"><input className="form-input" value={f.dosage} onChange={e=>set('dosage',e.target.value)} placeholder="e.g. 1 tablet" /></Field>
+                        <Field label="Dosage Override">
+                            <input className="form-input" value={f.dosage} onChange={e=>set('dosage',e.target.value)} placeholder="e.g. 1 tablet" />
+                        </Field>
                     </div>
-                    <Field label="Notes"><textarea rows={3} className="form-input" value={f.notes} onChange={e=>set('notes',e.target.value)} placeholder="Special instructions…" /></Field>
+                    <Field label="Notes">
+                        <textarea rows={3} className="form-input" value={f.notes} onChange={e=>set('notes',e.target.value)} placeholder="Special instructions…" />
+                    </Field>
                     <div className="modal-footer">
                         <button className="btn-outline-sm" onClick={onClose}>Cancel</button>
                         <SaveBtn saving={saving} label="✓ Schedule Medication" onClick={submit} />
@@ -542,16 +527,15 @@ const EditScheduleModal = ({ log, onClose, onSaved, doFetch, toast }) => {
     const dt = log.scheduledTime ? new Date(log.scheduledTime).toISOString().slice(0,16) : '';
     const [f, setF] = useState({ scheduledTime:dt, dosage:log.dosage||'', notes:log.notes||'' });
     const [saving, setSaving] = useState(false);
-    const set = (k, v) => setF(p=>({...p,[k]:v}));
-
     const [editErr, setEditErr] = useState('');
+    const set = (k, v) => setF(p=>({...p,[k]:v}));
 
     const submit = async () => {
         setEditErr('');
         if (!f.scheduledTime) { setEditErr('Scheduled date & time is required.'); return; }
         if (!f.dosage.trim()) { setEditErr('Dosage is required.'); return; }
         setSaving(true);
-        const r = await doFetch(`/nurse/schedule/${log._id}`, { method:'PUT', body:JSON.stringify(f) });
+        const r = await doFetch(`/head-caregiver/schedule/${log._id}`, { method:'PUT', body:JSON.stringify(f) });
         setSaving(false);
         if (r.success) { toast('Schedule updated.'); onSaved(r.data); onClose(); }
         else toast(r.message || 'Failed.', 'error');
@@ -562,17 +546,17 @@ const EditScheduleModal = ({ log, onClose, onSaved, doFetch, toast }) => {
             <div className="registration-modal modal-sm">
                 <MHeader icon={<FaEdit />} title="Edit Schedule" onClose={onClose} />
                 <div className="modal-body">
-                    {editErr && (
-                        <div className="validation-banner">
-                            <FaExclamationTriangle /> {editErr}
-                        </div>
-                    )}
-                    <div className="edit-sched-info">
-                        <strong>{log.residentName}</strong> — {log.medicationName}
-                    </div>
-                    <Field label="Scheduled Date &amp; Time"><input type="datetime-local" className="form-input" value={f.scheduledTime} onChange={e=>set('scheduledTime',e.target.value)} /></Field>
-                    <Field label="Dosage"><input className="form-input" value={f.dosage} onChange={e=>set('dosage',e.target.value)} placeholder="e.g. 1 tablet" /></Field>
-                    <Field label="Notes"><textarea rows={3} className="form-input" value={f.notes} onChange={e=>set('notes',e.target.value)} /></Field>
+                    {editErr && (<div className="validation-banner"><FaExclamationTriangle /> {editErr}</div>)}
+                    <div className="edit-sched-info"><strong>{log.residentName}</strong> — {log.medicationName}</div>
+                    <Field label="Scheduled Date & Time">
+                        <input type="datetime-local" className="form-input" value={f.scheduledTime} onChange={e=>set('scheduledTime',e.target.value)} />
+                    </Field>
+                    <Field label="Dosage">
+                        <input className="form-input" value={f.dosage} onChange={e=>set('dosage',e.target.value)} placeholder="e.g. 1 tablet" />
+                    </Field>
+                    <Field label="Notes">
+                        <textarea rows={3} className="form-input" value={f.notes} onChange={e=>set('notes',e.target.value)} />
+                    </Field>
                     <div className="modal-footer">
                         <button className="btn-outline-sm" onClick={onClose}>Cancel</button>
                         <SaveBtn saving={saving} label="✓ Save Changes" onClick={submit} />
@@ -600,7 +584,7 @@ const RequestStockModal = ({ items, onClose, doFetch, toast }) => {
         if (!f.quantity || +f.quantity < 1) e.quantity = 'Enter valid quantity';
         if (Object.keys(e).length) { setErrs(e); return; }
         setSaving(true);
-        const r = await doFetch('/nurse/inventory/request', { method:'POST', body:JSON.stringify(f) });
+        const r = await doFetch('/head-caregiver/inventory/request', { method:'POST', body:JSON.stringify(f) });
         setSaving(false);
         if (r.success) { toast('Stock request submitted.'); onClose(); }
         else toast(r.message || 'Failed.', 'error');
@@ -637,122 +621,6 @@ const RequestStockModal = ({ items, onClose, doFetch, toast }) => {
 };
 
 // ════════════════════════════════════════════════════════════
-//  MODAL: Voice Note
-// ════════════════════════════════════════════════════════════
-const VoiceModal = ({ onClose, doFetch, toast, logId }) => {
-    const [listening,  setListening]  = useState(false);
-    const [transcript, setTranscript] = useState('');
-    const [saving,     setSaving]     = useState(false);
-    const supported = ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
-
-    const startVoice = () => {
-        if (!supported) { alert('Voice recognition not supported in this browser.'); return; }
-        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const r = new SR(); r.lang = 'en-PH'; r.interimResults = false;
-        setListening(true);
-        r.start();
-        r.onresult = e => { setTranscript(t=>(t+' '+e.results[0][0].transcript).trim()); setListening(false); };
-        r.onerror  = () => setListening(false);
-        r.onend    = () => setListening(false);
-    };
-
-    const handleSave = async () => {
-        if (!transcript.trim()) return;
-        setSaving(true);
-        const r = await doFetch('/nurse/voice-note', { method:'POST', body:JSON.stringify({ note:transcript, logId:logId||null }) });
-        setSaving(false);
-        if (r.success) { toast('Voice note saved.'); onClose(); }
-        else toast(r.message || 'Failed.', 'error');
-    };
-
-    return (
-        <div className="modal-overlay">
-            <div className="registration-modal modal-sm">
-                <MHeader icon={<FaMicrophone />} title="Voice Reminder / Note" onClose={onClose} />
-                <div className="modal-body">
-                    <div className="voice-mic-center">
-                        <button onClick={startVoice} className={`voice-mic-btn ${listening ? 'recording' : 'idle'}`}>
-                            <FaMicrophone />
-                        </button>
-                        <p className={`voice-mic-label ${listening ? 'recording' : 'idle'}`}>
-                            {listening ? '● Recording…' : supported ? 'Tap to record' : 'Not supported in this browser'}
-                        </p>
-                    </div>
-                    <Field label="Note">
-                        <textarea rows={4} className="form-input" placeholder="Voice transcript appears here, or type manually…" value={transcript} onChange={e=>setTranscript(e.target.value)} />
-                    </Field>
-                    <div className="modal-footer">
-                        <button className="btn-outline-sm" onClick={onClose}>Cancel</button>
-                        <SaveBtn saving={saving} label="✓ Save Note" onClick={handleSave} disabled={!transcript.trim()} />
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// ════════════════════════════════════════════════════════════
-//  MODAL: QR Verify
-// ════════════════════════════════════════════════════════════
-const QrModal = ({ inventory, onClose }) => {
-    const [input,  setInput]  = useState('');
-    const [result, setResult] = useState(null);
-
-    const verify = () => {
-        const q = input.trim().toLowerCase();
-        const match = inventory.find(i => i.itemId?.toLowerCase()===q || i.name?.toLowerCase()===q);
-        setResult(match ? { found:true, item:match } : { found:false });
-    };
-
-    return (
-        <div className="modal-overlay">
-            <div className="registration-modal modal-sm">
-                <MHeader icon={<FaQrcode />} title="QR / Barcode Verification" onClose={onClose} />
-                <div className="modal-body">
-                    <FaQrcode className="qr-modal-icon" />
-                    <p className="qr-modal-hint">Scan a QR code or type the Item ID / medication name.</p>
-                    <div className="qr-input-row">
-                        <input type="text" autoFocus className="form-input" placeholder="Enter Item ID or scan…"
-                            value={input}
-                            onChange={e=>{ setInput(e.target.value); setResult(null); }}
-                            onKeyDown={e=>e.key==='Enter'&&verify()} />
-                        <button className="btn-primary-sm" onClick={verify} disabled={!input.trim()}>
-                            <FaCheckCircle /> Verify
-                        </button>
-                    </div>
-                    {result && (
-                        <div className={`qr-result ${result.found ? 'found' : 'notfound'}`}>
-                            {result.found ? (
-                                <>
-                                    <div className="qr-result-title found"><FaCheckCircle /> Item Verified</div>
-                                    <div className="qr-result-grid">
-                                        {[['Name',result.item.name],['Category',result.item.category],
-                                          ['Stock',`${result.item.quantity} ${result.item.unit}`],
-                                          ['Item ID',result.item.itemId||'—'],
-                                          ['Expiry',result.item.expirationDate?new Date(result.item.expirationDate).toLocaleDateString():'—'],
-                                          ['Status',result.item.quantity===0?'Out of Stock':result.item.quantity<=(result.item.minThreshold??10)?'Low Stock':'Available']
-                                        ].map(([k,v])=>(
-                                            <div key={k} className="qr-result-field"><small>{k}</small><div>{v}</div></div>
-                                        ))}
-                                    </div>
-                                </>
-                            ) : (
-                                <div className="qr-result-title notfound">
-                                    <FaExclamationTriangle /> Item not found — check the ID and try again.
-                                </div>
-                            )}
-                        </div>
-                    )}
-                    <div className="modal-footer">
-                        <button className="btn-outline-sm" onClick={onClose}>Close</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// ════════════════════════════════════════════════════════════
 //  ACTION DROPDOWN (⋮)
 // ════════════════════════════════════════════════════════════
 const ActionMenu = ({ onViewHistory, onAddMedication, onEditSchedule }) => {
@@ -770,9 +638,9 @@ const ActionMenu = ({ onViewHistory, onAddMedication, onEditSchedule }) => {
             {open && (
                 <div className="action-menu-dropdown">
                     {[
-                        { icon:<FaEye />,  label:'View History',   action:onViewHistory   },
-                        { icon:<FaPlus />, label:'Add Medication',  action:onAddMedication },
-                        { icon:<FaEdit />, label:'Edit Schedule',   action:onEditSchedule  },
+                        { icon:<FaEye />, label:'View History', action:onViewHistory },
+                        { icon:<FaPlus />, label:'Add Medication', action:onAddMedication },
+                        { icon:<FaEdit />, label:'Edit Schedule', action:onEditSchedule },
                     ].map(item => (
                         <button key={item.label} className="action-menu-item" onClick={()=>{ item.action?.(); setOpen(false); }}>
                             {item.icon} {item.label}
@@ -787,34 +655,43 @@ const ActionMenu = ({ onViewHistory, onAddMedication, onEditSchedule }) => {
 // ════════════════════════════════════════════════════════════
 //  MAIN DASHBOARD
 // ════════════════════════════════════════════════════════════
-const NurseDashboard = () => {
+const HeadCaregiverDashboard = () => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
-    const doFetch  = useFetch();
+    const doFetch = useFetch();
 
-    const [activeSection, setSection]    = useState('home');
-    const [searchQuery,   setSearch]     = useState('');
+    const [activeSection, setSection] = useState('home');
+    const [searchQuery, setSearch] = useState('');
     const [accountMenuOpen, setAcctMenu] = useState(false);
-    const [filterStatus,  setFStatus]    = useState('All');
-    const [filterResident,setFRes]       = useState('All');
-    const [sortTime,      setSort]       = useState('Asc');
-    const [loading,       setLoading]    = useState(true);
-    const [refreshing,    setRefreshing] = useState(false);
+    const [filterStatus, setFStatus] = useState('All');
+    const [filterResident, setFRes] = useState('All');
+    const [sortTime, setSort] = useState('Asc');
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
 
-    const [residents,   setResidents]   = useState([]);
-    const [schedule,    setSchedule]    = useState([]);
+    const [residents, setResidents] = useState([]);
+    const [schedule, setSchedule] = useState([]);
     const [medications, setMedications] = useState([]);
-    const [inventory,   setInventory]   = useState([]);
-    const [stats,       setStats]       = useState({ total:0, onTime:0, delayed:0, missed:0, pending:0, overdue:0, complianceRate:0, lowMedStock:0, totalResidents:0 });
+    const [inventory, setInventory] = useState([]);
+    const [stats, setStats] = useState({
+        total: 0, onTime: 0, delayed: 0, missed: 0,
+        pending: 0, overdue: 0, complianceRate: 0,
+        lowMedStock: 0, totalResidents: 0
+    });
 
-    const [modal,  setModal]  = useState(null);
+    const [modal, setModal] = useState(null);
     const [toasts, setToasts] = useState([]);
-
-    const [resPage,   setResPage]   = useState(1);
+    const [resPage, setResPage] = useState(1);
     const [schedPage, setSchedPage] = useState(1);
     const PER = 5;
 
-    const shiftLabel = { morning:'Morning (6AM–2PM)', afternoon:'Afternoon (2PM–10PM)', night:'Night (10PM–6AM)', flexible:'Flexible', rotating:'Rotating' }[user?.shift] || 'Morning (6AM–2PM)';
+    const shiftLabel = {
+        morning:'Morning (6AM–2PM)',
+        afternoon:'Afternoon (2PM–10PM)',
+        night:'Night (10PM–6AM)',
+        flexible:'Flexible',
+        rotating:'Rotating'
+    }[user?.shift] || 'Morning (6AM–2PM)';
 
     const toast = useCallback((msg, type='success') => {
         const id = Date.now();
@@ -823,39 +700,48 @@ const NurseDashboard = () => {
 
     const loadAll = useCallback(async () => {
         const [resR, schR, medR, invR, stR] = await Promise.all([
-            doFetch('/nurse/residents'),
-            doFetch('/nurse/schedule'),
-            doFetch('/nurse/medications'),
-            doFetch('/nurse/inventory'),
-            doFetch('/nurse/stats'),
+            doFetch('/head-caregiver/residents'),
+            doFetch('/head-caregiver/schedule'),
+            doFetch('/head-caregiver/medications'),
+            doFetch('/head-caregiver/inventory'),
+            doFetch('/head-caregiver/stats'),
         ]);
         if (resR.success) setResidents(resR.data || []);
         if (schR.success) setSchedule(schR.data || []);
         if (medR.success) setMedications(medR.data || []);
         if (invR.success) setInventory(invR.data || []);
-        if (stR.success)  setStats(s=>({...s,...stR.data}));
+        if (stR.success) setStats(s=>({...s,...stR.data}));
     }, [doFetch]);
 
-    useEffect(() => { (async()=>{ setLoading(true); await loadAll(); setLoading(false); })(); }, [loadAll]);
-    useEffect(() => { setResPage(1); setSchedPage(1); }, [searchQuery, filterStatus, filterResident, activeSection]);
+    useEffect(() => {
+        (async()=>{ setLoading(true); await loadAll(); setLoading(false); })();
+    }, [loadAll]);
 
-    const handleRefresh = async () => { setRefreshing(true); await loadAll(); setRefreshing(false); };
+    useEffect(() => {
+        setResPage(1);
+        setSchedPage(1);
+    }, [searchQuery, filterStatus, filterResident, activeSection]);
+
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        await loadAll();
+        setRefreshing(false);
+    };
+
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const handleLogout = () => setShowLogoutConfirm(true);
     const confirmLogout = () => { logout(); navigate('/login'); };
 
     const markStatus = async (id, status, method='manual') => {
-        // Find the log for context in the confirm message
         const log = schedule.find(l => l._id === id);
-        const resName  = log?.residentName || 'this resident';
-        const medName  = log?.medicationName || 'this medication';
+        const resName = log?.residentName || 'this resident';
+        const medName = log?.medicationName || 'this medication';
 
-        // Confirm before any irreversible medication action
         const actionLabels = {
-            completed:    { label:'Mark as Administered', msg:`Confirm: Mark ${medName} as administered for ${resName}?`, color:'#1E7D56' },
-            administered: { label:'Mark as Administered', msg:`Confirm: Mark ${medName} as administered for ${resName}?`, color:'#1E7D56' },
-            missed:       { label:'Mark as Missed',       msg:`Mark ${medName} as MISSED for ${resName}? This cannot be undone.`, color:'#C0392B' },
-            skipped:      { label:'Mark as Skipped',      msg:`Mark ${medName} as skipped for ${resName}?`, color:'#E65100' },
+            completed: { msg:`Confirm: Mark ${medName} as administered for ${resName}?` },
+            administered: { msg:`Confirm: Mark ${medName} as administered for ${resName}?` },
+            missed: { msg:`Mark ${medName} as MISSED for ${resName}? This cannot be undone.` },
+            skipped: { msg:`Mark ${medName} as skipped for ${resName}?` },
         };
 
         if (actionLabels[status]) {
@@ -863,20 +749,29 @@ const NurseDashboard = () => {
             if (!confirmed) return;
         }
 
-        const r = await doFetch(`/nurse/schedule/${id}/status`, { method:'PUT', body:JSON.stringify({ status, verificationMethod:method }) });
+        const r = await doFetch(`/head-caregiver/schedule/${id}/status`, {
+            method:'PUT',
+            body:JSON.stringify({ status, verificationMethod:method })
+        });
+
         if (r.success) {
-            setSchedule(prev => prev.map(l => l._id===id ? { ...l, status, ...(status==='completed'||status==='administered' ? { administeredTime:new Date().toISOString() } : {}) } : l));
-            setStats(s => ({ ...s, onTime:s.onTime+(status==='completed'?1:0), pending:Math.max(0,s.pending-1) }));
+            setSchedule(prev => prev.map(l => l._id===id ? {
+                ...l,
+                status,
+                ...(status==='completed'||status==='administered' ? { administeredTime:new Date().toISOString() } : {})
+            } : l));
             toast(`${medName} marked as ${status} for ${resName}.`);
-        } else toast(r.message || 'Update failed.', 'error');
+        } else {
+            toast(r.message || 'Update failed.', 'error');
+        }
     };
 
     const filteredSched = useMemo(() => {
         const q = searchQuery.toLowerCase();
         let arr = schedule.filter(l => {
-            const mQ  = !q || l.residentName?.toLowerCase().includes(q) || l.medicationName?.toLowerCase().includes(q) || l.room?.toLowerCase().includes(q);
+            const mQ = !q || l.residentName?.toLowerCase().includes(q) || l.medicationName?.toLowerCase().includes(q) || l.room?.toLowerCase().includes(q);
             const mSt = filterStatus==='All' || l.status===filterStatus.toLowerCase();
-            const mR  = filterResident==='All' || l.residentName===filterResident;
+            const mR = filterResident==='All' || l.residentName===filterResident;
             return mQ && mSt && mR;
         });
         return [...arr].sort((a,b) => {
@@ -888,12 +783,19 @@ const NurseDashboard = () => {
 
     const filteredRes = useMemo(() => {
         const q = searchQuery.toLowerCase().trim();
-        let arr = residents.filter(r => !q || r.name?.toLowerCase().includes(q) || r.room?.toLowerCase().includes(q) || r.conditions?.some(c=>c.toLowerCase().includes(q)));
-        if (filterStatus !== 'All') arr = arr.filter(r => (r.alertLevel||'stable').toLowerCase() === filterStatus.toLowerCase());
+        let arr = residents.filter(r =>
+            !q || r.name?.toLowerCase().includes(q) ||
+            r.room?.toLowerCase().includes(q) ||
+            r.conditions?.some(c=>c.toLowerCase().includes(q))
+        );
+        if (filterStatus !== 'All') {
+            arr = arr.filter(r => (r.alertLevel||'stable').toLowerCase() === filterStatus.toLowerCase());
+        }
         return arr;
     }, [residents, searchQuery, filterStatus]);
 
     const residentNames = useMemo(() => ['All', ...new Set(schedule.map(l=>l.residentName).filter(Boolean))], [schedule]);
+
     const groupedByResident = useMemo(() => {
         const g = {};
         schedule.forEach(l => {
@@ -916,36 +818,68 @@ const NurseDashboard = () => {
         return <button className="btn-success-sm sched-btn-administer" onClick={()=>markStatus(item._id,'completed')}>Administer</button>;
     };
 
-    // ── SCREEN 1: HOME ────────────────────────────────────────
+    // ── SCREEN 1: HOME DASHBOARD ────────────────────────────────────────
     const renderHome = () => (
         <div>
             <div className="nurse-header">
-                <h2>Dashboard</h2>
+                <h2>Home Dashboard</h2>
                 <p className="last-login">
                     Welcome back, <strong>{user?.firstName} {user?.lastName}</strong> &nbsp;|&nbsp;
-                    Last login: {new Date().toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'})} at {new Date().toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'})}
+                    {new Date().toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric',year:'numeric'})}
                 </p>
                 <div className="badge-row">
                     <span className="nurse-info-pill">Shift: {shiftLabel}</span>
                     {user?.ward && <span className="nurse-info-pill">{user.ward}</span>}
-                    <span className="nurse-info-pill on-duty">Status: On Duty</span>
+                    <span className="nurse-info-pill on-duty">● On Duty</span>
                     <button className="btn-outline-sm ml-auto" onClick={handleRefresh} disabled={refreshing}>
-                        <FaSync className={refreshing?'spin':''} /> Refresh
+                        <FaSync className={refreshing?'spin':''} /> {refreshing ? 'Refreshing…' : 'Refresh Data'}
                     </button>
                 </div>
             </div>
 
+            {/* Stats Row */}
+            <div className="home-stats-row">
+                {[
+                    { label:'Total Meds', val:stats.total, cls:'' },
+                    { label:'On Time', val:stats.onTime, cls:'success' },
+                    { label:'Delayed', val:stats.delayed, cls:'warn' },
+                    { label:'Missed', val:stats.missed, cls:'danger' },
+                    { label:'Pending', val:stats.pending, cls:'muted' },
+                    { label:'Residents', val:stats.totalResidents || residents.length, cls:'info' },
+                ].map(s => (
+                    <div key={s.label} className={`home-stat-card ${s.cls}`}>
+                        <strong>{s.val}</strong>
+                        <span>{s.label}</span>
+                    </div>
+                ))}
+            </div>
+
+            {/* Compliance Rate */}
+            <div className="card-white compliance-card">
+                <div className="compliance-header">
+                    <span className="compliance-label">Compliance Rate</span>
+                    <strong className={`compliance-rate-value ${stats.complianceRate>=90?'excellent':stats.complianceRate>=70?'good':'poor'}`}>
+                        {stats.complianceRate}%
+                        <span className="compliance-sub"> — {stats.complianceRate===0?'No data yet':stats.complianceRate>=90?'Excellent':stats.complianceRate>=70?'Good':'Needs Improvement'}</span>
+                    </strong>
+                </div>
+                <div className="compliance-bar">
+                    <div className="compliance-progress" style={{ width:`${stats.complianceRate}%` }} />
+                </div>
+            </div>
+
             <div className="home-top-grid">
-                {/* Today's Schedule */}
+                {/* Today's Schedule Preview */}
                 <div className="card-white home-card">
-                    <h6>Today's Schedule</h6>
-                    {schedule.length === 0
-                        ? <div className="no-data-center"><FaPills /> No medications scheduled today.</div>
-                        : <div className="sched-list">
+                    <h6><FaClock style={{marginRight:7,color:'var(--d-orange)'}}/>Today's Schedule</h6>
+                    {schedule.length === 0 ? (
+                        <div className="no-data-center"><FaPills /> No medications scheduled today.</div>
+                    ) : (
+                        <div className="sched-list">
                             {schedule.slice(0,3).map(item => {
-                                const mins    = item.status==='overdue' ? getMinutesSince(item.scheduledTime) : null;
+                                const mins = item.status==='overdue' ? getMinutesSince(item.scheduledTime) : null;
                                 const timeStr = item.scheduledTime ? new Date(item.scheduledTime).toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'}) : '—';
-                                const done    = item.status==='completed'||item.status==='administered';
+                                const done = item.status==='completed'||item.status==='administered';
                                 return (
                                     <div key={item._id} className="sched-item">
                                         <span className={`sched-time ${done?'done':item.status==='overdue'?'overdue':'pending'}`}>{timeStr}</span>
@@ -956,70 +890,42 @@ const NurseDashboard = () => {
                                                 {item.residentName || '—'}
                                             </div>
                                             <div className="sched-med">{item.medicationName} {item.dosage && `— ${item.dosage}`}</div>
-                                            {item.status==='overdue' && mins!==null && <div className="sched-overdue-tag">OVERDUE: {mins} mins</div>}
+                                            {item.status==='overdue' && mins!==null && <div className="sched-overdue-tag">OVERDUE: {mins} min ago</div>}
                                         </div>
+                                        <Badge s={item.status} />
                                     </div>
                                 );
                             })}
-                          </div>}
-                    <button className="btn-primary-sm home-full-width-btn" onClick={()=>setSection('medicines')}>View Full Schedule</button>
+                        </div>
+                    )}
+                    <button className="btn-primary-sm home-full-width-btn" onClick={()=>setSection('medicines')}>View Full Schedule →</button>
                 </div>
 
-                {/* Today's Status */}
+                {/* My Assigned Residents Preview */}
                 <div className="card-white home-card">
-                    <h6>Today's Status</h6>
-                    <div className="nurse-stat-row">
-                        {[{label:'Total',val:stats.total,sub:'Meds',cls:''},{label:'On Time',val:stats.onTime,cls:'success'},{label:'Delayed',val:stats.delayed,cls:'warn'},{label:'Missed',val:stats.missed,cls:'danger'},{label:'Pending',val:stats.pending,cls:'muted'}].map(s => (
-                            <div key={s.label} className={`nurse-stat-box ${s.cls}`}>
-                                <strong>{s.val}</strong>
-                                <span>{s.label}</span>
-                                {s.sub && <span className="stat-sub">{s.sub}</span>}
-                            </div>
-                        ))}
-                    </div>
-                    <p className="compliance-text">
-                        Your Compliance Rate:&nbsp;
-                        <strong className={`compliance-rate-value ${stats.complianceRate>=90?'excellent':stats.complianceRate>=70?'good':'poor'}`}>
-                            {stats.complianceRate}% ({stats.complianceRate===0?'No data yet':stats.complianceRate>=90?'Excellent':stats.complianceRate>=70?'Good':'Needs Improvement'})
-                        </strong>
-                    </p>
-                    <div className="compliance-bar">
-                        <div className="compliance-progress" style={{ width:`${stats.complianceRate}%` }} />
-                    </div>
-                    <button className="btn-outline-sm home-full-width-btn" onClick={()=>setSection('medicines')}>View Full Status</button>
-                </div>
-
-                {/* Voice Reminder */}
-                <div className="card-white home-card voice-card">
-                    <h6><FaMicrophone /> Voice Reminder</h6>
-                    <div className="voice-current-label">Current:</div>
-                    <div className="voice-current-box">No active voice reminder.</div>
-                    <div className="voice-lang">Language: Filipino / English</div>
-                    <div className="voice-btn-col">
-                        <button className="btn-outline-sm voice-btn" onClick={()=>setModal({type:'voice'})}>Test Voice System</button>
-                        <button className="btn-outline-sm voice-btn">Adjust Volume</button>
-                    </div>
-                </div>
-            </div>
-
-            <div className="home-bottom-grid">
-                {/* My Assigned Residents */}
-                <div className="card-white home-card">
-                    <h6>My Assigned Residents</h6>
-                    {residents.length === 0
-                        ? <div className="no-data-center">No assigned residents yet.</div>
-                        : <div>
+                    <h6><FaUsers style={{marginRight:7,color:'var(--d-orange)'}}/>My Assigned Residents</h6>
+                    {residents.length === 0 ? (
+                        <div className="no-data-center">No assigned residents yet.</div>
+                    ) : (
+                        <div>
                             {residents.slice(0,3).map((r,i) => (
                                 <div key={i} className="resident-list-item">
-                                    <div className="resident-list-name">{r.name||`${r.firstName||''} ${r.lastName||''}`.trim()||'Unknown'} {r.room && `(Room ${r.room})`}</div>
-                                    <div className="resident-list-meta">Age: {r.age||'—'}{r.conditions?.length>0 && ` | ${r.conditions.slice(0,2).join(', ')}`}</div>
-                                    {r.medicationOverdue
-                                        ? <div className="resident-list-overdue">Current: OVERDUE</div>
-                                        : <div className="resident-list-nextmed">Next Med: {r.nextMed||'—'}</div>}
+                                    <div className="resident-list-name">
+                                        {r.name||`${r.firstName||''} ${r.lastName||''}`.trim()||'Unknown'}
+                                        {r.room && <span className="room-tag">Room {r.room}</span>}
+                                    </div>
+                                    <div className="resident-list-meta">Age: {r.age||'—'} {r.conditions?.length>0 && `· ${r.conditions.slice(0,2).map(c=>c?.name||c).join(', ')}`}</div>
+                                    {r.medicationOverdue ? (
+                                        <div className="resident-list-overdue"><FaExclamationCircle /> Medication Overdue</div>
+                                    ) : (
+                                        <div className="resident-list-nextmed">Next Med: {r.nextMed||'—'}</div>
+                                    )}
                                 </div>
                             ))}
-                          </div>}
-                    <button className="btn-primary-sm home-full-width-btn" onClick={()=>setSection('residents')}>View All Residents</button>
+                            {residents.length > 3 && <div className="list-more-label">+{residents.length-3} more residents</div>}
+                        </div>
+                    )}
+                    <button className="btn-primary-sm home-full-width-btn" onClick={()=>setSection('residents')}>View All Residents →</button>
                 </div>
 
                 {/* Quick Actions */}
@@ -1027,13 +933,12 @@ const NurseDashboard = () => {
                     <h6>Quick Actions</h6>
                     <div className="quick-actions-grid">
                         {[
-                            { icon:<FaPlus />,            label:'Add Medication',    action:()=>setModal({type:'addSchedule'}) },
-                            { icon:<FaSearch />,           label:'Search Residents',  action:()=>setSection('residents') },
-                            { icon:<FaHeartbeat />,        label:'Log Vitals',        action:()=>setSection('residents') },
-                            { icon:<FaQrcode />,           label:'Check Scanner',     action:()=>setModal({type:'qr'}) },
-                            { icon:<FaExclamationCircle />,label:'Report Incidents',  action:()=>toast('Incident reporting coming soon.','warn') },
-                            { icon:<FaSync />,             label:'Sync App',          action:handleRefresh },
-                            { icon:<FaFileAlt />,          label:'View Report',       action:()=>setSection('medicines') },
+                            { icon:<FaPlus />, label:'Add Medication', action:()=>setModal({type:'addSchedule'}) },
+                            { icon:<FaUsers />, label:'Add Resident', action:()=>setModal({type:'addResident'}) },
+                            { icon:<FaHeartbeat />, label:'Log Vitals', action:()=>setSection('residents') },
+                            { icon:<FaBoxOpen />, label:'Request Stock', action:()=>setModal({type:'requestStock'}) },
+                            { icon:<FaFileAlt />, label:'Med Reports', action:()=>setSection('medicines') },
+                            { icon:<FaSync />, label:'Refresh Data', action:handleRefresh },
                         ].map((a,i) => (
                             <button key={i} className="quick-action-btn" onClick={a.action}>{a.icon} {a.label}</button>
                         ))}
@@ -1043,7 +948,7 @@ const NurseDashboard = () => {
         </div>
     );
 
-    // ── SCREEN 2: RESIDENTS ───────────────────────────────────
+    // ── SCREEN 2: RESIDENTS MANAGEMENT ───────────────────────────────────
     const renderResidents = () => {
         const paged = filteredRes.slice((resPage-1)*PER, resPage*PER);
         const pages = Math.ceil(filteredRes.length / PER);
@@ -1056,6 +961,7 @@ const NurseDashboard = () => {
                             <option value="All">Filter: All</option>
                             <option value="alert">Alert</option>
                             <option value="stable">Stable</option>
+                            <option value="critical">Critical</option>
                         </select>
                         <select className="filter-select" value={sortTime} onChange={e=>setSort(e.target.value)}>
                             <option value="Asc">Sort: A–Z</option>
@@ -1066,50 +972,60 @@ const NurseDashboard = () => {
                 </div>
 
                 <div className="res-col-header">
-                    <span>Room|Bed</span><span>Name|Age</span><span>Conditions</span><span>Status</span><span>Today's Medication</span><span>Actions</span>
+                    <span>Room | Bed</span><span>Name / Age</span><span>Conditions</span><span>Status</span><span>Today's Medication</span><span>Actions</span>
                 </div>
 
-                {paged.length === 0
-                    ? <div className="res-row-empty">{searchQuery ? `No residents match "${searchQuery}".` : 'No residents yet.'}</div>
-                    : paged.map((r, i) => {
-                        const isLast   = i === paged.length - 1;
-                        const todayMeds = schedule.filter(l=>l.residentName===(r.name||`${r.firstName||''} ${r.lastName||''}`.trim()) || l.residentId?.toString()===r._id?.toString());
-                        const allDone  = todayMeds.length>0 && todayMeds.every(l=>l.status==='completed'||l.status==='administered');
+                {paged.length === 0 ? (
+                    <div className="res-row-empty">{searchQuery ? `No residents match "${searchQuery}".` : 'No residents yet.'}</div>
+                ) : (
+                    paged.map((r, i) => {
+                        const isLast = i === paged.length - 1;
+                        const todayMeds = schedule.filter(l =>
+                            l.residentName === (r.name||`${r.firstName||''} ${r.lastName||''}`.trim()) ||
+                            l.residentId?.toString() === r._id?.toString()
+                        );
+                        const allDone = todayMeds.length>0 && todayMeds.every(l=>l.status==='completed'||l.status==='administered');
                         return (
                             <div key={r._id||i} className={`res-row${r.medicationOverdue?' overdue-row':''}${isLast?' last-row':''}`}>
                                 <div className="res-row-grid">
-                                    <div className="res-room">{r.room||'—'} | {r.bed||'—'}<br/><small style={{fontSize:'.72rem',color:'var(--d-muted)'}}>{r.floor||''}</small></div>
+                                    <div className="res-room">
+                                        {r.room||'—'} | {r.bed||'—'}
+                                        <br/><small style={{fontSize:'.72rem',color:'var(--d-muted)'}}>{r.floor||''}</small>
+                                    </div>
                                     <div className="res-name-block">
                                         <div className="name">{r.name || `${r.firstName||''} ${r.lastName||''}`.trim() || 'Unknown'}</div>
                                         <div className="age">Age: {r.age||'—'} &nbsp;·&nbsp; {r.gender||''}</div>
-                                        <div className="primary">Primary Nurse: <span>{r.primaryNurse||`${user?.firstName} ${user?.lastName}`}</span></div>
-                                        {r.secondaryNurse && <div className="secondary">Secondary: <strong>{r.secondaryNurse}</strong></div>}
+                                        <div className="primary">Nurse: <span>{r.primaryNurse||`${user?.firstName} ${user?.lastName}`}</span></div>
                                     </div>
                                     <div className="conditions-wrap">
-                                        {r.conditions?.length>0 
-                                            ? r.conditions.map((c,ci)=><span key={ci} className="condition-tag">{c?.name||c}</span>) 
+                                        {r.conditions?.length>0
+                                            ? r.conditions.map((c,ci)=><span key={ci} className="condition-tag">{c?.name||c}</span>)
                                             : <span className="no-conditions">—</span>}
                                     </div>
                                     <div><Badge s={r.medicationOverdue?'overdue':r.alertLevel||'stable'} /></div>
                                     <div className="res-meds-cell">
-                                        {todayMeds.length===0
-                                            ? <span className="res-no-meds">No meds today</span>
-                                            : todayMeds.slice(0,3).map((m,mi)=>(
+                                        {todayMeds.length===0 ? (
+                                            <span className="res-no-meds">No meds today</span>
+                                        ) : (
+                                            todayMeds.slice(0,3).map((m,mi)=>(
                                                 <div key={mi} className={`res-med-item ${m.status==='completed'||m.status==='administered'?'done':'active'}`}>
-                                                    {m.scheduledTime?new Date(m.scheduledTime).toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'}):'—'} - {m.medicationName}
+                                                    {m.scheduledTime?new Date(m.scheduledTime).toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'}):'—'} — {m.medicationName}
                                                     {(m.status==='completed'||m.status==='administered')&&<span className="res-med-done">✓</span>}
                                                     {m.status==='pending'&&<span className="res-med-pend">Pending</span>}
                                                 </div>
-                                            ))}
+                                            ))
+                                        )}
                                     </div>
                                     <div>
-                                        {allDone
-                                            ? <span className="res-completed-label">(Completed)</span>
-                                            : <div className="res-action-btns">
-                                                <button className="btn-outline-sm res-btn" onClick={()=>setModal({type:'profile',data:r})}>View Full Profile</button>
-                                                <button className="btn-success-sm res-btn" onClick={()=>setModal({type:'vitals',data:r})}>Log Vital Signs</button>
-                                                <button className="btn-primary-sm res-btn" onClick={()=>setModal({type:'history',data:r})}>Medication History</button>
-                                              </div>}
+                                        {allDone ? (
+                                            <span className="res-completed-label">✓ Completed</span>
+                                        ) : (
+                                            <div className="res-action-btns">
+                                                <button className="btn-outline-sm res-btn" onClick={()=>setModal({type:'profile',data:r})}>View Profile</button>
+                                                <button className="btn-success-sm res-btn" onClick={()=>setModal({type:'vitals',data:r})}>Log Vitals</button>
+                                                <button className="btn-primary-sm res-btn" onClick={()=>setModal({type:'history',data:r})}>Med History</button>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                 {r.medicationOverdue && (
@@ -1119,36 +1035,39 @@ const NurseDashboard = () => {
                                 )}
                             </div>
                         );
-                    })}
+                    })
+                )}
 
-                <div className="res-page-footer">
-                    <span className="res-page-label">MY ASSIGNED RESIDENTS ({residents.length})</span>
-                    <div className="res-pagination">
-                        <span className="preview-label">Preview</span>
-                        {Array.from({length:pages},(_,i)=>i+1).map(n=>(
-                            <button key={n} className={`page-num-btn${resPage===n?' active':''}`} onClick={()=>setResPage(n)}>{n}</button>
-                        ))}
+                {pages > 1 && (
+                    <div className="res-page-footer">
+                        <span className="res-page-label">Showing {(resPage-1)*PER+1}–{Math.min(resPage*PER,filteredRes.length)} of {filteredRes.length}</span>
+                        <div className="res-pagination">
+                            {Array.from({length:pages},(_,i)=>i+1).map(n=>(
+                                <button key={n} className={`page-num-btn${resPage===n?' active':''}`} onClick={()=>setResPage(n)}>{n}</button>
+                            ))}
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
         );
     };
 
-    // ── SCREEN 3+4: MEDICINES ─────────────────────────────────
+    // ── SCREEN 3: MEDICATION MANAGEMENT ─────────────────────────────────
     const renderMedicines = () => {
         const pagedSched = filteredSched.slice((schedPage-1)*PER, schedPage*PER);
-        const remaining  = filteredSched.length - schedPage*PER;
+        const remaining = filteredSched.length - schedPage*PER;
 
         return (
             <div>
                 <div className="med-pills-row">
-                    <span className="nurse-info-pill">Nurse: {user?.firstName} {user?.lastName}</span>
+                    <span className="nurse-info-pill">{user?.firstName} {user?.lastName}</span>
                     {user?.ward && <span className="nurse-info-pill">{user.ward}</span>}
                     <span className="nurse-info-pill">Shift: {shiftLabel.split(' ')[0]}</span>
                 </div>
 
+                {/* Filters + Action Row */}
                 <div className="med-filters-row">
-                    <span className="filters-label">FILTERS:</span>
+                    <span className="filters-label"><FaFilter /> Filters:</span>
                     <select className="filter-select" value={filterStatus} onChange={e=>setFStatus(e.target.value)}>
                         <option value="All">Status: All</option>
                         <option value="overdue">Overdue</option>
@@ -1164,64 +1083,73 @@ const NurseDashboard = () => {
                         <option value="Asc">Sort: Time ↑</option>
                         <option value="Desc">Sort: Time ↓</option>
                     </select>
-                    <select className="filter-select"><option>Today</option><option>Tomorrow</option><option>This Week</option></select>
                     <div className="med-action-btns">
                         <button className="btn-primary-sm" onClick={()=>setModal({type:'addSchedule'})}><FaPlus /> Add Medication</button>
-                        <button className="btn-outline-sm" onClick={()=>setModal({type:'voice'})}><FaMicrophone /> Voice Document</button>
-                        <button className="btn-outline-sm" onClick={()=>setModal({type:'qr'})}><FaQrcode /> QR Verify</button>
                     </div>
                 </div>
 
+                {/* Today's Medication Schedule Table */}
                 <div className="card-white mb-18">
-                    <div className="sched-table-header">
-                        TODAY'S MEDICATION SCHEDULE ({filteredSched.length} Medication{filteredSched.length!==1?'s':''})
-                    </div>
+                    <div className="card-header"><h5><FaClock className="mr-8"/>Today's Medication Schedule</h5></div>
                     <div className="table-scroll">
                         <table className="custom-table">
-                            <thead><tr><th>Status</th><th>Time</th><th>Residents</th><th>Room</th><th>Medication</th><th>Dosage</th><th>Action</th></tr></thead>
+                            <thead>
+                                <tr>
+                                    <th>Status</th><th>Time</th><th>Resident</th>
+                                    <th>Room</th><th>Medication</th><th>Dosage</th><th>Action</th>
+                                </tr>
+                            </thead>
                             <tbody>
-                                {pagedSched.length===0
-                                    ? <tr><td colSpan="7" className="text-center no-data-italic">No medication schedule for today.</td></tr>
-                                    : pagedSched.map(item=>{
-                                        const mins = item.status==='overdue' ? getMinutesSince(item.scheduledTime) : null;
+                                {pagedSched.length === 0 ? (
+                                    <tr><td colSpan="7" className="text-center no-data-italic">
+                                        {searchQuery ? `No results for "${searchQuery}".` : 'No medication records found.'}
+                                    </td></tr>
+                                ) : (
+                                    pagedSched.map(item => {
                                         const tStr = item.scheduledTime ? new Date(item.scheduledTime).toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'}) : '—';
-                                        return(
+                                        const mins = item.status==='overdue' ? getMinutesSince(item.scheduledTime) : null;
+                                        return (
                                             <tr key={item._id}>
                                                 <td><Badge s={item.status} /></td>
                                                 <td className="sched-time-cell">
                                                     {tStr}
-                                                    {mins!==null && <div className="sched-overdue-min">({mins} min)</div>}
+                                                    {mins!==null && <div className="sched-overdue-min">({mins} min ago)</div>}
                                                 </td>
                                                 <td><strong>{item.residentName||'—'}</strong></td>
-                                                <td className="td-sm">{item.floor&&`${item.floor},`} {item.room||'—'}</td>
+                                                <td>{item.floor&&`${item.floor},`} {item.room||'—'}</td>
                                                 <td>
                                                     <strong className="td-sm">{item.medicationName||'—'}</strong>
-                                                    {item.condition && <div className="sched-med-condition">For {item.condition}</div>}
+                                                    {item.condition && <div className="sched-med-condition">For: {item.condition}</div>}
                                                 </td>
                                                 <td className="td-sm">{item.dosage||'—'}</td>
                                                 <td><SchedActionBtn item={item} /></td>
                                             </tr>
                                         );
-                                    })}
+                                    })
+                                )}
                             </tbody>
                         </table>
                     </div>
-                    {remaining>0 && (
+                    {remaining > 0 && (
                         <div className="sched-show-more">
-                            <button onClick={()=>setSchedPage(p=>p+1)}>Show {remaining} more medications….</button>
+                            <button onClick={()=>setSchedPage(p=>p+1)}>Show {remaining} more…</button>
                         </div>
                     )}
                 </div>
 
+                {/* Active Medications by Resident */}
                 <div className="card-white mb-18">
-                    <div className="card-header"><h5>Active Medication By Residents</h5></div>
+                    <div className="card-header"><h5>Active Medications by Resident</h5></div>
                     <div className="table-scroll">
                         <table className="custom-table">
-                            <thead><tr><th>Residents</th><th>Medication</th><th>Dosage</th><th>Time</th><th>Next Dose</th><th>Status</th><th>Action</th></tr></thead>
+                            <thead>
+                                <tr><th>Resident</th><th>Medication</th><th>Dosage</th><th>Time</th><th>Next Dose</th><th>Status</th><th>Action</th></tr>
+                            </thead>
                             <tbody>
-                                {groupedByResident.length===0
-                                    ? <tr><td colSpan="7" className="text-center no-data-italic">No active medication records yet.</td></tr>
-                                    : groupedByResident.map(grp =>
+                                {groupedByResident.length===0 ? (
+                                    <tr><td colSpan="7" className="text-center no-data-italic">No active medication records yet.</td></tr>
+                                ) : (
+                                    groupedByResident.map(grp =>
                                         grp.meds.map((m,mi)=>(
                                             <tr key={m._id}>
                                                 {mi===0 && (
@@ -1248,74 +1176,63 @@ const NurseDashboard = () => {
                                                 </td>
                                             </tr>
                                         ))
-                                    )}
+                                    )
+                                )}
                             </tbody>
                         </table>
                     </div>
+                </div>
 
-                    <div className="inv-status-section">
+                {/* Medication Inventory Status */}
+                <div className="card-white mb-18">
+                    <div className="card-header">
                         <h5>Medication Inventory Status</h5>
-                        <div className="table-scroll">
-                            <table className="custom-table">
-                                <thead><tr><th>Medication</th><th>Ward</th><th>Stock Level</th></tr></thead>
-                                <tbody>
-                                    {inventory.length===0
-                                        ? <tr><td colSpan="3" className="text-center no-data-italic">No inventory data available.</td></tr>
-                                        : inventory.slice(0,8).map(item=>{
-                                            const daysLeft = item.expirationDate ? Math.ceil((new Date(item.expirationDate)-Date.now())/86400000) : null;
-                                            const isOut = item.quantity===0;
-                                            const isLow = !isOut && item.quantity<=(item.minThreshold??10);
-                                            const isExp = daysLeft!==null && daysLeft<=30;
-                                            const txt   = isOut?'Out of Stock':isLow?`Low — ${item.quantity} ${item.unit}`:isExp?`${daysLeft} Days Remaining`:`${item.quantity} ${item.unit}`;
-                                            const cls   = isOut||(daysLeft<0)?'inv-stock-out':isLow||isExp?'inv-stock-low':'inv-stock-ok';
-                                            return (
-                                                <tr key={item._id}>
-                                                    <td><strong>{item.name}</strong></td>
-                                                    <td className="inv-ward-cell">{user?.ward||'—'} Cabinet</td>
-                                                    <td className={cls}>{txt}</td>
-                                                </tr>
-                                            );
-                                        })}
-                                </tbody>
-                            </table>
-                        </div>
-                        <div className="inv-action-row">
-                            <button className="btn-primary-sm" onClick={()=>setModal({type:'requestStock'})}>Request Stock</button>
-                            <button className="btn-primary-sm" onClick={()=>setSection('verify')}>View Full History</button>
-                        </div>
+                        <button className="btn-primary-sm" onClick={()=>setModal({type:'requestStock'})}>
+                            <FaBoxOpen /> Request Stock
+                        </button>
+                    </div>
+                    <div className="table-scroll">
+                        <table className="custom-table">
+                            <thead>
+                                <tr><th>Medication</th><th>Ward / Cabinet</th><th>Stock Level</th><th>Expiry</th></tr>
+                            </thead>
+                            <tbody>
+                                {inventory.length===0 ? (
+                                    <tr><td colSpan="4" className="text-center no-data-italic">No inventory data available.</td></tr>
+                                ) : (
+                                    inventory.slice(0,10).map(item=>{
+                                        const daysLeft = item.expirationDate ? Math.ceil((new Date(item.expirationDate)-Date.now())/86400000) : null;
+                                        const isOut = item.quantity===0;
+                                        const isLow = !isOut && item.quantity<=(item.minThreshold??10);
+                                        const isExp = daysLeft!==null && daysLeft<=30;
+                                        const stockTxt = isOut ? 'Out of Stock' : isLow ? `Low — ${item.quantity} ${item.unit}` : `${item.quantity} ${item.unit}`;
+                                        const stockCls = isOut||(daysLeft!==null&&daysLeft<0) ? 'inv-stock-out' : isLow||isExp ? 'inv-stock-low' : 'inv-stock-ok';
+                                        const expiryTxt = daysLeft===null ? '—' : daysLeft<0 ? 'Expired' : `${daysLeft} days`;
+                                        return (
+                                            <tr key={item._id}>
+                                                <td><strong>{item.name}</strong></td>
+                                                <td className="inv-ward-cell">{user?.ward||'—'} Cabinet</td>
+                                                <td className={stockCls}>{stockTxt}</td>
+                                                <td className={daysLeft!==null&&daysLeft<=30?'inv-stock-low':''}>{expiryTxt}</td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
         );
     };
 
-    // ── SCREEN: VERIFY ────────────────────────────────────────
-    const renderVerify = () => (
-        <div className="card-white">
-            <div className="card-header"><h5><FaQrcode className="mr-8" />QR / Barcode Verification</h5></div>
-            <div className="verify-wrapper">
-                <div className="verify-scan-box">
-                    <FaQrcode />
-                    <p>Scan a medication QR code or enter Item ID to verify before administration.</p>
-                    <button className="btn-primary-sm verify-scan-btn" onClick={()=>setModal({type:'qr'})}><FaQrcode /> Open QR Scanner</button>
-                </div>
-                <div className="verify-voice-box">
-                    <h6>Voice Documentation</h6>
-                    <p>Record verbal notes for medication administration or observations.</p>
-                    <button className="btn-primary-sm" onClick={()=>setModal({type:'voice'})}><FaMicrophone /> Open Voice Documentation</button>
-                </div>
-            </div>
-        </div>
-    );
-
     const renderContent = () => {
         if (loading) return <div className="nurse-loading"><FaSpinner className="spin" /> Loading dashboard…</div>;
         switch (activeSection) {
-            case 'home':      return renderHome();
+            case 'home': return renderHome();
             case 'residents': return renderResidents();
             case 'medicines': return renderMedicines();
-            case 'verify':    return renderVerify();
-            default:          return renderHome();
+            default: return renderHome();
         }
     };
 
@@ -1327,7 +1244,7 @@ const NurseDashboard = () => {
                     <div className="sidebar-header">
                         <div className="brand-section">
                             <div className="logo-circle" />
-                            <div className="brand-text"><h4>Kanang-Alalay</h4><h5>NURSE / CAREGIVER</h5></div>
+                            <div className="brand-text"><h4>Kanang-Alalay</h4><h5>HEAD CAREGIVER</h5></div>
                         </div>
                     </div>
                     <ul className="sidebar-menu">
@@ -1335,7 +1252,6 @@ const NurseDashboard = () => {
                             { key:'home',      icon:<FaHome />,   label:'Home' },
                             { key:'residents', icon:<FaUsers />,  label:'Residents' },
                             { key:'medicines', icon:<FaPills />,  label:'Medicines', badge:stats.overdue },
-                            { key:'verify',    icon:<FaQrcode />, label:'Verify' },
                         ].map(({ key, icon, label, badge }) => (
                             <li key={key} className={activeSection===key?'active':''} onClick={()=>setSection(key)}>
                                 {icon} {label}
@@ -1352,29 +1268,31 @@ const NurseDashboard = () => {
                             <div className="topbar-search-wrapper">
                                 <FaSearch className="topbar-search-icon" />
                                 <input type="text" className="topbar-search-input"
-                                    placeholder={activeSection==='residents'?'Search residents, rooms, conditions…':activeSection==='medicines'?'Search medications, residents…':'Search…'}
+                                    placeholder={
+                                        activeSection==='residents' ? 'Search residents, rooms, conditions…' :
+                                        activeSection==='medicines' ? 'Search medications, residents…' :
+                                        'Search…'
+                                    }
                                     value={searchQuery}
                                     onChange={e=>setSearch(e.target.value)} />
                                 {searchQuery && <button className="search-clear-btn" onClick={()=>setSearch('')}><FaTimes /> Clear</button>}
                             </div>
                         </div>
                         <div className="topbar-right">
-                            <button className="topbar-icon-btn" title="Voice Note" onClick={()=>setModal({type:'voice'})}><FaMicrophone /></button>
-                            <button className="topbar-icon-btn" title="QR Scan"    onClick={()=>setModal({type:'qr'})}><FaQrcode /></button>
                             <div className="topbar-user-menu">
                                 <div className={`topbar-user-trigger ${accountMenuOpen?'active':''}`} onClick={()=>setAcctMenu(o=>!o)}>
                                     <FaUserCircle className="topbar-user-avatar" />
                                     <div className="topbar-user-info">
                                         <span className="topbar-user-name">{user?.firstName} {user?.lastName}</span>
-                                        <span className="topbar-user-role">{user?.role?.toUpperCase()}</span>
+                                        <span className="topbar-user-role">HEAD CAREGIVER</span>
                                     </div>
                                     <FaChevronDown className={`topbar-arrow ${accountMenuOpen?'rotate':''}`} />
                                 </div>
                                 {accountMenuOpen && (
                                     <ul className="topbar-dropdown">
-                                        <li onClick={()=>{ navigate('/profile');  setAcctMenu(false); }}><FaUserCircle /> View Profile</li>
+                                        <li onClick={()=>{ navigate('/profile'); setAcctMenu(false); }}><FaUserCircle /> View Profile</li>
                                         <li onClick={()=>{ navigate('/settings'); setAcctMenu(false); }}><FaCog /> Account Settings</li>
-                                        <li onClick={()=>{ navigate('/help');     setAcctMenu(false); }}><FaQuestionCircle /> Help Center</li>
+                                        <li onClick={()=>{ navigate('/help'); setAcctMenu(false); }}><FaQuestionCircle /> Help Center</li>
                                         <li className="dropdown-divider" onClick={handleLogout}><FaSignOutAlt /> Sign Out</li>
                                     </ul>
                                 )}
@@ -1385,15 +1303,14 @@ const NurseDashboard = () => {
                 </div>
             </div>
 
-            {modal?.type==='addResident'  && <AddResidentModal  onClose={()=>setModal(null)} onSaved={r=>{ setResidents(p=>[...p,r]); }} doFetch={doFetch} toast={toast} />}
-            {modal?.type==='profile'      && <ProfileModal      onClose={()=>setModal(null)} resident={modal.data} schedule={schedule} />}
-            {modal?.type==='vitals'       && <VitalsModal       onClose={()=>setModal(null)} resident={modal.data} doFetch={doFetch} toast={toast} />}
-            {modal?.type==='history'      && <HistoryModal      onClose={()=>setModal(null)} resident={modal.data} doFetch={doFetch} />}
-            {modal?.type==='addSchedule'  && <AddScheduleModal  onClose={()=>setModal(null)} residents={residents} medications={medications} onSaved={l=>setSchedule(p=>[...p,l])} doFetch={doFetch} toast={toast} defaultResident={modal.data?{_id:modal.data.residentId}:null} />}
-            {modal?.type==='editSchedule' && <EditScheduleModal onClose={()=>setModal(null)} log={modal.data} onSaved={u=>setSchedule(p=>p.map(l=>l._id===u._id?{...l,...u}:l))} doFetch={doFetch} toast={toast} />}
-            {modal?.type==='requestStock' && <RequestStockModal onClose={()=>setModal(null)} items={inventory} doFetch={doFetch} toast={toast} />}
-            {modal?.type==='voice'        && <VoiceModal        onClose={()=>setModal(null)} doFetch={doFetch} toast={toast} logId={modal.data?.logId} />}
-            {modal?.type==='qr'           && <QrModal           onClose={()=>setModal(null)} inventory={inventory} />}
+            {/* Modals */}
+            {modal?.type==='addResident'   && <AddResidentModal  onClose={()=>setModal(null)} onSaved={r=>{setResidents(p=>[...p,r]);}} doFetch={doFetch} toast={toast} />}
+            {modal?.type==='profile'       && <ProfileModal      onClose={()=>setModal(null)} resident={modal.data} schedule={schedule} />}
+            {modal?.type==='vitals'        && <VitalsModal       onClose={()=>setModal(null)} resident={modal.data} doFetch={doFetch} toast={toast} />}
+            {modal?.type==='history'       && <HistoryModal      onClose={()=>setModal(null)} resident={modal.data} doFetch={doFetch} />}
+            {modal?.type==='addSchedule'   && <AddScheduleModal  onClose={()=>setModal(null)} residents={residents} medications={medications} onSaved={l=>setSchedule(p=>[...p,l])} doFetch={doFetch} toast={toast} defaultResident={modal.data?{_id:modal.data.residentId}:null} />}
+            {modal?.type==='editSchedule'  && <EditScheduleModal onClose={()=>setModal(null)} log={modal.data} onSaved={u=>setSchedule(p=>p.map(l=>l._id===u._id?{...l,...u}:l))} doFetch={doFetch} toast={toast} />}
+            {modal?.type==='requestStock'  && <RequestStockModal onClose={()=>setModal(null)} items={inventory} doFetch={doFetch} toast={toast} />}
 
             {/* Logout Confirm */}
             {showLogoutConfirm && (
@@ -1421,4 +1338,4 @@ const NurseDashboard = () => {
     );
 };
 
-export default NurseDashboard;
+export default HeadCaregiverDashboard;

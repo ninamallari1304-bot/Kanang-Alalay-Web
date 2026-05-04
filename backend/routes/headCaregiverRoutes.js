@@ -285,6 +285,21 @@ router.post('/schedule', async (req, res) => {
     }
 });
 
+router.get('/residents/:id/history', async (req, res) => {
+    try {
+        const logs = await MedicationLog.find({ 
+            residentId: req.params.id,
+            caregiverId: req.user._id
+        })
+        .sort({ scheduledTime: -1 })
+        .limit(50);
+        
+        res.json({ success: true, data: logs });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 router.put('/schedule/:id/status', async (req, res) => {
     try {
         const { status, notes, verificationMethod } = req.body;
