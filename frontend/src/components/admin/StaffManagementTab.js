@@ -1,6 +1,23 @@
 import React from 'react';
 import { FaUserPlus, FaIdCard, FaUserMd, FaUserTag, FaUserCircle, FaClock, FaBan, FaCheckCircle, FaTrash } from 'react-icons/fa';
 
+// Mirrors AdminDashboard's getAccountStatus and getStatusBadgeStyle
+const getAccountStatus = (m) => {
+    if (m.status) return m.status;
+    if (!m.isVerified && !m.isActive) return 'pending';
+    if (m.isActive) return 'active';
+    return 'deactivated';
+};
+const STATUS_BADGE = {
+    active:      { bg: '#EEFBF5', color: '#1E7D56', label: 'Active' },
+    pending:     { bg: '#FFF8E1', color: '#B8860B', label: 'Pending' },
+    restricted:  { bg: '#FFF3E0', color: '#E65100', label: 'Restricted' },
+    suspended:   { bg: '#FFF3CD', color: '#856404', label: 'Suspended' },
+    deactivated: { bg: '#FFF0F0', color: '#C0392B', label: 'Deactivated' },
+    on_leave:    { bg: '#E8F4FD', color: '#1565C0', label: 'On Leave' },
+    terminated:  { bg: '#F3F4F6', color: '#4B5563', label: 'Terminated' },
+};
+
 const StaffManagementTab = ({ 
     staff, setShowRegistrationModal, generateRegistrationCode, 
     handleMarkAttendance, toggleStaffStatus, deleteStaff,
@@ -47,9 +64,16 @@ const StaffManagementTab = ({
                                     </td>
                                     <td>{member.email}</td>
                                     <td><span className={`badge-custom ${member.role}`}>{member.role}</span></td>
-                                    <td><span className={`status ${member.isActive ? 'active' : 'inactive'}`}>
-                                        {member.isActive ? 'Active' : 'Inactive'}
-                                    </span></td>
+                                    <td>{(() => {
+                                        const s = STATUS_BADGE[getAccountStatus(member)] || STATUS_BADGE.pending;
+                                        return (
+                                            <span style={{
+                                                display: 'inline-block', padding: '4px 12px', borderRadius: 20,
+                                                fontSize: '.78rem', fontWeight: 600,
+                                                background: s.bg, color: s.color,
+                                            }}>{s.label}</span>
+                                        );
+                                    })()}</td>
                                     <td className="actions">
                                         <span className="edit" onClick={() => handleMarkAttendance(member._id, member.firstName)} title="Mark Attendance"><FaClock /></span>
                                         {member.isActive ? (

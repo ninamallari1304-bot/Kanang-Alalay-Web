@@ -43,7 +43,23 @@ const ReportsTab = ({ stats, bookings = [], donations = [], staff = [], inventor
     const approvedBookings = filteredBookings.filter(b => b.status === 'approved').length;
     const rejectedBookings = filteredBookings.filter(b => b.status === 'rejected').length;
     const lowStockCount    = inventory.filter(i => i.quantity <= (i.minThreshold ?? 10)).length;
-    const activeStaff      = staff.filter(s => s.isActive).length;
+    // Derive canonical status the same way AdminDashboard does, then count active
+    const getStaffStatus = (s) => {
+        if (s.status) return s.status;
+        if (!s.isVerified && !s.isActive) return 'pending';
+        if (s.isActive) return 'active';
+        return 'deactivated';
+    };
+    const STAFF_STATUS_LABEL = {
+        active:      'Active',
+        pending:     'Pending',
+        restricted:  'Restricted',
+        suspended:   'Suspended',
+        deactivated: 'Deactivated',
+        on_leave:    'On Leave',
+        terminated:  'Terminated',
+    };
+    const activeStaff = staff.filter(s => getStaffStatus(s) === 'active').length;
 
     const exportPDF = (type) => {
         setExporting(type);
@@ -99,7 +115,7 @@ const ReportsTab = ({ stats, bookings = [], donations = [], staff = [], inventor
                     `${s.firstName} ${s.lastName}`,
                     s.role,
                     s.email,
-                    s.isActive ? 'Active' : 'Inactive',
+                    STAFF_STATUS_LABEL[getStaffStatus(s)] ?? getStaffStatus(s),
                     s.ward || '—',
                 ]),
                 startY,
@@ -157,6 +173,11 @@ const ReportsTab = ({ stats, bookings = [], donations = [], staff = [], inventor
             csv = 'Donor,Email,Amount,Type,Status,Receipt #\n';
             csv += filteredDonations.map(d =>
                 `"${d.donorName}","${d.email}","${d.amount}","${d.donationType}","${d.paymentStatus}","${d.receiptNumber || ''}"`
+            ).join('\n');
+        } else if (type === 'staff') {
+            csv = 'Staff ID,Name,Role,Email,Status,Ward\n';
+            csv += staff.map(s =>
+                `"${s.staffId}","${s.firstName} ${s.lastName}","${s.role}","${s.email}","${STAFF_STATUS_LABEL[getStaffStatus(s)] ?? getStaffStatus(s)}","${s.ward || ''}"`
             ).join('\n');
         } else if (type === 'inventory') {
             csv = 'Item,Category,Quantity,Unit,Min Threshold,Status\n';

@@ -5,7 +5,13 @@ import {
     FaSun, FaCloudSun, FaMoon,
 } from 'react-icons/fa';
 
-// ── Shift config ──────────────────────────────────────────────────────────────
+// Mirrors AdminDashboard's getAccountStatus — status field wins, then fall back to flags
+const getAccountStatus = (m) => {
+    if (m.status) return m.status;
+    if (!m.isVerified && !m.isActive) return 'pending';
+    if (m.isActive) return 'active';
+    return 'deactivated';
+};
 const SHIFTS = [
     { key: 'morning',   label: 'Morning',   time: '6:00 AM – 2:00 PM',  icon: <FaSun />,       bg: '#fff8e1', border: '#ffc107', text: '#7c5a00' },
     { key: 'afternoon', label: 'Afternoon', time: '2:00 PM – 10:00 PM', icon: <FaCloudSun />,  bg: '#e8f5e9', border: '#28a745', text: '#155e27' },
@@ -30,7 +36,9 @@ const StaffRosterTab = ({ staff = [], onRefresh }) => {
     });
 
     const activeStaff = useMemo(
-        () => staff.filter(m => m.isActive).map((m, idx) => ({ ...m, shift: getShift(idx) })),
+        () => staff
+            .filter(m => getAccountStatus(m) === 'active')
+            .map((m, idx) => ({ ...m, shift: getShift(idx) })),
         [staff]
     );
 

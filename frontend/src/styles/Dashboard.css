@@ -578,6 +578,12 @@ body {
 .status.verified   { background: #E8F4FD; color: #1565C0; }
 .status.completed  { background: #E8EAF6; color: #3949AB; }
 .status.warning    { background: #fff8e1; color: #7c5a00; }
+/* Staff multi-status — must match the 7 values set by AdminDashboard */
+.status.restricted  { background: #FFF3E0; color: #E65100; }
+.status.suspended   { background: #FFF3CD; color: #856404; }
+.status.on_leave    { background: #E8F4FD; color: #1565C0; }
+.status.terminated  { background: #F3F4F6; color: #4B5563; }
+.status.deactivated { background: #FFF0F0; color: #C0392B; }
 
 .badge-custom {
   display: inline-block;

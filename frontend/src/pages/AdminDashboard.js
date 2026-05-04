@@ -30,7 +30,7 @@ const API_BASE_URL =
 const NOTIF_TYPES = {
     booking: { color: '#17a2b8', icon: <FaCalendarAlt />, label: 'Booking', section: 'booking' },
     donation: { color: '#28a745', icon: <FaMoneyBillWave />, label: 'Donation', section: 'donation' },
-    personnel: { color: '#b85c2d', icon: <FaUsers />, label: 'Personnel', section: 'roster' },
+    personnel: { color: '#b85c2d', icon: <FaUsers />, label: 'Personnel', section: 'staff' },
     inventory: { color: '#dc3545', icon: <FaExclamationTriangle />, label: 'Inventory', section: 'inventory' },
     system: { color: '#6c757d', icon: <FaInfoCircle />, label: 'System', section: null },
 };
@@ -413,23 +413,86 @@ const AdminDashboard = () => {
     };
 
     useEffect(() => {
+        // ── Booking events ────────────────────────────────────────────────────
         const handleNewBooking = (booking) => {
             setBookings(prev => [booking, ...prev]);
             setStats(p => ({ ...p, pendingBookings: p.pendingBookings + 1 }));
         };
+        const handleUpdateBooking = (updated) => {
+            setBookings(prev => prev.map(b => b._id === updated._id ? { ...b, ...updated } : b));
+            // Recalculate pending count from current list after update
+            setStats(p => ({
+                ...p,
+                pendingBookings: Math.max(0,
+                    updated.status !== 'pending' ? p.pendingBookings - 1 : p.pendingBookings
+                ),
+            }));
+        };
+        const handleDeleteBooking = (id) => {
+            setBookings(prev => {
+                const removed = prev.find(b => b._id === id);
+                if (removed?.status === 'pending') {
+                    setStats(p => ({ ...p, pendingBookings: Math.max(0, p.pendingBookings - 1) }));
+                }
+                return prev.filter(b => b._id !== id);
+            });
+        };
+
+        // ── Staff events ──────────────────────────────────────────────────────
+        const handleStaffStatusUpdated = (updated) => {
+            setStaff(prev => prev.map(m =>
+                m._id === updated._id ? { ...m, ...updated } : m
+            ));
+            // Keep active staff count in sync
+            setStats(p => ({
+                ...p,
+                activeStaff: updated.status === 'active'
+                    ? p.activeStaff + 1
+                    : Math.max(0, p.activeStaff - 1),
+            }));
+        };
+        const handleStaffListUpdated = () => { fetchStaffList(); };
+
+        // ── Inventory events ──────────────────────────────────────────────────
         const handleStockRequest = (req) => {
             setStockRequests(prev => [req, ...prev]);
         };
-        const handleInventoryUpdate = () => { fetchApi('/admin/inventory?limit=500').then(d => { if (d.success) setInventory(d.data || []); }); };
+        const handleInventoryUpdate = () => {
+            fetchApi('/admin/inventory?limit=500').then(d => {
+                if (d.success) {
+                    const fresh = d.data || [];
+                    setInventory(fresh);
+                    setStats(p => ({
+                        ...p,
+                        lowStockItems: fresh.filter(i => i.quantity <= (i.minThreshold || 10)).length,
+                    }));
+                }
+            });
+        };
 
-        on('new_booking', handleNewBooking);
-        on('stock_request', handleStockRequest);
-        on('inventory_update', handleInventoryUpdate);
+        // ── Stats broadcast (server-pushed totals) ────────────────────────────
+        const handleStatsUpdated = (data) => {
+            setStats(p => ({ ...p, ...data }));
+        };
+
+        on('new_booking',          handleNewBooking);
+        on('update_booking',       handleUpdateBooking);
+        on('delete_booking',       handleDeleteBooking);
+        on('staff_status_updated', handleStaffStatusUpdated);
+        on('staff_list_updated',   handleStaffListUpdated);
+        on('stock_request',        handleStockRequest);
+        on('inventory_update',     handleInventoryUpdate);
+        on('stats_updated',        handleStatsUpdated);
 
         return () => {
-            off('new_booking', handleNewBooking);
-            off('stock_request', handleStockRequest);
-            off('inventory_update', handleInventoryUpdate);
+            off('new_booking',          handleNewBooking);
+            off('update_booking',       handleUpdateBooking);
+            off('delete_booking',       handleDeleteBooking);
+            off('staff_status_updated', handleStaffStatusUpdated);
+            off('staff_list_updated',   handleStaffListUpdated);
+            off('stock_request',        handleStockRequest);
+            off('inventory_update',     handleInventoryUpdate);
+            off('stats_updated',        handleStatsUpdated);
         };
     }, [on, off]);
 
@@ -571,6 +634,7 @@ const AdminDashboard = () => {
         if (dRes.success) setDonations(dRes.data || []);
         if (sRes.success && sRes.data) setStats(p => ({ ...p, ...sRes.data }));
         if (iRes.success) setInventory(iRes.data || []);
+        await fetchStaffList();
         setLoading(false);
     };
 
@@ -771,11 +835,12 @@ const AdminDashboard = () => {
                 method: 'PUT',
                 body: JSON.stringify({ status: newStatus, reason })
             });
-            
-            await fetchApi(`/admin/staff/${userId}/action-log`, {
+
+            // Fire-and-forget — action-log endpoint may not exist yet; never block the main action
+            fetchApi(`/admin/staff/${userId}/action-log`, {
                 method: 'POST',
                 body: JSON.stringify({ action, reason, effectiveDate, notes, performedBy: user._id, newStatus })
-            });
+            }).catch(() => {});
             
             setStaff(staff.map(m => 
                 m._id === userId 
@@ -808,11 +873,12 @@ const AdminDashboard = () => {
                         method: 'PUT',
                         body: JSON.stringify({ status: 'active' })
                     });
-                    
-                    await fetchApi(`/admin/staff/${userId}/action-log`, {
+
+                    // Fire-and-forget
+                    fetchApi(`/admin/staff/${userId}/action-log`, {
                         method: 'POST',
                         body: JSON.stringify({ action: 'reactivate', reason: 'Account reactivated', performedBy: user._id, newStatus: 'active' })
-                    });
+                    }).catch(() => {});
                     
                     setStaff(staff.map(m => m._id === userId ? { ...m, isActive: true, status: 'active' } : m));
                     toast(`${userName} has been reactivated.`);
@@ -847,6 +913,7 @@ const AdminDashboard = () => {
 
     const updateBookingStatus = async (id, status, rejectionReason = '') => {
         const booking = bookings.find(b => b._id === id);
+        const prevStatus = booking?.status;
         const actionLabel = status === 'approved' ? 'Approve' : status === 'rejected' ? 'Reject' : 'Complete';
 
         showConfirm(
@@ -854,13 +921,22 @@ const AdminDashboard = () => {
             `Are you sure you want to ${actionLabel.toLowerCase()} the booking for "${booking?.name}"?${status === 'rejected' ? '\n\nThe visitor will be notified via email.' : ''}`,
             async () => {
                 closeConfirm();
-                setBookings(bookings.map(b => b._id === id ? { ...b, status } : b));
-                await fetchApi(`/bookings/${id}/status`, {
+                // Optimistic update
+                setBookings(prev => prev.map(b => b._id === id ? { ...b, status } : b));
+                if (prevStatus === 'pending' && status !== 'pending') {
+                    setStats(p => ({ ...p, pendingBookings: Math.max(0, p.pendingBookings - 1) }));
+                }
+                const res = await fetchApi(`/bookings/${id}/status`, {
                     method: 'PUT', body: JSON.stringify({ status, rejectionReason })
                 });
-
-                if (status !== 'pending') {
-                    setStats(p => ({ ...p, pendingBookings: Math.max(0, p.pendingBookings - 1) }));
+                if (!res.success) {
+                    // Rollback
+                    setBookings(prev => prev.map(b => b._id === id ? { ...b, status: prevStatus } : b));
+                    if (prevStatus === 'pending' && status !== 'pending') {
+                        setStats(p => ({ ...p, pendingBookings: p.pendingBookings + 1 }));
+                    }
+                    toast('Failed to update booking status.', 'error');
+                    return;
                 }
                 toast(`Booking ${actionLabel.toLowerCase()}d successfully.`);
             },
@@ -884,15 +960,23 @@ const AdminDashboard = () => {
 
     const updateDonationStatus = async (id, paymentStatus) => {
         const donation = donations.find(d => d._id === id);
+        const prevStatus = donation?.paymentStatus;
         showConfirm(
             'Update Donation Status',
             `Mark donation from "${donation?.donorName}" (₱${donation?.amount?.toLocaleString()}) as ${paymentStatus}?`,
             async () => {
                 closeConfirm();
-                setDonations(donations.map(d => d._id === id ? { ...d, paymentStatus } : d));
-                await fetchApi(`/donations/${id}/payment`, {
+                // Optimistic update
+                setDonations(prev => prev.map(d => d._id === id ? { ...d, paymentStatus } : d));
+                const res = await fetchApi(`/donations/${id}/payment`, {
                     method: 'PUT', body: JSON.stringify({ paymentStatus })
                 });
+                if (!res.success) {
+                    // Rollback
+                    setDonations(prev => prev.map(d => d._id === id ? { ...d, paymentStatus: prevStatus } : d));
+                    toast('Failed to update donation status.', 'error');
+                    return;
+                }
                 toast(`Donation marked as ${paymentStatus}.`);
             },
             false,
@@ -2083,6 +2167,7 @@ const AdminDashboard = () => {
                             <option value="pending">Pending</option>
                             <option value="approved">Approved</option>
                             <option value="rejected">Rejected</option>
+                            <option value="cancelled">Cancelled</option>
                             <option value="completed">Completed</option>
                         </select>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
