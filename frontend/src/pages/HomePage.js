@@ -18,7 +18,7 @@ import '../styles/HomePage.css';
 const HomePage = () => {
   const [showStaffLogin, setShowStaffLogin] = useState(false);
   const [keySequence, setKeySequence] = useState([]);
-  
+
   //Staff secret code keyboard
   const secretCode = ['s', 't', 'a', 'f', 'f'];
   const [keyPressed, setKeyPressed] = useState({});
@@ -26,15 +26,15 @@ const HomePage = () => {
   useEffect(() => {
     const handleKeySequence = (e) => {
       const key = e.key.toLowerCase();
-      
+
       const newSequence = [...keySequence, key];
-      
+
       if (newSequence.length > secretCode.length) {
         newSequence.shift();
       }
-      
+
       setKeySequence(newSequence);
-      
+
       if (newSequence.join('') === secretCode.join('')) {
         setShowStaffLogin(true);
         console.log('Staff login revealed!');
@@ -43,9 +43,9 @@ const HomePage = () => {
     };
 
     const handleKeyCombination = (e) => {
-      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'l') {
-        e.preventDefault(); 
-        setShowStaffLogin(prev => !prev); 
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        setShowStaffLogin(prev => !prev);
       }
     };
 
@@ -58,7 +58,7 @@ const HomePage = () => {
       window.removeEventListener('keydown', handleKeySequence);
       window.removeEventListener('keydown', handleKeyCombination);
     };
-  }, [keySequence, secretCode]); 
+  }, [keySequence, secretCode]);
   const handleSecretAreaClick = () => {
     setShowStaffLogin(true);
   };
@@ -94,8 +94,8 @@ const HomePage = () => {
     <div className="home-page">
 
       {!showStaffLogin && (
-        <div 
-          style={{ display: 'none' }} 
+        <div
+          style={{ display: 'none' }}
           onClick={handleSecretAreaClick}
         />
       )}
@@ -141,7 +141,7 @@ const HomePage = () => {
         </Container>
       </section>
 
-      
+
       <section className="intro-section">
         <Container className="text-center">
           <h3>Welcome to</h3>
