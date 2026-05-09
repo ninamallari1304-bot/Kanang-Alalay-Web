@@ -34,6 +34,7 @@ router.get('/profile', protect, async (req, res) => {
     }
 });
 
+// ── Login — modified to handle first-login OTP flow ──────────────────────────
 router.post('/login', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -48,7 +49,42 @@ router.post('/login', async (req, res) => {
             return res.status(401).json({ success: false, message: 'Invalid credentials.' });
         }
 
-        // Block unverified / pending accounts — redirect to OTP flow
+        // ── NEW: First-login flow — send OTP, do NOT issue JWT yet ────────
+        if (user.isFirstLogin) {
+            const otp = Math.floor(100000 + Math.random() * 900000).toString();
+            user.verificationOtp        = otp;
+            user.verificationOtpExpires = new Date(Date.now() + 10 * 60 * 1000);
+            user.lastOtpSentAt          = new Date();
+            await user.save();
+
+            const otpHtml = `
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#f5f5f5">
+  <div style="max-width:440px;margin:32px auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">
+    <div style="background:linear-gradient(135deg,#b85c2d,#d94e1b);padding:22px 28px">
+      <h2 style="margin:0;color:#fff;font-size:1.2rem">Verify Your Identity</h2>
+    </div>
+    <div style="padding:28px;text-align:center">
+      <p style="color:#444;margin:0 0 20px">Enter this code to complete your first login to Kanang-Alalay.</p>
+      <div style="font-size:2.6rem;font-weight:900;font-family:monospace;letter-spacing:12px;color:#d94e1b;margin:20px 0;padding:16px;background:#fff8e1;border-radius:10px;border:2px solid #f96b38">${otp}</div>
+      <p style="color:#888;font-size:.82rem;margin:0">⏱ Expires in 10 minutes &nbsp;·&nbsp; Do not share this code</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+            try {
+                await sendEmail(user.email, 'Your Kanang-Alalay Verification Code', otpHtml);
+            } catch (mailErr) {
+                console.error('OTP email error:', mailErr.message);
+            }
+
+            return res.json({ success: true, requiresOTP: true, userId: user._id });
+        }
+        // ─────────────────────────────────────────────────────────────────
+
+        // Block unverified / pending accounts
         if (!user.isVerified || !user.isActive || user.status === 'pending') {
             return res.status(401).json({
                 success: false,
@@ -57,7 +93,7 @@ router.post('/login', async (req, res) => {
             });
         }
 
-        // Block accounts by status — return status + reason so UI shows the right banner
+        // Block accounts by status
         const BLOCKED_STATUSES = ['restricted', 'suspended', 'deactivated', 'on_leave', 'terminated'];
         if (BLOCKED_STATUSES.includes(user.status)) {
             return res.status(403).json({
@@ -107,6 +143,135 @@ router.post('/login', async (req, res) => {
         res.status(500).json({ success: false, message: 'Server error during login' });
     }
 });
+
+// ── NEW: Verify OTP for first-login users, returns JWT ───────────────────────
+router.post('/verify-first-login', async (req, res) => {
+    try {
+        const { userId, otp } = req.body;
+        if (!userId || !otp) {
+            return res.status(400).json({ success: false, message: 'userId and otp are required.' });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+
+        if (user.verificationOtp !== otp) {
+            return res.status(400).json({ success: false, message: 'Invalid OTP.' });
+        }
+        if (!user.verificationOtpExpires || user.verificationOtpExpires < new Date()) {
+            return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
+        }
+
+        // Block web-only roles from first-login via web
+        const WEB_ALLOWED_ROLES = ['admin', 'head_caregiver'];
+        if (!WEB_ALLOWED_ROLES.includes(user.role)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Web access is not available for your role. Please use the mobile app.',
+                accountStatus: 'role_blocked'
+            });
+        }
+
+        user.isVerified            = true;
+        user.isActive              = true;
+        user.status                = 'active';
+        user.verificationOtp       = undefined;
+        user.verificationOtpExpires = undefined;
+        await user.save();
+
+        const token = jwt.sign(
+            {
+                userId: user._id,
+                role: user.role,
+                username: user.username,
+                email: user.email,
+                needsProfileUpdate: true
+            },
+            process.env.JWT_SECRET || 'fallback_secret',
+            { expiresIn: '24h' }
+        );
+
+        res.json({
+            success: true,
+            token,
+            needsProfileUpdate: user.needsProfileUpdate,
+            user: {
+                id: user._id,
+                staffId: user.staffId,
+                username: user.username,
+                email: user.email,
+                role: user.role,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                middleName: user.middleName,
+                phone: user.phone,
+                shift: user.shift,
+                assignedFloor: user.assignedFloor,
+                assignedRoom:  user.assignedRoom,
+            }
+        });
+    } catch (error) {
+        console.error('Verify first login error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// ── NEW: Update profile after first login ────────────────────────────────────
+router.put('/update-profile', protect, async (req, res) => {
+    try {
+        const { firstName, lastName, phone, address, shift, assignedFloor, assignedRoom, newPassword } = req.body;
+
+        const user = await User.findById(req.user._id);
+        if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+
+        if (firstName)       user.firstName = firstName.trim();
+        if (lastName)        user.lastName  = lastName.trim();
+        if (phone !== undefined) user.phone = phone.trim();
+        if (address)         user.address   = { ...user.address, ...address };
+        if (shift)           user.shift     = shift;
+        if (assignedFloor !== undefined) user.assignedFloor = assignedFloor;
+        if (assignedRoom  !== undefined) user.assignedRoom  = assignedRoom;
+
+        if (newPassword) {
+            if (newPassword.length < 8) {
+                return res.status(400).json({ success: false, message: 'Password must be at least 8 characters.' });
+            }
+            user.password = newPassword; // pre-save hook hashes it
+        }
+
+        user.isFirstLogin        = false;
+        user.needsProfileUpdate  = false;
+        user.temporaryPassword   = undefined;
+        user.tempPasswordExpires = undefined;
+
+        await user.save();
+
+        res.json({
+            success: true,
+            message: 'Profile updated successfully.',
+            user: {
+                id: user._id,
+                staffId: user.staffId,
+                username: user.username,
+                email: user.email,
+                role: user.role,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                middleName: user.middleName,
+                phone: user.phone,
+                department: user.department,
+                shift: user.shift,
+                assignedFloor: user.assignedFloor,
+                assignedRoom:  user.assignedRoom,
+            }
+        });
+    } catch (error) {
+        console.error('Update profile error:', error);
+        res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+    }
+});
+
+// ── Existing routes below — unchanged ────────────────────────────────────────
 
 router.post('/validate-code', async (req, res) => {
     try {
@@ -246,19 +411,53 @@ router.post('/send-otp', async (req, res) => {
     }
 });
 
+// ── Resend OTP — updated to support first-login cooldown ─────────────────────
 router.post('/resend-otp', async (req, res) => {
     try {
         const { userId } = req.body;
         const user = await User.findById(userId);
         if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
 
+        // 60-second cooldown for first-login OTP resends
+        if (user.isFirstLogin && user.lastOtpSentAt) {
+            const secondsSince = (Date.now() - new Date(user.lastOtpSentAt)) / 1000;
+            if (secondsSince < 60) {
+                return res.status(429).json({
+                    success: false,
+                    message: `Please wait ${Math.ceil(60 - secondsSince)} seconds before requesting another OTP.`
+                });
+            }
+        }
+
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-        user.otpCode = otpCode;
-        user.otpExpires = new Date(Date.now() + 15 * 60 * 1000);
+
+        // Update both verificationOtp (first-login flow) and otpCode (legacy flow)
+        user.verificationOtp        = otpCode;
+        user.verificationOtpExpires = new Date(Date.now() + 10 * 60 * 1000);
+        user.otpCode    = otpCode;
+        user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+        user.lastOtpSentAt = new Date();
         await user.save();
 
+        const otpHtml = `
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#f5f5f5">
+  <div style="max-width:440px;margin:32px auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">
+    <div style="background:linear-gradient(135deg,#b85c2d,#d94e1b);padding:22px 28px">
+      <h2 style="margin:0;color:#fff;font-size:1.2rem">New Verification Code</h2>
+    </div>
+    <div style="padding:28px;text-align:center">
+      <p style="color:#444;margin:0 0 20px">Your new Kanang-Alalay OTP:</p>
+      <div style="font-size:2.6rem;font-weight:900;font-family:monospace;letter-spacing:12px;color:#d94e1b;margin:20px 0;padding:16px;background:#fff8e1;border-radius:10px;border:2px solid #f96b38">${otpCode}</div>
+      <p style="color:#888;font-size:.82rem;margin:0">⏱ Expires in 10 minutes &nbsp;·&nbsp; Do not share this code</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
         try {
-            await sendEmail(user.email, 'Your new Kanang-Alalay OTP', generateOtpTemplate(otpCode));
+            await sendEmail(user.email, 'Your new Kanang-Alalay OTP', otpHtml);
         } catch (mailError) {
             console.error('Email error:', mailError.message);
         }
@@ -276,17 +475,22 @@ router.post('/verify-otp', async (req, res) => {
         const user = await User.findById(userId);
         if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
 
-        if (user.otpCode !== otp) {
+        // Support both legacy otpCode and new verificationOtp
+        const validOtp = user.otpCode === otp || user.verificationOtp === otp;
+        if (!validOtp) {
             return res.status(400).json({ success: false, message: 'Invalid OTP.' });
         }
-        if (user.otpExpires < new Date()) {
+
+        const isExpired = (user.otpExpires && user.otpExpires < new Date()) &&
+                          (user.verificationOtpExpires && user.verificationOtpExpires < new Date());
+        if (isExpired) {
             return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
         }
 
-        user.otpCode = undefined;
+        user.otpCode    = undefined;
         user.otpExpires = undefined;
         user.isVerified = true;
-        user.isActive = true;
+        user.isActive   = true;
         await user.save();
 
         res.json({ success: true, message: 'Account activated successfully. You can now log in.' });
@@ -319,8 +523,6 @@ router.post('/forgot-password', async (req, res) => {
         try {
             await sendEmail(email, 'Reset your Kanang-Alalay Password', generateOtpTemplate(otpCode));
         } catch (mailError) {
-            // Log but do NOT return error — OTP is already saved in DB and visible in
-            // server logs. Blocking here breaks the flow and leaks email existence.
             console.error('Email send FAILED (OTP still saved in DB):', mailError.message);
         }
 
@@ -351,8 +553,6 @@ router.post('/verify-reset-otp', async (req, res) => {
             return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
         }
 
-        // Mark OTP as verified by extending expiry to a short window (5 min) so
-        // reset-password-with-otp can still use it, but it won't be reusable later.
         user.resetPasswordOtpExpires = new Date(Date.now() + 5 * 60 * 1000);
         await user.save();
 
@@ -386,9 +586,7 @@ router.post('/reset-password-with-otp', async (req, res) => {
             return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
         }
 
-        // Set new password — pre-save hook in User model will hash it
         user.password = password;
-        // Clear all reset OTP fields so they can't be reused
         user.resetPasswordOtp = undefined;
         user.resetPasswordOtpExpires = undefined;
         await user.save();
@@ -437,10 +635,7 @@ router.get('/verify-email/:token', async (req, res) => {
         });
 
         if (!user) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid or expired verification link'
-            });
+            return res.status(400).json({ success: false, message: 'Invalid or expired verification link' });
         }
 
         user.isEmailVerified = true;

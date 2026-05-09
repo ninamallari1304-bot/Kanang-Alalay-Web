@@ -60,6 +60,15 @@ const userSchema = new mongoose.Schema({
     verificationOtpExpires: { type: Date },
     resetOtp: { type: String },
     resetOtpExpires: { type: Date },
+
+    assignedFloor:       { type: String, default: '' },
+    assignedRoom:        { type: String, default: '' },
+    temporaryPassword:   { type: String },
+    tempPasswordExpires: { type: Date },
+    isFirstLogin:        { type: Boolean, default: false },
+    needsProfileUpdate:  { type: Boolean, default: false },
+    lastOtpSentAt:       { type: Date },
+
 }, { timestamps: true });
 
 userSchema.pre('save', async function() {

@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import OTPVerificationModal from '../components/OTPVerificationModal';
+import ProfileUpdateModal from '../components/ProfileUpdateModal';
 
 const AuthContext = createContext(null);
 
@@ -16,11 +18,18 @@ const getApiBaseUrl = () => {
 const API_BASE_URL = getApiBaseUrl();
 
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [user, setUser]                   = useState(null);
+    const [loading, setLoading]             = useState(true);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-    // Only restore session if we're NOT on the login page
+    // ── First-login flow state ────────────────────────────────────────────
+    const [showOTPModal, setShowOTPModal]         = useState(false);
+    const [showProfileModal, setShowProfileModal] = useState(false);
+    const [pendingUserId, setPendingUserId]       = useState(null);
+    const [pendingToken, setPendingToken]         = useState(null);
+    const [pendingUser, setPendingUser]           = useState(null);
+    // ─────────────────────────────────────────────────────────────────────
+
     const restoreSession = async (skipValidation = false) => {
         const token = localStorage.getItem('token');
         const storedUser = localStorage.getItem('user');
@@ -30,7 +39,6 @@ export const AuthProvider = ({ children }) => {
             return false;
         }
 
-        // Skip validation when coming from login page (optional parameter)
         if (skipValidation) {
             setLoading(false);
             return false;
@@ -53,15 +61,11 @@ export const AuthProvider = ({ children }) => {
             return false;
         }
 
-        console.log('Auth restoreSession:', { tokenExists: Boolean(token), storedUserRole: parsed.role });
-
         try {
             const res = await fetch(`${API_BASE_URL}/auth/validate-token`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
-            console.log('validate-token response status:', res.status);
             const data = await res.json();
-            console.log('validate-token response body:', data);
 
             if (!res.ok || !data.success) {
                 localStorage.removeItem('token');
@@ -84,7 +88,6 @@ export const AuthProvider = ({ children }) => {
     };
 
     useEffect(() => {
-        // Only auto-restore if we're not explicitly told to skip
         restoreSession(false);
     }, []);
 
@@ -107,10 +110,19 @@ export const AuthProvider = ({ children }) => {
             };
         }
 
+        // ── First-login: open OTP modal instead of storing token ──────────
+        if (data.requiresOTP) {
+            setPendingUserId(data.userId);
+            setShowOTPModal(true);
+            return { success: false, requiresOTP: true, userId: data.userId };
+        }
+        // ─────────────────────────────────────────────────────────────────
+
         if (!WEB_ALLOWED_ROLES.includes(data.user?.role)) {
             return {
                 success: false,
                 message: 'Access restricted. This account is for mobile app use only.',
+                accountStatus: 'role_blocked',
             };
         }
 
@@ -120,6 +132,40 @@ export const AuthProvider = ({ children }) => {
         setIsAuthenticated(true);
         return { success: true, user: data.user };
     }, []);
+
+    // Called by OTPVerificationModal on successful OTP verify
+    const handleOTPVerified = useCallback((data) => {
+        // data = { token, user, needsProfileUpdate }
+        setShowOTPModal(false);
+        setPendingToken(data.token);
+        setPendingUser(data.user);
+
+        if (data.needsProfileUpdate) {
+            setShowProfileModal(true);
+        } else {
+            // No profile update needed — log them in immediately
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('user', JSON.stringify(data.user));
+            setUser(data.user);
+            setIsAuthenticated(true);
+            setPendingToken(null);
+            setPendingUser(null);
+            setPendingUserId(null);
+        }
+    }, []);
+
+    // Called by ProfileUpdateModal on successful profile save
+    const handleProfileComplete = useCallback((updatedUser) => {
+        setShowProfileModal(false);
+        const tok = pendingToken;
+        localStorage.setItem('token', tok);
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        setUser(updatedUser);
+        setIsAuthenticated(true);
+        setPendingToken(null);
+        setPendingUser(null);
+        setPendingUserId(null);
+    }, [pendingToken]);
 
     const logout = useCallback(() => {
         localStorage.removeItem('token');
@@ -137,26 +183,44 @@ export const AuthProvider = ({ children }) => {
 
     const getHomeRoute = useCallback((role) => {
         switch ((role || '').toLowerCase()) {
-            case 'admin':
-                return '/admin';
-            case 'head_caregiver':
-                return '/head-caregiver';
-            default:
-                return '/login';
+            case 'admin':         return '/admin';
+            case 'head_caregiver': return '/head-caregiver';
+            default:              return '/login';
         }
     }, []);
 
     return (
-        <AuthContext.Provider value={{ 
-            user, 
-            loading, 
+        <AuthContext.Provider value={{
+            user,
+            loading,
             isAuthenticated,
-            login, 
-            logout, 
+            login,
+            logout,
             clearSession,
-            getHomeRoute 
+            getHomeRoute,
         }}>
             {children}
+
+            {/* First-login OTP verification modal */}
+            <OTPVerificationModal
+                isOpen={showOTPModal}
+                userId={pendingUserId}
+                onClose={() => {
+                    setShowOTPModal(false);
+                    setPendingUserId(null);
+                }}
+                onVerified={handleOTPVerified}
+            />
+
+            {/* Mandatory profile update modal */}
+            {showProfileModal && pendingUser && pendingToken && (
+                <ProfileUpdateModal
+                    isOpen={showProfileModal}
+                    user={pendingUser}
+                    token={pendingToken}
+                    onComplete={handleProfileComplete}
+                />
+            )}
         </AuthContext.Provider>
     );
 };
