@@ -34,7 +34,6 @@ router.get('/profile', protect, async (req, res) => {
     }
 });
 
-// ── Login — modified to handle first-login OTP flow ──────────────────────────
 router.post('/login', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -49,12 +48,11 @@ router.post('/login', async (req, res) => {
             return res.status(401).json({ success: false, message: 'Invalid credentials.' });
         }
 
-        // ── NEW: First-login flow — send OTP, do NOT issue JWT yet ────────
         if (user.isFirstLogin) {
             const otp = Math.floor(100000 + Math.random() * 900000).toString();
-            user.verificationOtp        = otp;
+            user.verificationOtp = otp;
             user.verificationOtpExpires = new Date(Date.now() + 10 * 60 * 1000);
-            user.lastOtpSentAt          = new Date();
+            user.lastOtpSentAt = new Date();
             await user.save();
 
             const otpHtml = `
@@ -68,7 +66,7 @@ router.post('/login', async (req, res) => {
     <div style="padding:28px;text-align:center">
       <p style="color:#444;margin:0 0 20px">Enter this code to complete your first login to Kanang-Alalay.</p>
       <div style="font-size:2.6rem;font-weight:900;font-family:monospace;letter-spacing:12px;color:#d94e1b;margin:20px 0;padding:16px;background:#fff8e1;border-radius:10px;border:2px solid #f96b38">${otp}</div>
-      <p style="color:#888;font-size:.82rem;margin:0">⏱ Expires in 10 minutes &nbsp;·&nbsp; Do not share this code</p>
+      <p style="color:#888;font-size:.82rem;margin:0">Expires in 10 minutes &nbsp; Do not share this code</p>
     </div>
   </div>
 </body>
@@ -82,9 +80,7 @@ router.post('/login', async (req, res) => {
 
             return res.json({ success: true, requiresOTP: true, userId: user._id });
         }
-        // ─────────────────────────────────────────────────────────────────
 
-        // Block unverified / pending accounts
         if (!user.isVerified || !user.isActive || user.status === 'pending') {
             return res.status(401).json({
                 success: false,
@@ -93,7 +89,6 @@ router.post('/login', async (req, res) => {
             });
         }
 
-        // Block accounts by status
         const BLOCKED_STATUSES = ['restricted', 'suspended', 'deactivated', 'on_leave', 'terminated'];
         if (BLOCKED_STATUSES.includes(user.status)) {
             return res.status(403).json({
@@ -104,7 +99,6 @@ router.post('/login', async (req, res) => {
             });
         }
 
-        // Block caregiver role — web app is admin / head_caregiver only
         const WEB_ALLOWED_ROLES = ['admin', 'head_caregiver'];
         if (!WEB_ALLOWED_ROLES.includes(user.role)) {
             return res.status(403).json({
@@ -144,7 +138,6 @@ router.post('/login', async (req, res) => {
     }
 });
 
-// ── NEW: Verify OTP for first-login users, returns JWT ───────────────────────
 router.post('/verify-first-login', async (req, res) => {
     try {
         const { userId, otp } = req.body;
@@ -162,7 +155,6 @@ router.post('/verify-first-login', async (req, res) => {
             return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
         }
 
-        // Block web-only roles from first-login via web
         const WEB_ALLOWED_ROLES = ['admin', 'head_caregiver'];
         if (!WEB_ALLOWED_ROLES.includes(user.role)) {
             return res.status(403).json({
@@ -172,10 +164,10 @@ router.post('/verify-first-login', async (req, res) => {
             });
         }
 
-        user.isVerified            = true;
-        user.isActive              = true;
-        user.status                = 'active';
-        user.verificationOtp       = undefined;
+        user.isVerified = true;
+        user.isActive = true;
+        user.status = 'active';
+        user.verificationOtp = undefined;
         user.verificationOtpExpires = undefined;
         await user.save();
 
@@ -185,7 +177,7 @@ router.post('/verify-first-login', async (req, res) => {
                 role: user.role,
                 username: user.username,
                 email: user.email,
-                needsProfileUpdate: true
+                needsProfileUpdate: user.needsProfileUpdate
             },
             process.env.JWT_SECRET || 'fallback_secret',
             { expiresIn: '24h' }
@@ -207,7 +199,7 @@ router.post('/verify-first-login', async (req, res) => {
                 phone: user.phone,
                 shift: user.shift,
                 assignedFloor: user.assignedFloor,
-                assignedRoom:  user.assignedRoom,
+                assignedRoom: user.assignedRoom,
             }
         });
     } catch (error) {
@@ -215,63 +207,6 @@ router.post('/verify-first-login', async (req, res) => {
         res.status(500).json({ success: false, message: 'Server error' });
     }
 });
-
-// ── NEW: Update profile after first login ────────────────────────────────────
-router.put('/update-profile', protect, async (req, res) => {
-    try {
-        const { firstName, lastName, phone, address, shift, assignedFloor, assignedRoom, newPassword } = req.body;
-
-        const user = await User.findById(req.user._id);
-        if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
-
-        if (firstName)       user.firstName = firstName.trim();
-        if (lastName)        user.lastName  = lastName.trim();
-        if (phone !== undefined) user.phone = phone.trim();
-        if (address)         user.address   = { ...user.address, ...address };
-        if (shift)           user.shift     = shift;
-        if (assignedFloor !== undefined) user.assignedFloor = assignedFloor;
-        if (assignedRoom  !== undefined) user.assignedRoom  = assignedRoom;
-
-        if (newPassword) {
-            if (newPassword.length < 8) {
-                return res.status(400).json({ success: false, message: 'Password must be at least 8 characters.' });
-            }
-            user.password = newPassword; // pre-save hook hashes it
-        }
-
-        user.isFirstLogin        = false;
-        user.needsProfileUpdate  = false;
-        user.temporaryPassword   = undefined;
-        user.tempPasswordExpires = undefined;
-
-        await user.save();
-
-        res.json({
-            success: true,
-            message: 'Profile updated successfully.',
-            user: {
-                id: user._id,
-                staffId: user.staffId,
-                username: user.username,
-                email: user.email,
-                role: user.role,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                middleName: user.middleName,
-                phone: user.phone,
-                department: user.department,
-                shift: user.shift,
-                assignedFloor: user.assignedFloor,
-                assignedRoom:  user.assignedRoom,
-            }
-        });
-    } catch (error) {
-        console.error('Update profile error:', error);
-        res.status(500).json({ success: false, message: 'Server error: ' + error.message });
-    }
-});
-
-// ── Existing routes below — unchanged ────────────────────────────────────────
 
 router.post('/validate-code', async (req, res) => {
     try {
@@ -411,14 +346,12 @@ router.post('/send-otp', async (req, res) => {
     }
 });
 
-// ── Resend OTP — updated to support first-login cooldown ─────────────────────
 router.post('/resend-otp', async (req, res) => {
     try {
         const { userId } = req.body;
         const user = await User.findById(userId);
         if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
 
-        // 60-second cooldown for first-login OTP resends
         if (user.isFirstLogin && user.lastOtpSentAt) {
             const secondsSince = (Date.now() - new Date(user.lastOtpSentAt)) / 1000;
             if (secondsSince < 60) {
@@ -431,10 +364,9 @@ router.post('/resend-otp', async (req, res) => {
 
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-        // Update both verificationOtp (first-login flow) and otpCode (legacy flow)
-        user.verificationOtp        = otpCode;
+        user.verificationOtp = otpCode;
         user.verificationOtpExpires = new Date(Date.now() + 10 * 60 * 1000);
-        user.otpCode    = otpCode;
+        user.otpCode = otpCode;
         user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
         user.lastOtpSentAt = new Date();
         await user.save();
@@ -450,7 +382,7 @@ router.post('/resend-otp', async (req, res) => {
     <div style="padding:28px;text-align:center">
       <p style="color:#444;margin:0 0 20px">Your new Kanang-Alalay OTP:</p>
       <div style="font-size:2.6rem;font-weight:900;font-family:monospace;letter-spacing:12px;color:#d94e1b;margin:20px 0;padding:16px;background:#fff8e1;border-radius:10px;border:2px solid #f96b38">${otpCode}</div>
-      <p style="color:#888;font-size:.82rem;margin:0">⏱ Expires in 10 minutes &nbsp;·&nbsp; Do not share this code</p>
+      <p style="color:#888;font-size:.82rem;margin:0">Expires in 10 minutes &nbsp; Do not share this code</p>
     </div>
   </div>
 </body>
@@ -475,7 +407,6 @@ router.post('/verify-otp', async (req, res) => {
         const user = await User.findById(userId);
         if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
 
-        // Support both legacy otpCode and new verificationOtp
         const validOtp = user.otpCode === otp || user.verificationOtp === otp;
         if (!validOtp) {
             return res.status(400).json({ success: false, message: 'Invalid OTP.' });
@@ -487,10 +418,10 @@ router.post('/verify-otp', async (req, res) => {
             return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
         }
 
-        user.otpCode    = undefined;
+        user.otpCode = undefined;
         user.otpExpires = undefined;
         user.isVerified = true;
-        user.isActive   = true;
+        user.isActive = true;
         await user.save();
 
         res.json({ success: true, message: 'Account activated successfully. You can now log in.' });

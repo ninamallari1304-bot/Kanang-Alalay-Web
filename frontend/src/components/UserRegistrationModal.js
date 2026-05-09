@@ -22,30 +22,54 @@ const UserRegistrationModal = ({ isOpen, onClose, onRegister }) => {
     const [loading, setLoading] = useState(false);
     const [apiError, setApiError] = useState('');
     const [createdId, setCreatedId] = useState('');
-    const [form, setForm] = useState({ role: 'caregiver', firstName: '', middleName: '', lastName: '', email: '', phone: '', username: '', password: '', confirmPassword: '' });
+    const [form, setForm] = useState({
+        role: 'caregiver',
+        firstName: '',
+        middleName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        shift: 'morning',
+        assignedFloor: '',
+        assignedRoom: ''
+    });
     const [errors, setErrors] = useState({});
-    const [showPwd, setShowPwd] = useState(false);
-    const [showCPwd, setShowCPwd] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
             setStep(STEP_ROLE);
-            setForm({ role: 'caregiver', firstName: '', middleName: '', lastName: '', email: '', phone: '', username: '', password: '', confirmPassword: '' });
-            setErrors({}); setApiError(''); setCreatedId('');
-            setShowPwd(false); setShowCPwd(false);
+            setForm({
+                role: 'caregiver',
+                firstName: '',
+                middleName: '',
+                lastName: '',
+                email: '',
+                phone: '',
+                shift: 'morning',
+                assignedFloor: '',
+                assignedRoom: ''
+            });
+            setErrors({});
+            setApiError('');
+            setCreatedId('');
         }
     }, [isOpen]);
 
     if (!isOpen) return null;
 
-    const set = (k, v) => { setForm(p => ({ ...p, [k]: v })); setErrors(p => ({ ...p, [k]: '' })); setApiError(''); };
+    const set = (k, v) => {
+        setForm(p => ({ ...p, [k]: v }));
+        setErrors(p => ({ ...p, [k]: '' }));
+        setApiError('');
+    };
 
     const roleObj = ROLES.find(r => r.value === form.role) || ROLES[0];
     const idPreview = form.role ? `${form.role === 'head_caregiver' ? 'HCG' : form.role === 'caregiver' ? 'CG' : form.role.toUpperCase()}-XXXX` : '—';
 
     const selectRole = (role) => {
         setForm(p => ({ ...p, role }));
-        setErrors({}); setApiError('');
+        setErrors({});
+        setApiError('');
     };
 
     const getRoleMessage = (role) => {
@@ -66,8 +90,6 @@ const UserRegistrationModal = ({ isOpen, onClose, onRegister }) => {
         if (!form.firstName.trim()) e.firstName = 'Required';
         if (!form.lastName.trim()) e.lastName = 'Required';
         if (!form.email.trim() || !/^\S+@\S+\.\S+$/.test(form.email)) e.email = 'Valid email required';
-        if (!form.password || form.password.length < 8) e.password = 'Minimum 8 characters';
-        if (form.password !== form.confirmPassword) e.confirmPassword = 'Passwords do not match';
         setErrors(e);
         return Object.keys(e).length === 0;
     };
@@ -78,26 +100,29 @@ const UserRegistrationModal = ({ isOpen, onClose, onRegister }) => {
         setLoading(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch(`${API_BASE_URL}/admin/create-user`, {
+            const res = await fetch(`${API_BASE_URL}/admin/create-user-enhanced`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token && { Authorization: `Bearer ${token}` })
+                },
                 body: JSON.stringify({
-                    firstName: form.firstName.trim(), 
-                    middleName: form.middleName.trim(), 
+                    firstName: form.firstName.trim(),
+                    middleName: form.middleName.trim(),
                     lastName: form.lastName.trim(),
-                    email: form.email.trim().toLowerCase(), 
+                    email: form.email.trim().toLowerCase(),
                     phone: form.phone.trim(),
-                    username: form.username.trim() || form.email.split('@')[0],
-                    password: form.password, 
                     role: form.role,
-                    activateImmediately: true,
+                    shift: form.shift,
+                    assignedFloor: form.assignedFloor,
+                    assignedRoom: form.assignedRoom
                 }),
             });
             const data = await res.json();
             if (!res.ok || !data.success) throw new Error(data.message || 'Registration failed');
             setCreatedId(data.staffId || '');
             setStep(STEP_DONE);
-            onRegister && onRegister(data);
+            if (onRegister) onRegister(data);
         } catch (err) {
             setApiError(err.message);
         } finally {
@@ -106,22 +131,40 @@ const UserRegistrationModal = ({ isOpen, onClose, onRegister }) => {
     };
 
     const inp = (hasErr) => ({
-        width: '100%', padding: '10px 14px',
+        width: '100%',
+        padding: '10px 14px',
         border: `1.5px solid ${hasErr ? '#dc3545' : '#E8D6CC'}`,
-        borderRadius: 10, fontSize: '.9rem',
+        borderRadius: 10,
+        fontSize: '.9rem',
         fontFamily: "'DM Sans', system-ui, sans-serif",
         background: hasErr ? '#fff8f8' : '#FFF8F3',
-        color: '#1A0A00', outline: 'none', boxSizing: 'border-box',
+        color: '#1A0A00',
+        outline: 'none',
+        boxSizing: 'border-box',
         transition: 'border-color .2s',
     });
     const lbl = (optional) => ({
-        display: 'block', marginBottom: 5, fontWeight: 600,
+        display: 'block',
+        marginBottom: 5,
+        fontWeight: 600,
         color: optional ? '#9aada8' : '#2c3e50',
-        fontSize: '.78rem', textTransform: 'uppercase', letterSpacing: '.05em',
+        fontSize: '.78rem',
+        textTransform: 'uppercase',
+        letterSpacing: '.05em',
     });
     const errTxt = { color: '#dc3545', fontSize: '.75rem', marginTop: 3, display: 'block' };
     const row2 = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 };
-    const btnBase = { fontFamily: "'DM Sans', system-ui, sans-serif", fontWeight: 600, cursor: 'pointer', borderRadius: 10, padding: '10px 20px', fontSize: '.9rem', border: '1.5px solid #E8D6CC', background: 'transparent', color: '#7A5C4E' };
+    const btnBase = {
+        fontFamily: "'DM Sans', system-ui, sans-serif",
+        fontWeight: 600,
+        cursor: 'pointer',
+        borderRadius: 10,
+        padding: '10px 20px',
+        fontSize: '.9rem',
+        border: '1.5px solid #E8D6CC',
+        background: 'transparent',
+        color: '#7A5C4E'
+    };
 
     const renderStepRole = () => (
         <div style={{ padding: '24px 28px' }}>
@@ -136,11 +179,15 @@ const UserRegistrationModal = ({ isOpen, onClose, onRegister }) => {
                             key={r.value}
                             onClick={() => selectRole(r.value)}
                             style={{
-                                padding: '16px 14px', borderRadius: 14, cursor: 'pointer',
+                                padding: '16px 14px',
+                                borderRadius: 14,
+                                cursor: 'pointer',
                                 border: `2px solid ${sel ? r.color : '#E8D6CC'}`,
                                 background: sel ? `${r.color}12` : '#FFF8F3',
                                 transition: 'all .18s',
-                                display: 'flex', flexDirection: 'column', gap: 5,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 5,
                             }}
                         >
                             <div style={{ color: r.color, fontSize: '1.3rem' }}>{r.icon}</div>
@@ -164,7 +211,15 @@ const UserRegistrationModal = ({ isOpen, onClose, onRegister }) => {
                 <button
                     onClick={() => form.role && setStep(STEP_INFO)}
                     disabled={!form.role}
-                    style={{ ...btnBase, border: 'none', background: form.role ? 'linear-gradient(135deg,#F96B38,#D94E1B)' : '#ddd', color: form.role ? '#fff' : '#aaa', cursor: form.role ? 'pointer' : 'not-allowed', fontWeight: 700, boxShadow: form.role ? '0 3px 12px rgba(249,107,56,.3)' : 'none' }}
+                    style={{
+                        ...btnBase,
+                        border: 'none',
+                        background: form.role ? 'linear-gradient(135deg,#F96B38,#D94E1B)' : '#ddd',
+                        color: form.role ? '#fff' : '#aaa',
+                        cursor: form.role ? 'pointer' : 'not-allowed',
+                        fontWeight: 700,
+                        boxShadow: form.role ? '0 3px 12px rgba(249,107,56,.3)' : 'none'
+                    }}
                 >
                     Next: Enter Details →
                 </button>
@@ -176,7 +231,7 @@ const UserRegistrationModal = ({ isOpen, onClose, onRegister }) => {
         <div style={{ padding: '22px 28px' }}>
             {apiError && (
                 <div style={{ background: '#f8d7da', color: '#721c24', padding: '11px 15px', borderRadius: 9, marginBottom: 14, borderLeft: '4px solid #dc3545', fontSize: '.86rem' }}>
-                    ⚠️ {apiError}
+                    {apiError}
                 </div>
             )}
 
@@ -219,32 +274,30 @@ const UserRegistrationModal = ({ isOpen, onClose, onRegister }) => {
                 </div>
             </div>
 
-            <div style={{ marginBottom: 14 }}>
-                <label style={lbl(true)}>Username (auto from email if blank)</label>
-                <input style={inp(false)} value={form.username} onChange={e => set('username', e.target.value)} placeholder="Leave blank to auto-generate" />
-            </div>
-
             <div style={row2}>
                 <div>
-                    <label style={lbl(false)}>Password *</label>
-                    <div style={{ position: 'relative' }}>
-                        <input type={showPwd ? 'text' : 'password'} style={{ ...inp(errors.password), paddingRight: 40 }} value={form.password} onChange={e => set('password', e.target.value)} placeholder="Min 8 characters" />
-                        <button type="button" onClick={() => setShowPwd(p => !p)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#7A5C4E', display: 'flex', alignItems: 'center' }}>
-                            {showPwd ? <FaEyeSlash /> : <FaEye />}
-                        </button>
-                    </div>
-                    {errors.password && <span style={errTxt}>{errors.password}</span>}
+                    <label style={lbl(false)}>Shift</label>
+                    <select
+                        style={{ ...inp(false), cursor: 'pointer' }}
+                        value={form.shift}
+                        onChange={e => set('shift', e.target.value)}
+                    >
+                        <option value="morning">Morning Shift (6:00 AM - 2:00 PM)</option>
+                        <option value="afternoon">Afternoon Shift (2:00 PM - 10:00 PM)</option>
+                        <option value="night">Night Shift (10:00 PM - 6:00 AM)</option>
+                        <option value="flexible">Flexible Schedule</option>
+                        <option value="rotating">Rotating Shift</option>
+                    </select>
                 </div>
                 <div>
-                    <label style={lbl(false)}>Confirm Password *</label>
-                    <div style={{ position: 'relative' }}>
-                        <input type={showCPwd ? 'text' : 'password'} style={{ ...inp(errors.confirmPassword), paddingRight: 40 }} value={form.confirmPassword} onChange={e => set('confirmPassword', e.target.value)} placeholder="Repeat password" />
-                        <button type="button" onClick={() => setShowCPwd(p => !p)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#7A5C4E', display: 'flex', alignItems: 'center' }}>
-                            {showCPwd ? <FaEyeSlash /> : <FaEye />}
-                        </button>
-                    </div>
-                    {errors.confirmPassword && <span style={errTxt}>{errors.confirmPassword}</span>}
+                    <label style={lbl(true)}>Assigned Floor</label>
+                    <input style={inp(false)} value={form.assignedFloor} onChange={e => set('assignedFloor', e.target.value)} placeholder="e.g., 2nd Floor" />
                 </div>
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+                <label style={lbl(true)}>Assigned Room</label>
+                <input style={inp(false)} value={form.assignedRoom} onChange={e => set('assignedRoom', e.target.value)} placeholder="e.g., Room 204, Ward A" />
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, paddingTop: 14, borderTop: '1.5px solid #E8D6CC', marginTop: 14 }}>
@@ -254,9 +307,17 @@ const UserRegistrationModal = ({ isOpen, onClose, onRegister }) => {
                     <button
                         onClick={handleSubmit}
                         disabled={loading}
-                        style={{ ...btnBase, border: 'none', background: loading ? '#ccc' : 'linear-gradient(135deg,#F96B38,#D94E1B)', color: '#fff', cursor: loading ? 'not-allowed' : 'pointer', fontWeight: 700, boxShadow: loading ? 'none' : '0 4px 14px rgba(249,107,56,.3)' }}
+                        style={{
+                            ...btnBase,
+                            border: 'none',
+                            background: loading ? '#ccc' : 'linear-gradient(135deg,#F96B38,#D94E1B)',
+                            color: '#fff',
+                            cursor: loading ? 'not-allowed' : 'pointer',
+                            fontWeight: 700,
+                            boxShadow: loading ? 'none' : '0 4px 14px rgba(249,107,56,.3)'
+                        }}
                     >
-                        {loading ? 'Creating…' : `✓ Create ${roleObj.label}`}
+                        {loading ? 'Creating…' : `Create ${roleObj.label}`}
                     </button>
                 </div>
             </div>
@@ -278,18 +339,32 @@ const UserRegistrationModal = ({ isOpen, onClose, onRegister }) => {
             <p style={{ color: '#7A5C4E', fontSize: '.82rem', marginBottom: 24 }}>
                 {form.role === 'caregiver' && (
                     <span style={{ display: 'block', marginTop: 8, color: '#28a745', fontWeight: 600 }}>
-                        📱 Caregiver accounts are for mobile app use only. They cannot access the web dashboard.
+                        Caregiver accounts are for mobile app use only. They cannot access the web dashboard.
                     </span>
                 )}
                 {(form.role === 'admin' || form.role === 'head_caregiver') && (
                     <span style={{ display: 'block', marginTop: 8, color: '#b85c2d', fontWeight: 600 }}>
-                        💻 This user can access the web dashboard.
+                        Credentials have been sent to {form.email}
                     </span>
                 )}
             </p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
                 <button
-                    onClick={() => { setStep(STEP_ROLE); setForm({ role: 'caregiver', firstName: '', middleName: '', lastName: '', email: '', phone: '', username: '', password: '', confirmPassword: '' }); setCreatedId(''); }}
+                    onClick={() => {
+                        setStep(STEP_ROLE);
+                        setForm({
+                            role: 'caregiver',
+                            firstName: '',
+                            middleName: '',
+                            lastName: '',
+                            email: '',
+                            phone: '',
+                            shift: 'morning',
+                            assignedFloor: '',
+                            assignedRoom: ''
+                        });
+                        setCreatedId('');
+                    }}
                     style={btnBase}
                 >
                     Add Another
@@ -320,8 +395,6 @@ const UserRegistrationModal = ({ isOpen, onClose, onRegister }) => {
                             fontSize: '0.95rem', transition: 'all .2s', flexShrink: 0,
                             lineHeight: 1, padding: 0,
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,.35)'; e.currentTarget.style.transform = 'rotate(90deg)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,.18)'; e.currentTarget.style.transform = 'rotate(0deg)'; }}
                     >
                         <FaTimes />
                     </button>
@@ -331,7 +404,13 @@ const UserRegistrationModal = ({ isOpen, onClose, onRegister }) => {
                     {[{ n: 1, l: 'Role' }, { n: 2, l: 'Details' }, { n: 3, l: 'Done' }].map((s, i, arr) => (
                         <React.Fragment key={s.n}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <div style={{ width: 24, height: 24, borderRadius: '50%', background: step >= s.n ? (step === STEP_DONE ? '#28a745' : '#F96B38') : '#E8D6CC', color: step >= s.n ? '#fff' : '#7A5C4E', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '.74rem', transition: 'all .3s' }}>
+                                <div style={{
+                                    width: 24, height: 24, borderRadius: '50%',
+                                    background: step >= s.n ? (step === STEP_DONE ? '#28a745' : '#F96B38') : '#E8D6CC',
+                                    color: step >= s.n ? '#fff' : '#7A5C4E',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontWeight: 700, fontSize: '.74rem', transition: 'all .3s'
+                                }}>
                                     {step > s.n ? '✓' : s.n}
                                 </div>
                                 <span style={{ fontSize: '.78rem', fontWeight: step === s.n ? 700 : 400, color: step >= s.n ? '#1A0A00' : '#7A5C4E' }}>{s.l}</span>

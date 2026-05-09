@@ -12,12 +12,12 @@ const getApiBaseUrl = () => {
 const API_BASE_URL = getApiBaseUrl();
 
 const OTPVerificationModal = ({ isOpen, userId, onClose, onVerified }) => {
-    const [otp, setOtp]                   = useState('');
-    const [loading, setLoading]           = useState(false);
-    const [error, setError]               = useState('');
-    const [resendTimer, setResendTimer]   = useState(60);
+    const [otp, setOtp] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [resendTimer, setResendTimer] = useState(60);
     const [resendLoading, setResendLoading] = useState(false);
-    const [resendMsg, setResendMsg]       = useState('');
+    const [resendMsg, setResendMsg] = useState('');
 
     useEffect(() => {
         if (isOpen) {
@@ -51,7 +51,7 @@ const OTPVerificationModal = ({ isOpen, userId, onClose, onVerified }) => {
             });
             const data = await res.json();
             if (data.success) {
-                onVerified(data); // { token, user, needsProfileUpdate }
+                onVerified(data);
             } else {
                 setError(data.message || 'Invalid or expired OTP.');
             }
@@ -94,7 +94,6 @@ const OTPVerificationModal = ({ isOpen, userId, onClose, onVerified }) => {
     return (
         <div className="modal-overlay" style={{ zIndex: 9000 }}>
             <div className="registration-modal" style={{ maxWidth: 420 }}>
-                {/* Header */}
                 <div className="modal-header">
                     <h3 style={{ margin: 0, color: '#fff', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: 10 }}>
                         <FaShieldAlt /> Verify Your Identity
@@ -114,7 +113,6 @@ const OTPVerificationModal = ({ isOpen, userId, onClose, onVerified }) => {
                     </button>
                 </div>
 
-                {/* Body */}
                 <div style={{ padding: '28px 32px', textAlign: 'center' }}>
                     <p style={{ color: '#7A5C4E', marginBottom: 24, fontSize: '.9rem', lineHeight: 1.6 }}>
                         A 6-digit verification code has been sent to your email.<br />
@@ -130,7 +128,7 @@ const OTPVerificationModal = ({ isOpen, userId, onClose, onVerified }) => {
                             setError('');
                         }}
                         onKeyDown={handleKeyDown}
-                        placeholder="• • • • • •"
+                        placeholder=""
                         maxLength={6}
                         autoFocus
                         style={{
@@ -180,11 +178,10 @@ const OTPVerificationModal = ({ isOpen, userId, onClose, onVerified }) => {
                         }}
                     >
                         {loading
-                            ? <><FaSpinner style={{ animation: 'spin 1s linear infinite' }} /> Verifying…</>
+                            ? <><FaSpinner style={{ animation: 'spin 1s linear infinite' }} /> Verifying...</>
                             : 'Verify & Continue'}
                     </button>
 
-                    {/* Resend section */}
                     <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #E8D6CC' }}>
                         <button
                             onClick={handleResend}
@@ -204,7 +201,7 @@ const OTPVerificationModal = ({ isOpen, userId, onClose, onVerified }) => {
                             }}
                         >
                             {resendLoading
-                                ? <><FaSpinner style={{ animation: 'spin 1s linear infinite' }} /> Sending…</>
+                                ? <><FaSpinner style={{ animation: 'spin 1s linear infinite' }} /> Sending...</>
                                 : resendTimer > 0
                                     ? `Resend OTP in ${resendTimer}s`
                                     : 'Resend OTP'}

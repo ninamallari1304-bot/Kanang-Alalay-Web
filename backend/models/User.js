@@ -65,8 +65,8 @@ const userSchema = new mongoose.Schema({
     assignedRoom:        { type: String, default: '' },
     temporaryPassword:   { type: String },
     tempPasswordExpires: { type: Date },
-    isFirstLogin:        { type: Boolean, default: false },
-    needsProfileUpdate:  { type: Boolean, default: false },
+    isFirstLogin:        { type: Boolean, default: true },
+    needsProfileUpdate:  { type: Boolean, default: true },
     lastOtpSentAt:       { type: Date },
 
 }, { timestamps: true });

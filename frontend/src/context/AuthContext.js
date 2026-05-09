@@ -1,223 +1,190 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import axios from 'axios';
 import OTPVerificationModal from '../components/OTPVerificationModal';
 import ProfileUpdateModal from '../components/ProfileUpdateModal';
 
-const AuthContext = createContext(null);
+const AuthContext = createContext();
 
-const WEB_ALLOWED_ROLES = ['admin', 'head_caregiver'];
-
-const getApiBaseUrl = () => {
-    const fallback = process.env.NODE_ENV === 'production'
+const API_BASE_URL = process.env.REACT_APP_API_URL ||
+    (process.env.NODE_ENV === 'production'
         ? 'https://kanang-alalay-backend.onrender.com/api'
-        : 'http://localhost:5000/api';
-    const raw = process.env.REACT_APP_API_URL || fallback;
-    const trimmed = raw.replace(/\/+$/, '');
-    return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
-};
+        : 'http://localhost:5000/api');
 
-const API_BASE_URL = getApiBaseUrl();
+export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
-    const [user, setUser]                   = useState(null);
-    const [loading, setLoading]             = useState(true);
+    const [user, setUser] = useState(null);
+    const [token, setToken] = useState(localStorage.getItem('token'));
     const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-    // ── First-login flow state ────────────────────────────────────────────
-    const [showOTPModal, setShowOTPModal]         = useState(false);
+    const [showOTPModal, setShowOTPModal] = useState(false);
     const [showProfileModal, setShowProfileModal] = useState(false);
-    const [pendingUserId, setPendingUserId]       = useState(null);
-    const [pendingToken, setPendingToken]         = useState(null);
-    const [pendingUser, setPendingUser]           = useState(null);
-    // ─────────────────────────────────────────────────────────────────────
+    const [pendingUserId, setPendingUserId] = useState(null);
+    const [pendingUserData, setPendingUserData] = useState(null);
 
-    const restoreSession = async (skipValidation = false) => {
-        const token = localStorage.getItem('token');
-        const storedUser = localStorage.getItem('user');
-
-        if (!token || !storedUser) {
+    useEffect(() => {
+        const validateToken = async () => {
+            if (token) {
+                try {
+                    const response = await axios.get(`${API_BASE_URL}/auth/validate-token`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (response.data.success) {
+                        setUser(response.data.user);
+                        setIsAuthenticated(true);
+                    } else {
+                        localStorage.removeItem('token');
+                        setToken(null);
+                    }
+                } catch (err) {
+                    console.error('Token validation error:', err);
+                    localStorage.removeItem('token');
+                    setToken(null);
+                }
+            }
             setLoading(false);
-            return false;
-        }
+        };
 
-        if (skipValidation) {
-            setLoading(false);
-            return false;
-        }
+        validateToken();
+    }, [token]);
 
-        let parsed;
+    const login = async (username, password) => {
+        setLoading(true);
+        setError(null);
         try {
-            parsed = JSON.parse(storedUser);
-        } catch {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            setLoading(false);
-            return false;
-        }
+            const response = await axios.post(`${API_BASE_URL}/auth/login`, { username, password });
+            const data = response.data;
 
-        if (!WEB_ALLOWED_ROLES.includes(parsed.role)) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            setLoading(false);
-            return false;
-        }
-
-        try {
-            const res = await fetch(`${API_BASE_URL}/auth/validate-token`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            const data = await res.json();
-
-            if (!res.ok || !data.success) {
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
+            if (data.requiresOTP) {
+                setPendingUserId(data.userId);
+                setShowOTPModal(true);
                 setLoading(false);
-                return false;
+                return { requiresOTP: true, userId: data.userId };
             }
 
-            localStorage.setItem('user', JSON.stringify(data.user));
-            setUser(data.user);
-            setIsAuthenticated(true);
+            if (data.success && data.token) {
+                localStorage.setItem('token', data.token);
+                setToken(data.token);
+                setUser(data.user);
+                setIsAuthenticated(true);
+                return { success: true, user: data.user };
+            }
+
+            throw new Error(data.message || 'Login failed');
+        } catch (err) {
+            setError(err.response?.data?.message || err.message);
+            return { success: false, error: err.response?.data?.message };
+        } finally {
             setLoading(false);
-            return true;
-        } catch {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            setLoading(false);
-            return false;
         }
     };
 
-    useEffect(() => {
-        restoreSession(false);
-    }, []);
-
-    const login = useCallback(async (username, password) => {
-        const res = await fetch(`${API_BASE_URL}/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password }),
-        });
-        const data = await res.json();
-
-        if (!res.ok || !data.success) {
-            return {
-                success: false,
-                message: data.message || 'Login failed.',
-                userId: data.userId || null,
-                needsOtp: data.needsOtp || false,
-                accountStatus: data.accountStatus || null,
-                reason: data.reason || '',
-            };
-        }
-
-        // ── First-login: open OTP modal instead of storing token ──────────
-        if (data.requiresOTP) {
-            setPendingUserId(data.userId);
-            setShowOTPModal(true);
-            return { success: false, requiresOTP: true, userId: data.userId };
-        }
-        // ─────────────────────────────────────────────────────────────────
-
-        if (!WEB_ALLOWED_ROLES.includes(data.user?.role)) {
-            return {
-                success: false,
-                message: 'Access restricted. This account is for mobile app use only.',
-                accountStatus: 'role_blocked',
-            };
-        }
-
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        setUser(data.user);
-        setIsAuthenticated(true);
-        return { success: true, user: data.user };
-    }, []);
-
-    // Called by OTPVerificationModal on successful OTP verify
-    const handleOTPVerified = useCallback((data) => {
-        // data = { token, user, needsProfileUpdate }
-        setShowOTPModal(false);
-        setPendingToken(data.token);
-        setPendingUser(data.user);
-
-        if (data.needsProfileUpdate) {
-            setShowProfileModal(true);
-        } else {
-            // No profile update needed — log them in immediately
+    const handleOTPSuccess = (data) => {
+        if (data.token) {
             localStorage.setItem('token', data.token);
-            localStorage.setItem('user', JSON.stringify(data.user));
+            setToken(data.token);
             setUser(data.user);
-            setIsAuthenticated(true);
-            setPendingToken(null);
-            setPendingUser(null);
-            setPendingUserId(null);
-        }
-    }, []);
 
-    // Called by ProfileUpdateModal on successful profile save
-    const handleProfileComplete = useCallback((updatedUser) => {
-        setShowProfileModal(false);
-        const tok = pendingToken;
-        localStorage.setItem('token', tok);
-        localStorage.setItem('user', JSON.stringify(updatedUser));
+            if (data.needsProfileUpdate) {
+                setPendingUserData(data.user);
+                setShowProfileModal(true);
+                setShowOTPModal(false);
+            } else {
+                setIsAuthenticated(true);
+                setShowOTPModal(false);
+            }
+        }
+    };
+
+    const handleProfileComplete = (updatedUser) => {
         setUser(updatedUser);
         setIsAuthenticated(true);
-        setPendingToken(null);
-        setPendingUser(null);
+        setShowProfileModal(false);
         setPendingUserId(null);
-    }, [pendingToken]);
+        setPendingUserData(null);
+    };
 
-    const logout = useCallback(() => {
+    const logout = () => {
         localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        setToken(null);
         setUser(null);
         setIsAuthenticated(false);
-    }, []);
+        setShowOTPModal(false);
+        setShowProfileModal(false);
+        setPendingUserId(null);
+        setPendingUserData(null);
+    };
 
-    const clearSession = useCallback(() => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        setUser(null);
-        setIsAuthenticated(false);
-    }, []);
-
-    const getHomeRoute = useCallback((role) => {
-        switch ((role || '').toLowerCase()) {
-            case 'admin':         return '/admin';
-            case 'head_caregiver': return '/head-caregiver';
-            default:              return '/login';
+    const register = async (userData) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const response = await axios.post(`${API_BASE_URL}/auth/register`, userData);
+            return response.data;
+        } catch (err) {
+            setError(err.response?.data?.message || err.message);
+            return { success: false, error: err.response?.data?.message };
+        } finally {
+            setLoading(false);
         }
-    }, []);
+    };
+
+    const updateUser = async (userData) => {
+        setLoading(true);
+        try {
+            const response = await axios.put(`${API_BASE_URL}/auth/update-profile`, userData, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (response.data.success) {
+                setUser(response.data.user);
+                return response.data;
+            }
+        } catch (err) {
+            setError(err.response?.data?.message || err.message);
+            return { success: false, error: err.response?.data?.message };
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const value = {
+        user,
+        token,
+        isAuthenticated,
+        loading,
+        error,
+        login,
+        logout,
+        register,
+        updateUser,
+        showOTPModal,
+        setShowOTPModal,
+        showProfileModal,
+        setShowProfileModal,
+        pendingUserId,
+        pendingUserData,
+        handleOTPSuccess,
+        handleProfileComplete,
+    };
 
     return (
-        <AuthContext.Provider value={{
-            user,
-            loading,
-            isAuthenticated,
-            login,
-            logout,
-            clearSession,
-            getHomeRoute,
-        }}>
+        <AuthContext.Provider value={value}>
             {children}
-
-            {/* First-login OTP verification modal */}
-            <OTPVerificationModal
-                isOpen={showOTPModal}
-                userId={pendingUserId}
-                onClose={() => {
-                    setShowOTPModal(false);
-                    setPendingUserId(null);
-                }}
-                onVerified={handleOTPVerified}
-            />
-
-            {/* Mandatory profile update modal */}
-            {showProfileModal && pendingUser && pendingToken && (
+            {showOTPModal && (
+                <OTPVerificationModal
+                    isOpen={showOTPModal}
+                    userId={pendingUserId}
+                    onClose={() => setShowOTPModal(false)}
+                    onVerified={handleOTPSuccess}
+                />
+            )}
+            {showProfileModal && (
                 <ProfileUpdateModal
                     isOpen={showProfileModal}
-                    user={pendingUser}
-                    token={pendingToken}
+                    userData={pendingUserData}
+                    onClose={() => setShowProfileModal(false)}
                     onComplete={handleProfileComplete}
                 />
             )}
@@ -225,8 +192,4 @@ export const AuthProvider = ({ children }) => {
     );
 };
 
-export const useAuth = () => {
-    const ctx = useContext(AuthContext);
-    if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>');
-    return ctx;
-};
+export default AuthProvider;

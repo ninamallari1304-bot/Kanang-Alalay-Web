@@ -15,6 +15,7 @@ import AddInventoryModal from '../components/AddInventoryModal';
 import InventoryTab from '../components/admin/InventoryTab';
 import StaffRosterTab from '../components/admin/StaffRosterTab';
 import ReportsTab from '../components/admin/ReportsTab';
+
 import '../styles/Dashboard.css';
 import { useSocket } from '../hooks/useSocket';
 import '../styles/AdminDashboard.css';

@@ -1,25 +1,28 @@
 const generateRandomPassword = () => {
     const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const lower = 'abcdefghijklmnopqrstuvwxyz';
-    const nums  = '0123456789';
-    const spec  = '!@#$%^&*';
-    const all   = upper + lower + nums + spec;
+    const nums = '0123456789';
+    const special = '!@#$%^&*';
+    const allChars = upper + lower + nums + special;
 
-    const pwd = [
+    const password = [
         upper[Math.floor(Math.random() * upper.length)],
         lower[Math.floor(Math.random() * lower.length)],
         nums[Math.floor(Math.random() * nums.length)],
-        spec[Math.floor(Math.random() * spec.length)],
+        special[Math.floor(Math.random() * special.length)],
     ];
+
     for (let i = 4; i < 12; i++) {
-        pwd.push(all[Math.floor(Math.random() * all.length)]);
+        password.push(allChars[Math.floor(Math.random() * allChars.length)]);
     }
-    return pwd.sort(() => Math.random() - 0.5).join('');
+
+    return password.sort(() => Math.random() - 0.5).join('');
 };
 
 const generateUsername = (firstName, lastName) => {
-    const suffix = Math.floor(100 + Math.random() * 900);
-    return `${firstName.toLowerCase().replace(/\s+/g, '')}.${lastName.toLowerCase().replace(/\s+/g, '')}${suffix}`;
+    const base = `${firstName.toLowerCase().replace(/\s+/g, '')}.${lastName.toLowerCase().replace(/\s+/g, '')}`;
+    const randomSuffix = Math.floor(100 + Math.random() * 900);
+    return `${base}${randomSuffix}`;
 };
 
 module.exports = { generateRandomPassword, generateUsername };
