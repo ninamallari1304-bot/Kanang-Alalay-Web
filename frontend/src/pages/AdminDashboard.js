@@ -1445,42 +1445,6 @@ const AdminDashboard = () => {
                     </table>
                     {renderPagination(filteredStaff.length, currentPage, setCurrentPage)}
 
-                    {otpSent && registeredUserId && (
-                        <div className="otp-panel">
-                            <div className="otp-panel-header">
-                                <FaCheckCircle color="#28a745" />
-                                <span>Activate Account — <strong>{registeredName}</strong></span>
-                                <button style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--d-muted)' }}
-                                    onClick={() => { setOtpSent(false); setOtpCode(''); setOtpMessage(''); }}>
-                                    <FaTimes />
-                                </button>
-                            </div>
-                            <p style={{ margin: '0 0 12px', fontSize: '.88rem', color: 'var(--d-muted)' }}>
-                                OTP sent to <strong>{registeredEmail}</strong>
-                            </p>
-                            <div className="otp-input-group">
-                                <input
-                                    type="text"
-                                    placeholder="6-digit OTP"
-                                    value={otpCode}
-                                    onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                    maxLength="6"
-                                    className="otp-input"
-                                />
-                                <button className="verify-btn" onClick={verifyOtp}>
-                                    <FaCheck style={{ marginRight: 6 }} /> Verify
-                                </button>
-                                <button className="btn-outline-sm" onClick={() => sendOtp(registeredEmail, registeredUserId, registeredName)}>
-                                    Resend OTP
-                                </button>
-                            </div>
-                            {otpMessage && (
-                                <p className={`otp-message ${otpMessage.includes('✅') ? 'success' : otpMessage.includes('❌') ? 'error' : ''}`} style={{ marginTop: 10 }}>
-                                    {otpMessage}
-                                </p>
-                            )}
-                        </div>
-                    )}
                 </div>
             </div>
         );
