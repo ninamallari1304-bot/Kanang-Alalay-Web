@@ -107,12 +107,12 @@ router.post('/create-user', async (req, res) => {
 
         res.status(201).json({
             success: true,
-            message: `User ${firstName} ${lastName} created with ID ${staffId}.${activateImmediately ? ' Account is active.' : ' OTP sent for activation.'}`,
-            userId: user._id,
-            staffId: user.staffId,
-            email: user.email,
-            firstName: user.firstName,
-            role: user.role,
+            message: `Account created. Credentials emailed to ${email}.`,
+            userId:    user._id,
+            staffId:   user.staffId,
+            email:     user.email,     
+            firstName: user.firstName,    
+            role:      user.role,        
         });
     } catch (error) {
         console.error('Create user error:', error);

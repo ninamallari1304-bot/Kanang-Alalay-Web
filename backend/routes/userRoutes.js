@@ -1,8 +1,27 @@
+/**
+ * routes/userRoutes.js
+ *
+ * User-facing routes (accessible by authenticated staff).
+ * Mount in server.js as:  app.use('/api/users', userRoutes);
+ */
+
 const express = require('express');
-const router = express.Router();
-const User = require('../models/User');
+const router  = express.Router();
+const User    = require('../models/User');
 const { protect } = require('../middleware/authMiddleware');
 
+/**
+ * PUT /api/users/update-profile
+ *
+ * Allows an authenticated user to complete their first-login profile update.
+ * Accepts: firstName, lastName, phone, address, shift,
+ *          assignedFloor, assignedRoom, newPassword
+ *
+ * On success:
+ *   - Saves all provided fields.
+ *   - Hashes + saves new password (if provided & valid).
+ *   - Clears isFirstLogin, needsProfileUpdate, and temporary credential fields.
+ */
 router.put('/update-profile', protect, async (req, res) => {
     try {
         const {
@@ -13,7 +32,7 @@ router.put('/update-profile', protect, async (req, res) => {
             shift,
             assignedFloor,
             assignedRoom,
-            newPassword
+            newPassword,
         } = req.body;
 
         const user = await User.findById(req.user._id);
@@ -21,52 +40,65 @@ router.put('/update-profile', protect, async (req, res) => {
             return res.status(404).json({ success: false, message: 'User not found.' });
         }
 
-        if (firstName !== undefined) user.firstName = firstName.trim();
-        if (lastName !== undefined) user.lastName = lastName.trim();
-        if (phone !== undefined) user.phone = phone.trim();
+        // ── Basic fields ──────────────────────────────────────────────────────
+        if (firstName !== undefined) user.firstName    = firstName.trim();
+        if (lastName  !== undefined) user.lastName     = lastName.trim();
+        if (phone     !== undefined) user.phone        = phone.trim();
 
-        if (address) {
+        // ── Address (nested object) ───────────────────────────────────────────
+        if (address && typeof address === 'object') {
             user.address = {
-                street: address.street || user.address?.street || '',
-                city: address.city || user.address?.city || '',
+                street:   address.street   || user.address?.street   || '',
+                city:     address.city     || user.address?.city     || '',
                 province: address.province || user.address?.province || '',
-                zipCode: address.zipCode || user.address?.zipCode || ''
+                zipCode:  address.zipCode  || user.address?.zipCode  || '',
             };
         }
 
-        if (shift !== undefined) user.shift = shift;
+        // ── Work assignment ───────────────────────────────────────────────────
+        if (shift         !== undefined) user.shift         = shift;
         if (assignedFloor !== undefined) user.assignedFloor = assignedFloor;
-        if (assignedRoom !== undefined) user.assignedRoom = assignedRoom;
+        if (assignedRoom  !== undefined) user.assignedRoom  = assignedRoom;
 
+        // ── Password change ───────────────────────────────────────────────────
         if (newPassword) {
             if (newPassword.length < 8) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Password must be at least 8 characters.'
+                    message: 'Password must be at least 8 characters.',
                 });
             }
-
             if (!/[A-Z]/.test(newPassword)) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Password must contain at least one uppercase letter.'
+                    message: 'Password must contain at least one uppercase letter.',
                 });
             }
             if (!/[0-9]/.test(newPassword)) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Password must contain at least one number.'
+                    message: 'Password must contain at least one number.',
+                });
+            }
+            if (!/[^A-Za-z0-9]/.test(newPassword)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Password must contain at least one special character.',
                 });
             }
 
+            // The User model's pre-save hook handles bcrypt hashing
             user.password = newPassword;
         }
 
-        user.isFirstLogin = false;
+        // ── Mark first-login setup as complete ────────────────────────────────
+        user.isFirstLogin       = false;
         user.needsProfileUpdate = false;
-        user.temporaryPassword = undefined;
-        user.tempPasswordExpires = undefined;
-        user.verificationOtp = undefined;
+
+        // Clear temporary credential fields
+        user.temporaryPassword      = undefined;
+        user.tempPasswordExpires    = undefined;
+        user.verificationOtp        = undefined;
         user.verificationOtpExpires = undefined;
 
         await user.save();
@@ -75,19 +107,21 @@ router.put('/update-profile', protect, async (req, res) => {
             success: true,
             message: 'Profile updated successfully.',
             user: {
-                id: user._id,
-                staffId: user.staffId,
-                username: user.username,
-                email: user.email,
-                role: user.role,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                middleName: user.middleName,
-                phone: user.phone,
-                shift: user.shift,
+                id:            user._id,
+                staffId:       user.staffId,
+                username:      user.username,
+                email:         user.email,
+                role:          user.role,
+                firstName:     user.firstName,
+                lastName:      user.lastName,
+                middleName:    user.middleName,
+                phone:         user.phone,
+                shift:         user.shift,
                 assignedFloor: user.assignedFloor,
-                assignedRoom: user.assignedRoom,
-            }
+                assignedRoom:  user.assignedRoom,
+                address:       user.address,
+                isFirstLogin:  user.isFirstLogin,
+            },
         });
     } catch (error) {
         console.error('Update profile error:', error);

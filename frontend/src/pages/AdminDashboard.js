@@ -387,12 +387,12 @@ const AdminDashboard = () => {
     };
     const closeConfirm = () => setConfirmModal(p => ({ ...p, isOpen: false }));
 
-    const [otpSent, setOtpSent] = useState(false);
-    const [otpCode, setOtpCode] = useState('');
-    const [otpMessage, setOtpMessage] = useState('');
-    const [registeredUserId, setRegisteredUserId] = useState(null);
-    const [registeredEmail, setRegisteredEmail] = useState('');
-    const [registeredName, setRegisteredName] = useState('');
+    // const [otpSent, setOtpSent] = useState(false);
+    // const [otpCode, setOtpCode] = useState('');
+    // const [otpMessage, setOtpMessage] = useState('');
+    // const [registeredUserId, setRegisteredUserId] = useState(null);
+    // const [registeredEmail, setRegisteredEmail] = useState('');
+    // const [registeredName, setRegisteredName] = useState('');
 
     const [stats, setStats] = useState({
         totalResidents: 0, activeStaff: 0, pendingBookings: 0,
@@ -673,49 +673,43 @@ const AdminDashboard = () => {
         );
     };
 
-    const sendOtp = async (email, userId, firstName) => {
-        if (!email) { setOtpMessage('Email required'); return; }
-        setOtpMessage('Sending OTP…');
-        const d = await fetchApi('/auth/send-otp', {
-            method: 'POST', body: JSON.stringify({ email, userId })
-        });
-        if (d.success) {
-            setOtpSent(true);
-            setRegisteredEmail(email);
-            setRegisteredName(firstName || 'Personnel');
-            setOtpCode('');
-            setOtpMessage(`OTP sent to ${email}.`);
-        } else {
-            setOtpMessage(d.message || 'Failed to send OTP.');
-        }
-    };
+    // const sendOtp = async (email, userId, firstName) => {
+    //     if (!email) { setOtpMessage('Email required'); return; }
+    //     setOtpMessage('Sending OTP…');
+    //     const d = await fetchApi('/auth/send-otp', {
+    //         method: 'POST', body: JSON.stringify({ email, userId })
+    //     });
+    //     if (d.success) {
+    //         setOtpSent(true);
+    //         setRegisteredEmail(email);
+    //         setRegisteredName(firstName || 'Personnel');
+    //         setOtpCode('');
+    //         setOtpMessage(`OTP sent to ${email}.`);
+    //     } else {
+    //         setOtpMessage(d.message || 'Failed to send OTP.');
+    //     }
+    // };
 
-    const verifyOtp = async () => {
-        if (!otpCode || otpCode.length < 6) { setOtpMessage('Enter the full 6-digit OTP.'); return; }
-        const d = await fetchApi('/auth/verify-otp', {
-            method: 'POST', body: JSON.stringify({ userId: registeredUserId, otp: otpCode })
-        });
-        if (d.success) {
-            setOtpMessage('✅ Account activated!');
-            setTimeout(() => {
-                setOtpSent(false); setRegisteredUserId(null);
-                setOtpCode(''); setOtpMessage('');
-                fetchStaffList();
-            }, 1500);
-        } else {
-            setOtpMessage('❌ Invalid or expired OTP.');
-        }
-    };
+    // const verifyOtp = async () => {
+    //     if (!otpCode || otpCode.length < 6) { setOtpMessage('Enter the full 6-digit OTP.'); return; }
+    //     const d = await fetchApi('/auth/verify-otp', {
+    //         method: 'POST', body: JSON.stringify({ userId: registeredUserId, otp: otpCode })
+    //     });
+    //     if (d.success) {
+    //         setOtpMessage('✅ Account activated!');
+    //         setTimeout(() => {
+    //             setOtpSent(false); setRegisteredUserId(null);
+    //             setOtpCode(''); setOtpMessage('');
+    //             fetchStaffList();
+    //         }, 1500);
+    //     } else {
+    //         setOtpMessage('❌ Invalid or expired OTP.');
+    //     }
+    // };
 
-    const handleRegisterSuccess = async (data) => {
-        const userId = data.userId || data.data?.userId;
-        const email = data.email || data.data?.email;
-        const first = data.firstName || data.data?.firstName;
-        if (userId && email) {
-            setRegisteredUserId(userId);
-            await sendOtp(email, userId, first);
-        }
-        fetchStaffList();
+    const handleRegisterSuccess = async () => {
+    fetchStaffList();
+    toast('Account created! Login credentials have been emailed to the new user.'); 
     };
 
     const toggleStaffStatus = async (id, cur) => {
