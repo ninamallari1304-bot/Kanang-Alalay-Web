@@ -15,6 +15,13 @@ const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl();
 
+// ── Helper: decide where to send each role after login ───────────────────────
+const getHomeRoute = (role) => {
+    if (role === 'admin')          return '/admin';
+    if (role === 'head_caregiver') return '/head-caregiver';
+    return '/';
+};
+
 const ForgotPasswordModal = ({ onClose }) => {
     const [step, setStep]               = useState('email');
     const [email, setEmail]             = useState('');
@@ -302,9 +309,12 @@ const ForgotPasswordModal = ({ onClose }) => {
 };
 
 const LoginPage = () => {
-    const { login, user, getHomeRoute, clearSession } = useAuth();
-    const navigate = useNavigate();
-    const location = useLocation();
+    // ── FIX: getHomeRoute and clearSession were never in AuthContext.
+    // getHomeRoute is now defined at the top of this file.
+    // clearSession was replaced by just clearing localStorage directly.
+    const { login, user, logout } = useAuth();
+    const navigate  = useNavigate();
+    const location  = useLocation();
 
     const [form, setForm]             = useState({ username: '', password: '' });
     const [showPass, setShowPass]     = useState(false);
@@ -312,21 +322,21 @@ const LoginPage = () => {
     const [error, setError]           = useState('');
     const [showForgot, setShowForgot] = useState(false);
 
-    const [needsOtp, setNeedsOtp]         = useState(false);
+    const [needsOtp, setNeedsOtp]           = useState(false);
     const [pendingUserId, setPendingUserId] = useState(null);
-    const [otpCode, setOtpCode]           = useState('');
-    const [otpMsg, setOtpMsg]             = useState('');
-    const [otpLoading, setOtpLoading]     = useState(false);
-    const [resendTimer, setResendTimer]   = useState(0);
+    const [otpCode, setOtpCode]             = useState('');
+    const [otpMsg, setOtpMsg]               = useState('');
+    const [otpLoading, setOtpLoading]       = useState(false);
+    const [resendTimer, setResendTimer]     = useState(0);
 
-    // Clear any stale session when login page loads
+    // Clear any stale token when the login page loads
     useEffect(() => {
-        clearSession();
-    }, [clearSession]);
+        localStorage.removeItem('token');
+    }, []);
 
     useEffect(() => {
         if (user) navigate(getHomeRoute(user.role), { replace: true });
-    }, [user, navigate, getHomeRoute]);
+    }, [user, navigate]);
 
     useEffect(() => {
         if (resendTimer <= 0) return;
@@ -340,7 +350,6 @@ const LoginPage = () => {
     };
 
     const [blockedStatus, setBlockedStatus] = useState(() => {
-        // ProtectedRoute may redirect here with a blockedStatus state flag (e.g. role_blocked)
         const nav = location?.state?.blockedStatus;
         return nav ? { status: nav, reason: '' } : null;
     });
@@ -356,77 +365,69 @@ const LoginPage = () => {
         setBlockedStatus(null);
         const result = await login(form.username.trim(), form.password);
         setLoading(false);
+
+        if (!result) {
+            setError('Something went wrong. Please try again.');
+            return;
+        }
+
         if (result.success) {
             navigate(getHomeRoute(result.user.role), { replace: true });
+        } else if (result.requiresOTP) {
+            // First-time login — OTPVerificationModal handles this via AuthContext
+            // Nothing to do here; AuthContext already opened the modal
         } else {
             const status = result.accountStatus;
             if (status && ['deactivated', 'suspended', 'restricted', 'on_leave', 'terminated', 'role_blocked'].includes(status)) {
                 setBlockedStatus({ status, reason: result.reason || '' });
             } else if (result.needsOtp || result.userId) {
+                // Legacy OTP flow for non-first-login activation
                 setPendingUserId(result.userId);
                 setNeedsOtp(true);
                 setOtpMsg('Your account needs to be activated. Enter the OTP sent to your email, or request a new one.');
                 setResendTimer(30);
             } else {
-                setError(result.message || 'Invalid credentials.');
+                setError(result.error || result.message || 'Invalid credentials.');
             }
         }
     };
 
     const BLOCKED_CONFIG = {
         deactivated: {
-            icon: '\u26D4',
+            icon: '⛔',
             title: 'Account Deactivated',
             message: 'Your account has been permanently deactivated by an administrator. Please contact your HR department or system administrator for assistance.',
-            bg: '#FFF0F0',
-            border: '#F5C6CB',
-            color: '#721C24',
-            iconBg: '#F8D7DA',
+            bg: '#FFF0F0', border: '#F5C6CB', color: '#721C24', iconBg: '#F8D7DA',
         },
         suspended: {
-            icon: '\u23F8',
+            icon: '⏸',
             title: 'Account Suspended',
             message: 'Your account has been temporarily suspended. This may be due to a policy violation or a pending investigation. Please contact your administrator.',
-            bg: '#FFF3CD',
-            border: '#FFEAA7',
-            color: '#856404',
-            iconBg: '#FFF0B3',
+            bg: '#FFF3CD', border: '#FFEAA7', color: '#856404', iconBg: '#FFF0B3',
         },
         restricted: {
-            icon: '\uD83D\uDD12',
+            icon: '🔒',
             title: 'Access Restricted',
             message: 'Your system access has been restricted by an administrator. You may still be employed but certain features are unavailable. Contact your supervisor for details.',
-            bg: '#FFF8E1',
-            border: '#FFE082',
-            color: '#E65100',
-            iconBg: '#FFE0B2',
+            bg: '#FFF8E1', border: '#FFE082', color: '#E65100', iconBg: '#FFE0B2',
         },
         on_leave: {
-            icon: '\uD83C\uDFD6',
+            icon: '🏖',
             title: 'On Leave',
             message: 'Your account is currently on leave of absence. Access will be restored upon your return. Contact your administrator if this is unexpected.',
-            bg: '#EFF6FF',
-            border: '#93C5FD',
-            color: '#1D4ED8',
-            iconBg: '#DBEAFE',
+            bg: '#EFF6FF', border: '#93C5FD', color: '#1D4ED8', iconBg: '#DBEAFE',
         },
         terminated: {
-            icon: '\uD83D\uDEAB',
+            icon: '🚫',
             title: 'Employment Terminated',
             message: 'Your employment has been terminated and your account access has been revoked. Please contact HR if you believe this is an error.',
-            bg: '#F3F4F6',
-            border: '#D1D5DB',
-            color: '#374151',
-            iconBg: '#E5E7EB',
+            bg: '#F3F4F6', border: '#D1D5DB', color: '#374151', iconBg: '#E5E7EB',
         },
         role_blocked: {
-            icon: '\uD83D\uDCF1',
+            icon: '📱',
             title: 'Web Access Not Available',
             message: 'Your account role does not have access to the web portal. Please use the mobile app to access your account.',
-            bg: '#F5F3FF',
-            border: '#C4B5FD',
-            color: '#5B21B6',
-            iconBg: '#EDE9FE',
+            bg: '#F5F3FF', border: '#C4B5FD', color: '#5B21B6', iconBg: '#EDE9FE',
         },
     };
 
@@ -444,7 +445,7 @@ const LoginPage = () => {
                 setOtpMsg('Account activated! Logging you in…');
                 setTimeout(async () => {
                     const result = await login(form.username.trim(), form.password);
-                    if (result.success) navigate(getHomeRoute(result.user.role), { replace: true });
+                    if (result && result.success) navigate(getHomeRoute(result.user.role), { replace: true });
                 }, 1200);
             } else {
                 setOtpMsg(data.message || 'Invalid or expired OTP.');
@@ -559,22 +560,18 @@ const LoginPage = () => {
 
                         {blockedStatus && (() => {
                             const cfg = BLOCKED_CONFIG[blockedStatus.status];
+                            if (!cfg) return null;
                             return (
                                 <div style={{
-                                    background: cfg.bg,
-                                    border: `1.5px solid ${cfg.border}`,
-                                    borderRadius: 12,
-                                    padding: '16px',
-                                    marginBottom: 16,
-                                    display: 'flex',
-                                    gap: 14,
-                                    alignItems: 'flex-start',
+                                    background: cfg.bg, border: `1.5px solid ${cfg.border}`,
+                                    borderRadius: 12, padding: '16px', marginBottom: 16,
+                                    display: 'flex', gap: 14, alignItems: 'flex-start',
                                     animation: 'shake .3s ease'
                                 }}>
                                     <div style={{
                                         width: 40, height: 40, borderRadius: '50%',
-                                        background: cfg.iconBg,
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        background: cfg.iconBg, display: 'flex',
+                                        alignItems: 'center', justifyContent: 'center',
                                         fontSize: '1.1rem', flexShrink: 0
                                     }}>{cfg.icon}</div>
                                     <div>
@@ -593,14 +590,11 @@ const LoginPage = () => {
                                 </div>
                             );
                         })()}
+
                         {error && <div className="login-error">{error}</div>}
 
                         <div className="forgot-row">
-                            <button
-                                type="button"
-                                className="forgot-link"
-                                onClick={() => setShowForgot(true)}
-                            >
+                            <button type="button" className="forgot-link" onClick={() => setShowForgot(true)}>
                                 Forgot Password?
                             </button>
                         </div>
