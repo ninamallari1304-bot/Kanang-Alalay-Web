@@ -1,10 +1,12 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
+const COOKIE_NAME = 'ka_token';
+
 const protect = async (req, res, next) => {
     try {
-        const authHeader = req.header('Authorization') || req.header('x-auth-token');
-        const token = authHeader?.startsWith('Bearer ') ? authHeader.replace(/^Bearer\s+/i, '') : authHeader;
+        // Read token from httpOnly cookie instead of Authorization header
+        const token = req.cookies?.[COOKIE_NAME];
 
         if (!token) {
             console.error('Auth protect: missing token');
@@ -24,7 +26,6 @@ const protect = async (req, res, next) => {
         }
 
         req.user = user;
-        req.token = token;
         next();
     } catch (error) {
         console.error('Auth protect error:', error.name, error.message);

@@ -6,6 +6,21 @@ const RegistrationCode = require('../models/VerificationCode');
 const { sendEmail, generateOtpTemplate } = require('../models/mailer');
 const { protect } = require('../middleware/authMiddleware');
 
+// ── Cookie helper ─────────────────────────────────────────────────────────────
+const COOKIE_NAME = 'ka_token';
+
+const cookieOptions = {
+    httpOnly: true,                                   // JS cannot read this
+    secure: process.env.NODE_ENV === 'production',    // HTTPS only on Render
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // cross-origin on Render
+    maxAge: 24 * 60 * 60 * 1000,                     // 24 hours
+    path: '/',
+};
+
+const setTokenCookie = (res, token) => res.cookie(COOKIE_NAME, token, cookieOptions);
+const clearTokenCookie = (res) => res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: 0 });
+
+// ── Profile ───────────────────────────────────────────────────────────────────
 router.get('/profile', protect, async (req, res) => {
     try {
         res.json({
@@ -34,6 +49,7 @@ router.get('/profile', protect, async (req, res) => {
     }
 });
 
+// ── Login ─────────────────────────────────────────────────────────────────────
 router.post('/login', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -54,7 +70,7 @@ router.post('/login', async (req, res) => {
             user.verificationOtpExpires = new Date(Date.now() + 10 * 60 * 1000);
             user.lastOtpSentAt = new Date();
             await user.save();
- 
+
             const otpHtml = `
 <!DOCTYPE html>
 <html>
@@ -71,18 +87,16 @@ router.post('/login', async (req, res) => {
   </div>
 </body>
 </html>`;
- 
+
             try {
                 await sendEmail(user.email, 'Your Kanang-Alalay Verification Code', otpHtml);
             } catch (mailErr) {
                 console.error('OTP email error:', mailErr.message);
             }
- 
+
             return res.json({ success: true, requiresOTP: true, userId: user._id });
         }
- 
-        // If admin has isFirstLogin still true (e.g. seeded account),
-        // auto-clear it so they can log in normally going forward.
+
         if (user.isFirstLogin && user.role === 'admin') {
             user.isFirstLogin       = false;
             user.needsProfileUpdate = false;
@@ -91,7 +105,7 @@ router.post('/login', async (req, res) => {
             if (user.status === 'pending') user.status = 'active';
             await user.save();
         }
-        
+
         if (!user.isVerified || !user.isActive || user.status === 'pending') {
             return res.status(401).json({
                 success: false,
@@ -125,10 +139,11 @@ router.post('/login', async (req, res) => {
             { expiresIn: '24h' }
         );
 
+        setTokenCookie(res, token);
+
         res.json({
             success: true,
             message: 'Login successful',
-            token,
             user: {
                 id: user._id,
                 staffId: user.staffId,
@@ -149,6 +164,13 @@ router.post('/login', async (req, res) => {
     }
 });
 
+// ── Logout ────────────────────────────────────────────────────────────────────
+router.post('/logout', (req, res) => {
+    clearTokenCookie(res);
+    res.json({ success: true, message: 'Logged out successfully.' });
+});
+
+// ── Verify first login (OTP) ──────────────────────────────────────────────────
 router.post('/verify-first-login', async (req, res) => {
     try {
         const { userId, otp } = req.body;
@@ -175,6 +197,7 @@ router.post('/verify-first-login', async (req, res) => {
             });
         }
 
+        user.isFirstLogin = false;
         user.isVerified = true;
         user.isActive = true;
         user.status = 'active';
@@ -194,9 +217,10 @@ router.post('/verify-first-login', async (req, res) => {
             { expiresIn: '24h' }
         );
 
+        setTokenCookie(res, token);
+
         res.json({
             success: true,
-            token,
             needsProfileUpdate: user.needsProfileUpdate,
             user: {
                 id: user._id,
@@ -219,6 +243,33 @@ router.post('/verify-first-login', async (req, res) => {
     }
 });
 
+// ── Validate token (session restore) ─────────────────────────────────────────
+router.get('/validate-token', protect, async (req, res) => {
+    const WEB_ALLOWED_ROLES = ['admin', 'head_caregiver'];
+    if (!WEB_ALLOWED_ROLES.includes(req.user.role)) {
+        return res.status(403).json({ success: false, message: 'Role no longer valid for web login.' });
+    }
+    res.json({
+        success: true,
+        user: {
+            id: req.user._id,
+            staffId: req.user.staffId,
+            username: req.user.username,
+            email: req.user.email,
+            firstName: req.user.firstName,
+            lastName: req.user.lastName,
+            middleName: req.user.middleName,
+            phone: req.user.phone,
+            role: req.user.role,
+            department: req.user.department,
+            shift: req.user.shift,
+            isActive: req.user.isActive,
+            createdAt: req.user.createdAt,
+        }
+    });
+});
+
+// ── Validate code ─────────────────────────────────────────────────────────────
 router.post('/validate-code', async (req, res) => {
     try {
         const { registrationCode } = req.body;
@@ -249,6 +300,7 @@ router.post('/validate-code', async (req, res) => {
     }
 });
 
+// ── Register staff ────────────────────────────────────────────────────────────
 router.post('/register-staff', async (req, res) => {
     try {
         const {
@@ -302,11 +354,6 @@ router.post('/register-staff', async (req, res) => {
         user.otpExpires = new Date(Date.now() + 15 * 60 * 1000);
         await user.save();
 
-        console.log('\n=======================================');
-        console.log(`OTP Generated for new staff: ${email}`);
-        console.log(`OTP CODE: ${otpCode}`);
-        console.log('=======================================\n');
-
         try {
             await sendEmail(email, 'Activate your Kanang-Alalay Account', generateOtpTemplate(otpCode));
         } catch (mailError) {
@@ -327,6 +374,7 @@ router.post('/register-staff', async (req, res) => {
     }
 });
 
+// ── Send OTP ──────────────────────────────────────────────────────────────────
 router.post('/send-otp', async (req, res) => {
     try {
         const { email, userId } = req.body;
@@ -338,11 +386,6 @@ router.post('/send-otp', async (req, res) => {
         user.otpCode = otpCode;
         user.otpExpires = new Date(Date.now() + 15 * 60 * 1000);
         await user.save();
-
-        console.log('\n=======================================');
-        console.log(`OTP Generated for: ${user.email}`);
-        console.log(`OTP CODE: ${otpCode}`);
-        console.log('=======================================\n');
 
         try {
             await sendEmail(user.email, 'Verify your Kanang-Alalay Account', generateOtpTemplate(otpCode));
@@ -357,6 +400,7 @@ router.post('/send-otp', async (req, res) => {
     }
 });
 
+// ── Resend OTP ────────────────────────────────────────────────────────────────
 router.post('/resend-otp', async (req, res) => {
     try {
         const { userId } = req.body;
@@ -412,6 +456,7 @@ router.post('/resend-otp', async (req, res) => {
     }
 });
 
+// ── Verify OTP (account activation) ──────────────────────────────────────────
 router.post('/verify-otp', async (req, res) => {
     try {
         const { userId, otp } = req.body;
@@ -442,6 +487,7 @@ router.post('/verify-otp', async (req, res) => {
     }
 });
 
+// ── Forgot password ───────────────────────────────────────────────────────────
 router.post('/forgot-password', async (req, res) => {
     try {
         const { email } = req.body;
@@ -457,11 +503,6 @@ router.post('/forgot-password', async (req, res) => {
         user.resetPasswordOtpExpires = new Date(Date.now() + 15 * 60 * 1000);
         await user.save();
 
-        console.log('\n=======================================');
-        console.log(`Password Reset OTP for: ${email}`);
-        console.log(`OTP CODE: ${otpCode}`);
-        console.log('=======================================\n');
-
         try {
             await sendEmail(email, 'Reset your Kanang-Alalay Password', generateOtpTemplate(otpCode));
         } catch (mailError) {
@@ -475,6 +516,7 @@ router.post('/forgot-password', async (req, res) => {
     }
 });
 
+// ── Verify reset OTP ──────────────────────────────────────────────────────────
 router.post('/verify-reset-otp', async (req, res) => {
     try {
         const { email, otp } = req.body;
@@ -505,6 +547,7 @@ router.post('/verify-reset-otp', async (req, res) => {
     }
 });
 
+// ── Reset password with OTP ───────────────────────────────────────────────────
 router.post('/reset-password-with-otp', async (req, res) => {
     try {
         const { email, otp, password } = req.body;
@@ -540,6 +583,7 @@ router.post('/reset-password-with-otp', async (req, res) => {
     }
 });
 
+// ── Resend reset OTP ──────────────────────────────────────────────────────────
 router.post('/resend-reset-otp', async (req, res) => {
     try {
         const { email } = req.body;
@@ -568,6 +612,7 @@ router.post('/resend-reset-otp', async (req, res) => {
     }
 });
 
+// ── Verify email via link ─────────────────────────────────────────────────────
 router.get('/verify-email/:token', async (req, res) => {
     try {
         const { token } = req.params;
@@ -592,6 +637,7 @@ router.get('/verify-email/:token', async (req, res) => {
     }
 });
 
+// ── Resend verification ───────────────────────────────────────────────────────
 router.post('/resend-verification', async (req, res) => {
     try {
         const crypto = require('crypto');
@@ -611,7 +657,6 @@ router.post('/resend-verification', async (req, res) => {
         await user.save();
 
         const verificationLink = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
-        console.log(`Verification link: ${verificationLink}`);
 
         try {
             await sendEmail(email, 'Verify your Email', `Click here: ${verificationLink}`);
@@ -626,31 +671,7 @@ router.post('/resend-verification', async (req, res) => {
     }
 });
 
-router.get('/validate-token', protect, async (req, res) => {
-    const WEB_ALLOWED_ROLES = ['admin', 'head_caregiver'];
-    if (!WEB_ALLOWED_ROLES.includes(req.user.role)) {
-        return res.status(403).json({ success: false, message: 'Role no longer valid for web login.' });
-    }
-    res.json({
-        success: true,
-        user: {
-            id: req.user._id,
-            staffId: req.user.staffId,
-            username: req.user.username,
-            email: req.user.email,
-            firstName: req.user.firstName,
-            lastName: req.user.lastName,
-            middleName: req.user.middleName,
-            phone: req.user.phone,
-            role: req.user.role,
-            department: req.user.department,
-            shift: req.user.shift,
-            isActive: req.user.isActive,
-            createdAt: req.user.createdAt,
-        }
-    });
-});
-
+// ── Change password ───────────────────────────────────────────────────────────
 router.put('/change-password', protect, async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body;
@@ -674,6 +695,7 @@ router.put('/change-password', protect, async (req, res) => {
     }
 });
 
+// ── Update phone ──────────────────────────────────────────────────────────────
 router.put('/update-phone', protect, async (req, res) => {
     try {
         const { phone } = req.body;

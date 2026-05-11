@@ -15,7 +15,15 @@ const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl();
 
-// ── Helper: decide where to send each role after login ───────────────────────
+// Helper: all requests must include credentials so the cookie is sent/received
+const authFetch = (path, options = {}) =>
+    fetch(`${API_BASE_URL}${path}`, {
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        ...options,
+    });
+
+// Helper: decide where to send each role after login
 const getHomeRoute = (role) => {
     if (role === 'admin')          return '/admin';
     if (role === 'head_caregiver') return '/head-caregiver';
@@ -49,10 +57,9 @@ const ForgotPasswordModal = ({ onClose }) => {
         setLoading(true);
         setMsg({ text: '', type: '' });
         try {
-            const res  = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
-                method:  'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body:    JSON.stringify({ email: email.trim() })
+            const res  = await authFetch('/auth/forgot-password', {
+                method: 'POST',
+                body:   JSON.stringify({ email: email.trim() }),
             });
             const data = await res.json();
             if (data.success) {
@@ -74,10 +81,9 @@ const ForgotPasswordModal = ({ onClose }) => {
         setLoading(true);
         setMsg({ text: '', type: '' });
         try {
-            const res  = await fetch(`${API_BASE_URL}/auth/verify-reset-otp`, {
-                method:  'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body:    JSON.stringify({ email: email.trim(), otp })
+            const res  = await authFetch('/auth/verify-reset-otp', {
+                method: 'POST',
+                body:   JSON.stringify({ email: email.trim(), otp }),
             });
             const data = await res.json();
             if (data.success) {
@@ -98,10 +104,9 @@ const ForgotPasswordModal = ({ onClose }) => {
         setLoading(true);
         setInfo('Sending new OTP…');
         try {
-            const res  = await fetch(`${API_BASE_URL}/auth/resend-reset-otp`, {
-                method:  'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body:    JSON.stringify({ email: email.trim() })
+            const res  = await authFetch('/auth/resend-reset-otp', {
+                method: 'POST',
+                body:   JSON.stringify({ email: email.trim() }),
             });
             const data = await res.json();
             if (data.success) {
@@ -123,10 +128,9 @@ const ForgotPasswordModal = ({ onClose }) => {
         setLoading(true);
         setMsg({ text: '', type: '' });
         try {
-            const res  = await fetch(`${API_BASE_URL}/auth/reset-password-with-otp`, {
-                method:  'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body:    JSON.stringify({ email: email.trim(), otp, password: newPassword })
+            const res  = await authFetch('/auth/reset-password-with-otp', {
+                method: 'POST',
+                body:   JSON.stringify({ email: email.trim(), otp, password: newPassword }),
             });
             const data = await res.json();
             if (data.success) {
@@ -309,10 +313,7 @@ const ForgotPasswordModal = ({ onClose }) => {
 };
 
 const LoginPage = () => {
-    // ── FIX: getHomeRoute and clearSession were never in AuthContext.
-    // getHomeRoute is now defined at the top of this file.
-    // clearSession was replaced by just clearing localStorage directly.
-    const { login, user, logout } = useAuth();
+    const { login, user } = useAuth();
     const navigate  = useNavigate();
     const location  = useLocation();
 
@@ -329,11 +330,7 @@ const LoginPage = () => {
     const [otpLoading, setOtpLoading]       = useState(false);
     const [resendTimer, setResendTimer]     = useState(0);
 
-    // Clear any stale token when the login page loads
-    useEffect(() => {
-        localStorage.removeItem('token');
-    }, []);
-
+    // Redirect if already logged in
     useEffect(() => {
         if (user) navigate(getHomeRoute(user.role), { replace: true });
     }, [user, navigate]);
@@ -363,6 +360,8 @@ const LoginPage = () => {
         setLoading(true);
         setError('');
         setBlockedStatus(null);
+
+        // login() in AuthContext should POST to /auth/login with credentials: 'include'
         const result = await login(form.username.trim(), form.password);
         setLoading(false);
 
@@ -374,14 +373,12 @@ const LoginPage = () => {
         if (result.success) {
             navigate(getHomeRoute(result.user.role), { replace: true });
         } else if (result.requiresOTP) {
-            // First-time login — OTPVerificationModal handles this via AuthContext
-            // Nothing to do here; AuthContext already opened the modal
+            // AuthContext handles the OTP modal for first-time login
         } else {
             const status = result.accountStatus;
             if (status && ['deactivated', 'suspended', 'restricted', 'on_leave', 'terminated', 'role_blocked'].includes(status)) {
                 setBlockedStatus({ status, reason: result.reason || '' });
             } else if (result.needsOtp || result.userId) {
-                // Legacy OTP flow for non-first-login activation
                 setPendingUserId(result.userId);
                 setNeedsOtp(true);
                 setOtpMsg('Your account needs to be activated. Enter the OTP sent to your email, or request a new one.');
@@ -394,38 +391,32 @@ const LoginPage = () => {
 
     const BLOCKED_CONFIG = {
         deactivated: {
-            icon: '⛔',
-            title: 'Account Deactivated',
+            icon: '⛔', title: 'Account Deactivated',
             message: 'Your account has been permanently deactivated by an administrator. Please contact your HR department or system administrator for assistance.',
             bg: '#FFF0F0', border: '#F5C6CB', color: '#721C24', iconBg: '#F8D7DA',
         },
         suspended: {
-            icon: '⏸',
-            title: 'Account Suspended',
+            icon: '⏸', title: 'Account Suspended',
             message: 'Your account has been temporarily suspended. This may be due to a policy violation or a pending investigation. Please contact your administrator.',
             bg: '#FFF3CD', border: '#FFEAA7', color: '#856404', iconBg: '#FFF0B3',
         },
         restricted: {
-            icon: '🔒',
-            title: 'Access Restricted',
+            icon: '🔒', title: 'Access Restricted',
             message: 'Your system access has been restricted by an administrator. You may still be employed but certain features are unavailable. Contact your supervisor for details.',
             bg: '#FFF8E1', border: '#FFE082', color: '#E65100', iconBg: '#FFE0B2',
         },
         on_leave: {
-            icon: '🏖',
-            title: 'On Leave',
+            icon: '🏖', title: 'On Leave',
             message: 'Your account is currently on leave of absence. Access will be restored upon your return. Contact your administrator if this is unexpected.',
             bg: '#EFF6FF', border: '#93C5FD', color: '#1D4ED8', iconBg: '#DBEAFE',
         },
         terminated: {
-            icon: '🚫',
-            title: 'Employment Terminated',
+            icon: '🚫', title: 'Employment Terminated',
             message: 'Your employment has been terminated and your account access has been revoked. Please contact HR if you believe this is an error.',
             bg: '#F3F4F6', border: '#D1D5DB', color: '#374151', iconBg: '#E5E7EB',
         },
         role_blocked: {
-            icon: '📱',
-            title: 'Web Access Not Available',
+            icon: '📱', title: 'Web Access Not Available',
             message: 'Your account role does not have access to the web portal. Please use the mobile app to access your account.',
             bg: '#F5F3FF', border: '#C4B5FD', color: '#5B21B6', iconBg: '#EDE9FE',
         },
@@ -435,10 +426,9 @@ const LoginPage = () => {
         if (!otpCode || otpCode.length < 6) { setOtpMsg('Please enter the full 6-digit OTP.'); return; }
         setOtpLoading(true);
         try {
-            const res  = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
-                method:  'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body:    JSON.stringify({ userId: pendingUserId, otp: otpCode })
+            const res  = await authFetch('/auth/verify-otp', {
+                method: 'POST',
+                body:   JSON.stringify({ userId: pendingUserId, otp: otpCode }),
             });
             const data = await res.json();
             if (data.success) {
@@ -461,10 +451,9 @@ const LoginPage = () => {
         if (resendTimer > 0) return;
         setOtpMsg('Sending new OTP…');
         try {
-            const res  = await fetch(`${API_BASE_URL}/auth/resend-otp`, {
-                method:  'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body:    JSON.stringify({ userId: pendingUserId })
+            const res  = await authFetch('/auth/resend-otp', {
+                method: 'POST',
+                body:   JSON.stringify({ userId: pendingUserId }),
             });
             const data = await res.json();
             setOtpMsg(data.message || 'OTP resent.');

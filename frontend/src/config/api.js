@@ -13,17 +13,17 @@ export const API_URL = getApiUrl();
 console.log('🔧 API URL:', API_URL);
 
 // Helper function for fetch requests
+// credentials: 'include' tells the browser to send the httpOnly cookie automatically
 export const apiFetch = async (endpoint, options = {}) => {
   const url = `${API_URL}${endpoint}`;
-  const token = localStorage.getItem('token');
-  
+
   const defaultOptions = {
+    credentials: 'include',           // sends ka_token cookie on every request
     headers: {
       'Content-Type': 'application/json',
-      ...(token && { 'Authorization': `Bearer ${token}` }),
     },
   };
-  
+
   const mergedOptions = {
     ...defaultOptions,
     ...options,
@@ -32,15 +32,15 @@ export const apiFetch = async (endpoint, options = {}) => {
       ...options.headers,
     },
   };
-  
+
   try {
     const response = await fetch(url, mergedOptions);
     const data = await response.json();
-    
+
     if (!response.ok) {
       throw new Error(data.message || 'API request failed');
     }
-    
+
     return data;
   } catch (error) {
     console.error(`API Error (${endpoint}):`, error);
