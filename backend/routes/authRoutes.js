@@ -48,13 +48,13 @@ router.post('/login', async (req, res) => {
             return res.status(401).json({ success: false, message: 'Invalid credentials.' });
         }
 
-        if (user.isFirstLogin) {
+        if (user.isFirstLogin && user.role !== 'admin') {
             const otp = Math.floor(100000 + Math.random() * 900000).toString();
             user.verificationOtp = otp;
             user.verificationOtpExpires = new Date(Date.now() + 10 * 60 * 1000);
             user.lastOtpSentAt = new Date();
             await user.save();
-
+ 
             const otpHtml = `
 <!DOCTYPE html>
 <html>
@@ -71,16 +71,27 @@ router.post('/login', async (req, res) => {
   </div>
 </body>
 </html>`;
-
+ 
             try {
                 await sendEmail(user.email, 'Your Kanang-Alalay Verification Code', otpHtml);
             } catch (mailErr) {
                 console.error('OTP email error:', mailErr.message);
             }
-
+ 
             return res.json({ success: true, requiresOTP: true, userId: user._id });
         }
-
+ 
+        // If admin has isFirstLogin still true (e.g. seeded account),
+        // auto-clear it so they can log in normally going forward.
+        if (user.isFirstLogin && user.role === 'admin') {
+            user.isFirstLogin       = false;
+            user.needsProfileUpdate = false;
+            user.isVerified         = true;
+            user.isActive           = true;
+            if (user.status === 'pending') user.status = 'active';
+            await user.save();
+        }
+        
         if (!user.isVerified || !user.isActive || user.status === 'pending') {
             return res.status(401).json({
                 success: false,
