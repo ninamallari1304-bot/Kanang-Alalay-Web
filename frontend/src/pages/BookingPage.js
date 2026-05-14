@@ -30,6 +30,24 @@ const GUIDELINES = [
     { text: 'No photography without permission' },
 ];
 
+// ── Name validation (no numbers allowed) ─────────────────────────────────────
+const validateName = (name) => {
+    const nameRegex = /^[a-zA-Z\s]*$/;
+    return nameRegex.test(name);
+};
+
+// ── Age validation (60+ senior citizens only) ────────────────────────────────
+const calculateAge = (dob) => {
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+    }
+    return age;
+};
+
 // ── Philippine Mobile Number Validation ──────────────────────────────────────
 const validatePhilippineNumber = (phone) => {
     const cleaned = phone.replace(/\D/g, '');
@@ -65,6 +83,8 @@ const ConfirmModal = ({ data, onConfirm, onCancel, loading }) => (
             <div className="bp-modal-rows">
                 {[
                     ['Full Name',    data.name],
+                    ['Date of Birth', data.dob],
+                    ['Age',          `${data.age} years old (Senior Citizen)`],
                     ['Email',        data.email],
                     ['Phone',        data.phone],
                     ['Purpose',      data.purpose],
@@ -99,6 +119,7 @@ const BookingPage = () => {
         firstName: '',
         middleName: '',
         lastName: '',
+        dob: '',  // Date of Birth for age validation
         email: '',
         phone: '',
         visitTime: '09:00',
@@ -120,6 +141,8 @@ const BookingPage = () => {
 
     const handleChange = e => {
         const { name, value } = e.target;
+        
+        // Phone number formatting
         if (name === 'phone') {
             const digitsOnly = value.replace(/\D/g, '');
             if (digitsOnly.length <= 11) {
@@ -131,10 +154,25 @@ const BookingPage = () => {
             }
             return;
         }
+        
+        // Number of visitors validation
         if (name === 'numberOfVisitors') {
             setFormField(name, Math.max(1, Math.min(10, Number(value))));
             return;
         }
+        
+        // Name fields: prevent numbers from being entered
+        if (name === 'firstName' || name === 'middleName' || name === 'lastName') {
+            const nameRegex = /^[a-zA-Z\s]*$/;
+            if (value === '' || nameRegex.test(value)) {
+                setFormField(name, value);
+                setErrors(p => ({ ...p, [name]: '' }));
+            } else {
+                setErrors(p => ({ ...p, [name]: 'Names cannot contain numbers' }));
+            }
+            return;
+        }
+        
         setFormField(name, value);
         setErrors(p => ({ ...p, [name]: '' }));
     };
@@ -146,9 +184,36 @@ const BookingPage = () => {
 
     const validate = () => {
         const e = {};
-        if (!form.firstName.trim()) e.firstName = 'Required';
-        if (!form.lastName.trim())  e.lastName  = 'Required';
-        if (!form.email.trim() || !/^\S+@\S+\.\S+$/.test(form.email)) e.email = 'Enter a valid email';
+        
+        // Name validation (no numbers)
+        if (!form.firstName.trim()) e.firstName = 'First name is required';
+        else if (!validateName(form.firstName)) e.firstName = 'Names cannot contain numbers';
+        
+        if (!form.lastName.trim()) e.lastName = 'Last name is required';
+        else if (!validateName(form.lastName)) e.lastName = 'Names cannot contain numbers';
+        
+        if (form.middleName.trim() && !validateName(form.middleName)) {
+            e.middleName = 'Names cannot contain numbers';
+        }
+        
+        // Date of Birth validation (required and age 60+)
+        if (!form.dob) {
+            e.dob = 'Date of birth is required';
+        } else {
+            const age = calculateAge(form.dob);
+            if (age < 60) {
+                e.dob = 'This booking system is for senior citizens aged 60 and above only.';
+            } else if (age > 120) {
+                e.dob = 'Please enter a valid date of birth';
+            }
+        }
+        
+        // Email validation
+        if (!form.email.trim() || !/^\S+@\S+\.\S+$/.test(form.email)) {
+            e.email = 'Enter a valid email';
+        }
+        
+        // Phone validation
         if (!form.phone) {
             e.phone = 'Mobile number is required';
         } else {
@@ -156,7 +221,10 @@ const BookingPage = () => {
             if (!validatePhilippineNumber(cleaned).isValid)
                 e.phone = 'Enter a valid Philippine mobile number (e.g., 09123456789 or 9123456789)';
         }
+        
+        // Visit date validation
         if (!selectedDate) e.visitDate = 'Please select a date';
+        
         setErrors(e);
         return Object.keys(e).length === 0;
     };
@@ -167,17 +235,27 @@ const BookingPage = () => {
         if (!validate()) return;
 
         const fullName = [form.firstName, form.middleName, form.lastName].filter(Boolean).join(' ');
+        const age = calculateAge(form.dob);
         const cleanedPhone = form.phone.replace(/\D/g, '');
         let formattedPhone = cleanedPhone;
         if (cleanedPhone.length === 10 && cleanedPhone.startsWith('9'))       formattedPhone = `+63${cleanedPhone}`;
         else if (cleanedPhone.length === 11 && cleanedPhone.startsWith('09')) formattedPhone = `+63${cleanedPhone.substring(1)}`;
         else if (cleanedPhone.length === 12 && cleanedPhone.startsWith('639'))formattedPhone = `+63${cleanedPhone.substring(3)}`;
 
+        // Format DOB for display
+        const dobDate = new Date(form.dob);
+        const formattedDob = dobDate.toLocaleDateString('en-PH', {
+            month: 'long', day: 'numeric', year: 'numeric'
+        });
+
         setModalData({
             firstName:        form.firstName.trim(),
             middleName:       form.middleName.trim(),
             lastName:         form.lastName.trim(),
             name:             fullName,
+            dob:              formattedDob,
+            dobRaw:           form.dob,
+            age:              age,
             email:            form.email.trim().toLowerCase(),
             phone:            formattedPhone,
             visitDate:        selectedDate.toLocaleDateString('en-PH', {
@@ -202,6 +280,8 @@ const BookingPage = () => {
                 middleName:       modalData.middleName,
                 lastName:         modalData.lastName,
                 name:             modalData.name,
+                dob:              modalData.dobRaw,
+                age:              modalData.age,
                 email:            modalData.email,
                 phone:            modalData.phone,
                 visitDate:        modalData.visitDateRaw,
@@ -310,6 +390,9 @@ const BookingPage = () => {
                         Plan your visit to Kanang Alalay. Select a convenient date and time to
                         tour our facility or meet with our team.
                     </p>
+                    <div className="bp-senior-notice">
+                        ⚠️ This booking system is exclusively for senior citizens aged 60 and above.
+                    </div>
                 </div>
             </div>
 
@@ -353,17 +436,19 @@ const BookingPage = () => {
                                         disabled={loading}
                                     />
                                     {errors.firstName && <div className="bp-err-msg">{errors.firstName}</div>}
+                                    <div className="bp-hint">Letters only, no numbers allowed</div>
                                 </div>
                                 <div className="bp-group">
                                     <label>Middle Name (Optional)</label>
                                     <input
-                                        className="bp-input"
+                                        className={`bp-input${errors.middleName ? ' err' : ''}`}
                                         name="middleName"
                                         value={form.middleName}
                                         onChange={handleChange}
                                         placeholder="Santos"
                                         disabled={loading}
                                     />
+                                    {errors.middleName && <div className="bp-err-msg">{errors.middleName}</div>}
                                 </div>
                                 <div className="bp-group">
                                     <label>Last Name<span className="req">*</span></label>
@@ -380,6 +465,20 @@ const BookingPage = () => {
                             </div>
 
                             <div className="bp-row">
+                                <div className="bp-group">
+                                    <label>Date of Birth<span className="req">*</span></label>
+                                    <input
+                                        className={`bp-input${errors.dob ? ' err' : ''}`}
+                                        type="date"
+                                        name="dob"
+                                        value={form.dob}
+                                        onChange={handleChange}
+                                        disabled={loading}
+                                        max={new Date().toISOString().split('T')[0]}
+                                    />
+                                    {errors.dob && <div className="bp-err-msg">{errors.dob}</div>}
+                                    <div className="bp-hint">Must be 60 years old or above to book</div>
+                                </div>
                                 <div className="bp-group">
                                     <label>Email Address<span className="req">*</span></label>
                                     <input

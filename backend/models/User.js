@@ -10,7 +10,8 @@ const userSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    phone: { type: String },
+    // Requirement: Unique contact numbers that cannot be reused
+    phone: { type: String, unique: true, sparse: true }, 
     department: {
         type: String,
         trim: true,
@@ -36,19 +37,20 @@ const userSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['admin', 'head_caregiver', 'caregiver'],
+        // Requirement: Professional and formal labels
+        enum: ['admin', 'head_caregiver', 'caregiver'], 
         default: 'caregiver'
     },
     status: {
         type: String,
-        enum: ['pending', 'active', 'restricted', 'suspended', 'deactivated', 'on_leave', 'terminated'],
-        default: 'pending'
+        enum: ['active', 'restricted', 'suspended', 'deactivated', 'on_leave', 'terminated'],
+        default: 'active'
     },
     statusReason: { type: String, default: '' },
     statusUpdatedAt: { type: Date },
     statusUpdatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     isVerified: { type: Boolean, default: false },
-    isActive: { type: Boolean, default: false },
+    isActive: { type: Boolean, default: true },
     isEmailVerified: { type: Boolean, default: false },
     otpCode: { type: String },
     otpExpires: { type: Date },
