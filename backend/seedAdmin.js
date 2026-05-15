@@ -16,8 +16,8 @@ async function seedAdmin() {
             existingAdmin.staffId = existingAdmin.staffId || 'LSAE-ADMIN-0001';
             existingAdmin.email = 'admin@kanangalalay.org';
             existingAdmin.password = 'admin123';
-            existingAdmin.firstName = 'Master';
-            existingAdmin.lastName = 'Admin';
+            existingAdmin.firstName = 'c';
+            existingAdmin.lastName = 'Da Silva';
             existingAdmin.role = 'admin';
             existingAdmin.isActive = true;
             existingAdmin.isVerified = true;
@@ -28,8 +28,8 @@ async function seedAdmin() {
                 username: 'admin',
                 email: 'admin@kanangalalay.org',
                 password: 'admin123',
-                firstName: 'Master',
-                lastName: 'Admin',
+                firstName: 'Sandra',
+                lastName: 'Da Silva',
                 role: 'admin',
                 isActive: true,
                 isVerified: true
@@ -37,7 +37,7 @@ async function seedAdmin() {
             await adminUser.save();
         }
         
-        console.log('🎉 SUCCESS! Master Admin account recreated.');
+        console.log('🎉 SUCCESS! Admin account recreated.');
         console.log('-----------------------------------');
         console.log('👤 Username: admin');
         console.log('🔑 Password: admin123');
