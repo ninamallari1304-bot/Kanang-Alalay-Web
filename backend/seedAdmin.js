@@ -16,7 +16,7 @@ async function seedAdmin() {
             existingAdmin.staffId = existingAdmin.staffId || 'LSAE-ADMIN-0001';
             existingAdmin.email = 'admin@kanangalalay.org';
             existingAdmin.password = 'admin123';
-            existingAdmin.firstName = 'c';
+            existingAdmin.firstName = 'Sandra';
             existingAdmin.lastName = 'Da Silva';
             existingAdmin.role = 'admin';
             existingAdmin.isActive = true;
