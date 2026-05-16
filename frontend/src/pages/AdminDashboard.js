@@ -5,7 +5,7 @@ import {
     FaUserCircle, FaHome, FaUsers, FaBell, FaCalendarCheck,
     FaUserMd, FaExclamationTriangle, FaChartBar, FaFileAlt, FaUserPlus,
     FaSignOutAlt, FaSync, FaEye, FaEdit, FaTrash,
-    FaCheckCircle, FaBan, FaClock, FaMoneyBillWave,
+    FaCheckCircle, FaBan, FaMoneyBillWave,
     FaPhone, FaEnvelope, FaCalendarAlt, FaUserTag, FaIdCard, FaDownload, FaBox, FaChevronDown,
     FaSearch, FaCog, FaQuestionCircle, FaTimes, FaCheck, FaInfoCircle,
     FaExclamationCircle, FaSpinner, FaTimesCircle, FaHistory
@@ -111,7 +111,7 @@ const ReasonModal = ({ isOpen, action, userName, currentStatus, reason, setReaso
             case 'deactivate': return 'Deactivate Account (Permanent)';
             case 'suspend': return 'Suspend Account';
             case 'terminate': return 'Terminate Employment';
-            case 'loa': return 'Leave of Absence';
+
             default: return 'Personnel Action';
         }
     };
@@ -122,7 +122,7 @@ const ReasonModal = ({ isOpen, action, userName, currentStatus, reason, setReaso
             case 'deactivate': return '#C0392B';
             case 'suspend': return '#856404';
             case 'terminate': return '#dc3545';
-            case 'loa': return '#1565C0';
+
             default: return '#7A5C4E';
         }
     };
@@ -133,7 +133,7 @@ const ReasonModal = ({ isOpen, action, userName, currentStatus, reason, setReaso
             case 'deactivate': return 'Permanently deactivate account when staff leaves the organization for good.';
             case 'suspend': return 'Temporarily suspend account due to policy violations or pending investigation.';
             case 'terminate': return 'Terminate employment with immediate effect. Account will be disabled.';
-            case 'loa': return 'Grant leave of absence. Account will be temporarily disabled until return date.';
+
             default: return '';
         }
     };
@@ -784,19 +784,6 @@ const AdminDashboard = () => {
         });
     };
 
-    const handleLeaveOfAbsence = (userId, userName, currentStatus) => {
-        setReasonModal({
-            isOpen: true,
-            action: 'loa',
-            userId,
-            userName,
-            currentStatus,
-            reason: '',
-            effectiveDate: new Date().toISOString().slice(0, 10),
-            notes: ''
-        });
-    };
-
     const confirmPersonnelAction = async () => {
         const { action, userId, reason, effectiveDate, notes, userName, currentStatus } = reasonModal;
         
@@ -820,10 +807,7 @@ const AdminDashboard = () => {
                 newStatus = 'terminated';
                 actionMessage = 'terminated';
                 break;
-            case 'loa':
-                newStatus = 'on_leave';
-                actionMessage = 'placed on leave of absence';
-                break;
+
             default:
                 return;
         }
@@ -1063,22 +1047,6 @@ const AdminDashboard = () => {
     const handleEditBooking = (b) => {
         setEditStatusModal({ isOpen: true, booking: b, newStatus: b.status });
     };
-
-    const handleMarkAttendance = (id, name) =>
-        showConfirm(
-            'Mark Attendance',
-            `Log attendance for ${name} at ${new Date().toLocaleTimeString()}?`,
-            async () => {
-                closeConfirm();
-                await fetchApi(`/admin/staff/${id}/attendance`, {
-                    method: 'POST',
-                    body: JSON.stringify({ loggedAt: new Date().toISOString() })
-                });
-                toast(`Attendance logged for ${name}.`);
-            },
-            false,
-            'Log Attendance'
-        );
 
     const viewUserHistory = (userId, userName) => {
         toast(`Viewing history for ${userName} - Feature coming soon.`, 'info');
@@ -1339,14 +1307,6 @@ const AdminDashboard = () => {
                                                     }}
                                                 >
                                                     <div style={{ padding: '6px 0' }}>
-                                                        {/* Always visible */}
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); handleMarkAttendance(m._id, `${m.firstName} ${m.lastName}`); setOpenDropdown(null); }}
-                                                            className="dropdown-item"
-                                                        >
-                                                            <FaClock style={{ color: '#17a2b8' }} /> Mark Attendance
-                                                        </button>
-
                                                         {/* PENDING: can only activate */}
                                                         {accountStatus === 'pending' && (
                                                             <button
@@ -1357,16 +1317,13 @@ const AdminDashboard = () => {
                                                             </button>
                                                         )}
 
-                                                        {/* ACTIVE: show restrict, suspend, loa, terminate, deactivate */}
+                                                        {/* ACTIVE: show restrict, suspend, terminate, deactivate */}
                                                         {accountStatus === 'active' && (<>
                                                             <button onClick={(e) => { e.stopPropagation(); handleRestrictUser(m._id, `${m.firstName} ${m.lastName}`, accountStatus); setOpenDropdown(null); }} className="dropdown-item">
                                                                 <FaBan style={{ color: '#E65100' }} /> Restrict Access
                                                             </button>
                                                             <button onClick={(e) => { e.stopPropagation(); handleSuspendUser(m._id, `${m.firstName} ${m.lastName}`, accountStatus); setOpenDropdown(null); }} className="dropdown-item">
                                                                 <FaExclamationTriangle style={{ color: '#856404' }} /> Suspend Account
-                                                            </button>
-                                                            <button onClick={(e) => { e.stopPropagation(); handleLeaveOfAbsence(m._id, `${m.firstName} ${m.lastName}`, accountStatus); setOpenDropdown(null); }} className="dropdown-item">
-                                                                <FaCalendarAlt style={{ color: '#1565C0' }} /> Leave of Absence
                                                             </button>
                                                             <button onClick={(e) => { e.stopPropagation(); handleTerminateUser(m._id, `${m.firstName} ${m.lastName}`, accountStatus); setOpenDropdown(null); }} className="dropdown-item">
                                                                 <FaTimesCircle style={{ color: '#C0392B' }} /> Terminate Employment
@@ -1423,8 +1380,6 @@ const AdminDashboard = () => {
                                                                 <FaTrash style={{ color: '#dc3545' }} /> Deactivate (Permanent)
                                                             </button>
                                                         </>)}
-
-                                                        {/* TERMINATED: delete only */}
                                                         {accountStatus === 'terminated' && (
                                                             <button onClick={(e) => { e.stopPropagation(); deleteStaff(m._id); setOpenDropdown(null); }} className="dropdown-item" style={{ color: '#dc3545' }}>
                                                                 <FaTrash /> Delete Permanently
