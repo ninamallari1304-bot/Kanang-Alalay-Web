@@ -1094,4 +1094,107 @@ router.put('/stock-requests/:id', async (req, res) => {
     }
 });
 
+
+// ─────────────────────────────────────────────────────────────
+// EDIT USER (name, email, phone, role)
+// PUT /api/admin/users/:id
+// Called by the Edit modal in AdminDashboard
+// ─────────────────────────────────────────────────────────────
+router.put('/users/:id', async (req, res) => {
+    try {
+        const { firstName, lastName, email, phone, role } = req.body;
+
+        const allowedRoles = ['admin', 'head_caregiver', 'caregiver'];
+
+        if (role && !allowedRoles.includes(role)) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid role. Must be one of: ${allowedRoles.join(', ')}`
+            });
+        }
+
+        const target = await User.findById(req.params.id);
+
+        if (!target) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found.'
+            });
+        }
+
+        // Prevent admin from changing their own role to something lower
+        if (
+            target._id.toString() === req.user._id.toString() &&
+            role && role !== 'admin'
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: 'You cannot change your own role.'
+            });
+        }
+
+        // Check email uniqueness if changing
+        if (email && email.toLowerCase() !== target.email) {
+            const emailExists = await User.findOne({
+                email: email.trim().toLowerCase(),
+                _id: { $ne: target._id }
+            });
+            if (emailExists) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Another account already uses this email.'
+                });
+            }
+        }
+
+        if (firstName)  target.firstName = firstName.trim();
+        if (lastName)   target.lastName  = lastName.trim();
+        if (email)      target.email     = email.trim().toLowerCase();
+        if (phone !== undefined) target.phone = phone.trim();
+        if (role)       target.role      = role;
+
+        // If role changed, log it
+        if (role && role !== target.role) {
+            await ActivityLog.create({
+                action: 'ROLE_CHANGE',
+                details: `Role changed to '${role}' for ${target.firstName} ${target.lastName}`,
+                user: req.user._id,
+                targetId: target._id,
+            }).catch(() => {});
+        }
+
+        await target.save();
+
+        res.json({
+            success: true,
+            message: 'User updated successfully.',
+            data: {
+                _id:       target._id,
+                staffId:   target.staffId,
+                firstName: target.firstName,
+                lastName:  target.lastName,
+                email:     target.email,
+                phone:     target.phone,
+                role:      target.role,
+                status:    target.status,
+            }
+        });
+
+    } catch (error) {
+        console.error('Edit user error:', error);
+
+        if (error.code === 11000) {
+            return res.status(400).json({
+                success: false,
+                message: 'Email already exists.'
+            });
+        }
+
+        res.status(500).json({
+            success: false,
+            message: 'Server error: ' + error.message
+        });
+    }
+});
+
 module.exports = router;
