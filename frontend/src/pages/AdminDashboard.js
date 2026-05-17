@@ -5,7 +5,7 @@ import {
     FaUserCircle, FaHome, FaUsers, FaBell, FaCalendarCheck,
     FaUserMd, FaExclamationTriangle, FaChartBar, FaFileAlt, FaUserPlus,
     FaSignOutAlt, FaSync, FaEye, FaEdit, FaTrash,
-    FaCheckCircle, FaBan, FaMoneyBillWave,
+    FaCheckCircle, FaBan, FaClock, FaMoneyBillWave,
     FaPhone, FaEnvelope, FaCalendarAlt, FaUserTag, FaIdCard, FaDownload, FaBox, FaChevronDown,
     FaSearch, FaCog, FaQuestionCircle, FaTimes, FaCheck, FaInfoCircle,
     FaExclamationCircle, FaSpinner, FaTimesCircle, FaHistory
@@ -111,7 +111,7 @@ const ReasonModal = ({ isOpen, action, userName, currentStatus, reason, setReaso
             case 'deactivate': return 'Deactivate Account (Permanent)';
             case 'suspend': return 'Suspend Account';
             case 'terminate': return 'Terminate Employment';
-
+            case 'loa': return 'Leave of Absence';
             default: return 'Personnel Action';
         }
     };
@@ -122,7 +122,7 @@ const ReasonModal = ({ isOpen, action, userName, currentStatus, reason, setReaso
             case 'deactivate': return '#C0392B';
             case 'suspend': return '#856404';
             case 'terminate': return '#dc3545';
-
+            case 'loa': return '#1565C0';
             default: return '#7A5C4E';
         }
     };
@@ -133,7 +133,7 @@ const ReasonModal = ({ isOpen, action, userName, currentStatus, reason, setReaso
             case 'deactivate': return 'Permanently deactivate account when staff leaves the organization for good.';
             case 'suspend': return 'Temporarily suspend account due to policy violations or pending investigation.';
             case 'terminate': return 'Terminate employment with immediate effect. Account will be disabled.';
-
+            case 'loa': return 'Grant leave of absence. Account will be temporarily disabled until return date.';
             default: return '';
         }
     };
@@ -337,6 +337,69 @@ const InfoMini = ({ label, value, accent }) => (
     </div>
 );
 
+// ── EditUserModal ─────────────────────────────────────────────────────────────
+const EditUserModal = ({ user, onSave, onClose }) => {
+    const ROLES_LIST = ['admin', 'head_caregiver', 'caregiver'];
+    const ROLE_LABEL = { admin: 'Admin', head_caregiver: 'Head Caregiver', caregiver: 'Caregiver' };
+    const [form, setForm] = React.useState({
+        firstName: user.firstName || '',
+        lastName:  user.lastName  || '',
+        email:     user.email     || '',
+        phone:     user.phone     || '',
+        role:      user.role      || 'caregiver',
+    });
+    const [saving, setSaving] = React.useState(false);
+    const [err, setErr]       = React.useState('');
+
+    const handleSave = async () => {
+        if (!form.firstName.trim() || !form.lastName.trim()) { setErr('First and last name are required.'); return; }
+        setSaving(true);
+        try { await onSave(form); }
+        catch (e) { setErr(e.message || 'Failed to save.'); setSaving(false); }
+    };
+
+    const inp = { width: '100%', padding: '10px 14px', border: '1.5px solid #E8D6CC', borderRadius: 10, fontSize: '.9rem', background: '#FFF8F3', color: '#1A0A00', outline: 'none', boxSizing: 'border-box', fontFamily: 'var(--d-font-body)', transition: 'border-color .2s' };
+    const lbl = { display: 'block', fontSize: '.76rem', fontWeight: 700, color: '#2c3e50', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 5 };
+    const roleChanged = form.role !== user.role;
+
+    return (
+        <div className="modal-overlay" style={{ zIndex: 10002 }}>
+            <div className="registration-modal" style={{ maxWidth: 500, padding: 0 }}>
+                <div style={{ padding: '20px 26px', background: 'linear-gradient(135deg,#b85c2d,#7d3a06)', borderRadius: '20px 20px 0 0', display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <FaEdit style={{ color: '#fff', fontSize: '1.1rem' }} />
+                    <h4 style={{ margin: 0, color: '#fff', fontFamily: 'var(--d-font-head)', fontSize: '1.1rem' }}>Edit — {user.firstName} {user.lastName}</h4>
+                    <button onClick={onClose} style={{ marginLeft: 'auto', background: 'rgba(255,255,255,.15)', border: '2px solid rgba(255,255,255,.2)', color: '#fff', width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FaTimes /></button>
+                </div>
+                <div style={{ padding: '24px 26px' }}>
+                    {err && <div style={{ background: '#f8d7da', color: '#721c24', padding: '10px 14px', borderRadius: 8, marginBottom: 14, fontSize: '.85rem' }}>⚠️ {err}</div>}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                        <div><label style={lbl}>First Name *</label><input style={inp} value={form.firstName} onChange={e => setForm(p => ({ ...p, firstName: e.target.value }))} /></div>
+                        <div><label style={lbl}>Last Name *</label><input style={inp} value={form.lastName} onChange={e => setForm(p => ({ ...p, lastName: e.target.value }))} /></div>
+                    </div>
+                    <div style={{ marginBottom: 14 }}><label style={lbl}>Email</label><input type="email" style={inp} value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} /></div>
+                    <div style={{ marginBottom: 14 }}><label style={lbl}>Phone</label><input style={inp} value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value.replace(/\D/g,'').slice(0,11) }))} placeholder="09XXXXXXXXX" /></div>
+                    <div style={{ marginBottom: 6 }}>
+                        <label style={lbl}>Role / Promotion</label>
+                        <select style={{ ...inp, cursor: 'pointer' }} value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))}>
+                            {ROLES_LIST.map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+                        </select>
+                        {roleChanged && (
+                            <div style={{ marginTop: 8, padding: '8px 12px', borderRadius: 8, background: '#FFF8E1', border: '1.5px solid #ffc107', fontSize: '.78rem', color: '#856404', display: 'flex', gap: 7, alignItems: 'center' }}>
+                                <FaExclamationTriangle style={{ flexShrink: 0 }} />
+                                <span>Role will change from <strong>{ROLE_LABEL[user.role] || user.role}</strong> → <strong>{ROLE_LABEL[form.role]}</strong>. This affects dashboard access.</span>
+                            </div>
+                        )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 22, paddingTop: 16, borderTop: '1.5px solid var(--d-border)' }}>
+                        <button onClick={onClose} style={{ padding: '9px 20px', borderRadius: 10, border: '1.5px solid var(--d-border)', background: 'transparent', cursor: 'pointer', fontWeight: 600, color: 'var(--d-muted)', fontFamily: 'var(--d-font-body)' }}>Cancel</button>
+                        <button onClick={handleSave} disabled={saving} style={{ padding: '9px 22px', borderRadius: 10, border: 'none', background: saving ? '#ccc' : 'linear-gradient(135deg,#F96B38,#D94E1B)', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 700, fontFamily: 'var(--d-font-body)' }}>{saving ? 'Saving…' : '✓ Save Changes'}</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const AdminDashboard = () => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
@@ -404,6 +467,8 @@ const AdminDashboard = () => {
     const [stockRequests, setStockRequests] = useState([]);
     const [rejectionModal, setRejectionModal] = useState({ isOpen: false, bookingId: null, reason: '' });
     const [openDropdown, setOpenDropdown] = useState(null);
+    const [selectedUser, setSelectedUser] = useState(null);
+    const [showEditModal, setShowEditModal] = useState(false);
     const dropdownRef = useRef(null);
 
     const { on, off } = useSocket();
@@ -807,8 +872,7 @@ const AdminDashboard = () => {
                 newStatus = 'terminated';
                 actionMessage = 'terminated';
                 break;
-
-            default:
+default:
                 return;
         }
         
@@ -1307,8 +1371,8 @@ const AdminDashboard = () => {
                                                     }}
                                                 >
                                                     <div style={{ padding: '6px 0' }}>
-                                                        {/* PENDING: can only activate */}
-                                                        {accountStatus === 'pending' && (
+                                                        {/* Activate — shown when account is NOT active */}
+                                                        {accountStatus !== 'active' && (
                                                             <button
                                                                 onClick={(e) => { e.stopPropagation(); handleReactivateUser(m._id, `${m.firstName} ${m.lastName}`); setOpenDropdown(null); }}
                                                                 className="dropdown-item"
@@ -1317,77 +1381,24 @@ const AdminDashboard = () => {
                                                             </button>
                                                         )}
 
-                                                        {/* ACTIVE: show restrict, suspend, terminate, deactivate */}
-                                                        {accountStatus === 'active' && (<>
-                                                            <button onClick={(e) => { e.stopPropagation(); handleRestrictUser(m._id, `${m.firstName} ${m.lastName}`, accountStatus); setOpenDropdown(null); }} className="dropdown-item">
-                                                                <FaBan style={{ color: '#E65100' }} /> Restrict Access
-                                                            </button>
-                                                            <button onClick={(e) => { e.stopPropagation(); handleSuspendUser(m._id, `${m.firstName} ${m.lastName}`, accountStatus); setOpenDropdown(null); }} className="dropdown-item">
-                                                                <FaExclamationTriangle style={{ color: '#856404' }} /> Suspend Account
-                                                            </button>
-                                                            <button onClick={(e) => { e.stopPropagation(); handleTerminateUser(m._id, `${m.firstName} ${m.lastName}`, accountStatus); setOpenDropdown(null); }} className="dropdown-item">
-                                                                <FaTimesCircle style={{ color: '#C0392B' }} /> Terminate Employment
-                                                            </button>
-                                                            <div style={{ height: 1, background: 'var(--d-border)', margin: '6px 0' }} />
-                                                            <button onClick={(e) => { e.stopPropagation(); handleDeactivateUser(m._id, `${m.firstName} ${m.lastName}`, accountStatus); setOpenDropdown(null); }} className="dropdown-item">
-                                                                <FaTrash style={{ color: '#dc3545' }} /> Deactivate (Permanent)
-                                                            </button>
-                                                        </>)}
-
-                                                        {/* RESTRICTED: can reactivate or escalate to deactivate */}
-                                                        {accountStatus === 'restricted' && (<>
-                                                            <button onClick={(e) => { e.stopPropagation(); handleReactivateUser(m._id, `${m.firstName} ${m.lastName}`); setOpenDropdown(null); }} className="dropdown-item">
-                                                                <FaCheckCircle style={{ color: '#28a745' }} /> Restore Access
-                                                            </button>
-                                                            <button onClick={(e) => { e.stopPropagation(); handleSuspendUser(m._id, `${m.firstName} ${m.lastName}`, accountStatus); setOpenDropdown(null); }} className="dropdown-item">
-                                                                <FaExclamationTriangle style={{ color: '#856404' }} /> Escalate to Suspend
-                                                            </button>
-                                                            <div style={{ height: 1, background: 'var(--d-border)', margin: '6px 0' }} />
-                                                            <button onClick={(e) => { e.stopPropagation(); handleDeactivateUser(m._id, `${m.firstName} ${m.lastName}`, accountStatus); setOpenDropdown(null); }} className="dropdown-item">
-                                                                <FaTrash style={{ color: '#dc3545' }} /> Deactivate (Permanent)
-                                                            </button>
-                                                        </>)}
-
-                                                        {/* SUSPENDED: can reactivate or deactivate */}
-                                                        {accountStatus === 'suspended' && (<>
-                                                            <button onClick={(e) => { e.stopPropagation(); handleReactivateUser(m._id, `${m.firstName} ${m.lastName}`); setOpenDropdown(null); }} className="dropdown-item">
-                                                                <FaCheckCircle style={{ color: '#28a745' }} /> Lift Suspension
-                                                            </button>
-                                                            <div style={{ height: 1, background: 'var(--d-border)', margin: '6px 0' }} />
-                                                            <button onClick={(e) => { e.stopPropagation(); handleDeactivateUser(m._id, `${m.firstName} ${m.lastName}`, accountStatus); setOpenDropdown(null); }} className="dropdown-item">
-                                                                <FaTrash style={{ color: '#dc3545' }} /> Deactivate (Permanent)
-                                                            </button>
-                                                        </>)}
-
-                                                        {/* DEACTIVATED: can reactivate or delete permanently */}
-                                                        {accountStatus === 'deactivated' && (<>
-                                                            <button onClick={(e) => { e.stopPropagation(); handleReactivateUser(m._id, `${m.firstName} ${m.lastName}`); setOpenDropdown(null); }} className="dropdown-item">
-                                                                <FaCheckCircle style={{ color: '#28a745' }} /> Reactivate Account
-                                                            </button>
-                                                            <div style={{ height: 1, background: 'var(--d-border)', margin: '6px 0' }} />
-                                                            <button onClick={(e) => { e.stopPropagation(); deleteStaff(m._id); setOpenDropdown(null); }} className="dropdown-item" style={{ color: '#dc3545' }}>
-                                                                <FaTrash /> Delete Permanently
-                                                            </button>
-                                                        </>)}
-
-                                                        {/* ON LEAVE: can restore to active or deactivate */}
-                                                        {accountStatus === 'on_leave' && (<>
-                                                            <button onClick={(e) => { e.stopPropagation(); handleReactivateUser(m._id, `${m.firstName} ${m.lastName}`); setOpenDropdown(null); }} className="dropdown-item">
-                                                                <FaCheckCircle style={{ color: '#28a745' }} /> Return from Leave
-                                                            </button>
-                                                            <div style={{ height: 1, background: 'var(--d-border)', margin: '6px 0' }} />
-                                                            <button onClick={(e) => { e.stopPropagation(); handleDeactivateUser(m._id, `${m.firstName} ${m.lastName}`, accountStatus); setOpenDropdown(null); }} className="dropdown-item">
-                                                                <FaTrash style={{ color: '#dc3545' }} /> Deactivate (Permanent)
-                                                            </button>
-                                                        </>)}
-                                                        {accountStatus === 'terminated' && (
-                                                            <button onClick={(e) => { e.stopPropagation(); deleteStaff(m._id); setOpenDropdown(null); }} className="dropdown-item" style={{ color: '#dc3545' }}>
-                                                                <FaTrash /> Delete Permanently
+                                                        {/* Deactivate — shown when account IS active */}
+                                                        {accountStatus === 'active' && (
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); handleDeactivateUser(m._id, `${m.firstName} ${m.lastName}`, accountStatus); setOpenDropdown(null); }}
+                                                                className="dropdown-item"
+                                                            >
+                                                                <FaBan style={{ color: '#C0392B' }} /> Deactivate Account
                                                             </button>
                                                         )}
 
-                                                        <button onClick={(e) => { e.stopPropagation(); viewUserHistory(m._id, `${m.firstName} ${m.lastName}`); setOpenDropdown(null); }} className="dropdown-item">
-                                                            <FaHistory style={{ color: '#3949AB' }} /> View Action History
+                                                        <div style={{ height: 1, background: 'var(--d-border)', margin: '6px 0' }} />
+
+                                                        {/* Edit — always visible */}
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); setSelectedUser(m); setShowEditModal(true); setOpenDropdown(null); }}
+                                                            className="dropdown-item"
+                                                        >
+                                                            <FaEdit style={{ color: '#b85c2d' }} /> Edit Account
                                                         </button>
                                                     </div>
                                                 </div>
@@ -2042,6 +2053,29 @@ const AdminDashboard = () => {
                 onClose={() => setShowRegistrationModal(false)}
                 onRegister={handleRegisterSuccess}
             />
+
+            {/* ── Inline Edit Modal ── */}
+            {showEditModal && selectedUser && (
+                <EditUserModal
+                    user={selectedUser}
+                    onSave={async (form) => {
+                        try {
+                            await fetchApi(`/admin/users/${selectedUser._id}`, {
+                                method: 'PUT',
+                                body: JSON.stringify(form)
+                            });
+                            setStaff(prev => prev.map(u => u._id === selectedUser._id ? { ...u, ...form } : u));
+                            toast(`${form.firstName} ${form.lastName} updated successfully.`);
+                        } catch (e) {
+                            toast('Failed to save changes.', 'error');
+                        } finally {
+                            setShowEditModal(false);
+                            setSelectedUser(null);
+                        }
+                    }}
+                    onClose={() => { setShowEditModal(false); setSelectedUser(null); }}
+                />
+            )}
             <AddInventoryModal
                 isOpen={showAddInventory}
                 onClose={() => setShowAddInventory(false)}
