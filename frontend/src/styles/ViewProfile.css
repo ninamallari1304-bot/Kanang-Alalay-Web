@@ -1,22 +1,50 @@
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap');
 
+/* ============================================================
+   ViewProfile.css — Color System
+   ============================================================
+   BRAND PALETTE
+   ┌─────────────────────────────────────────────────────────┐
+   │  --vp-orange      #F96B38  │ Icons, borders, CTA btn    │
+   │  --vp-orange-dk   #D94E1B  │ Hover darken, back-btn text│
+   │  --vp-orange-lt   #FDDECA  │ Role badge bg, icon bg     │
+   │  --vp-muted       #7A5C4E  │ Labels, meta text          │
+   └─────────────────────────────────────────────────────────┘
+   NEUTRALS
+   ┌─────────────────────────────────────────────────────────┐
+   │  --vp-ink         #1A0A00  │ Heading & value text        │
+   │  --vp-cream       #FFF8F3  │ Page bg, info-box fill      │
+   │  --vp-border      #E8D6CC  │ Card/info-box borders       │
+   │  --vp-white       #FFFFFF  │ Profile card bg             │
+   └─────────────────────────────────────────────────────────┘
+   SEMANTIC (hard-coded)
+   ┌─────────────────────────────────────────────────────────┐
+   │  Online  dot  #1E7D56  (green)                          │
+   │  Offline dot  #C0392B  (red)                            │
+   │  Error banner #FFF0F0 / #FFCDD2 / #C0392B              │
+   └─────────────────────────────────────────────────────────┘
+   ============================================================ */
+
 :root {
-  --vp-orange:    #F96B38;
-  --vp-orange-dk: #D94E1B;
-  --vp-orange-lt: #FDDECA;
-  --vp-cream:     #FFF8F3;
-  --vp-ink:       #1A0A00;
-  --vp-muted:     #7A5C4E;
-  --vp-border:    #E8D6CC;
-  --vp-white:     #FFFFFF;
+  --vp-orange:    #F96B38;   /* icon color, focus border, CTA gradient start */
+  --vp-orange-dk: #D94E1B;   /* back-btn text, gradient end, hover */
+  --vp-orange-lt: #FDDECA;   /* role-badge bg, back-btn hover fill */
+  --vp-cream:     #FFF8F3;   /* page background, info-box background */
+  --vp-ink:       #1A0A00;   /* primary headings and values */
+  --vp-muted:     #7A5C4E;   /* field labels, meta text, status text */
+  --vp-border:    #E8D6CC;   /* card borders, section dividers */
+  --vp-white:     #FFFFFF;   /* profile card bg, icon-chip bg */
   --vp-radius:    16px;
   --vp-font-head: 'Playfair Display', Georgia, serif;
   --vp-font-body: 'DM Sans', system-ui, sans-serif;
-  --vp-shadow:    0 4px 30px rgba(249,107,56,.12);
+  --vp-shadow:    0 4px 30px rgba(249,107,56,.12); /* orange-tinted card shadow */
 }
 
+/* ── PAGE SHELL ───────────────────────────────────────────────
+   bg: --vp-cream (#FFF8F3)  full viewport height
+   ─────────────────────────────────────────────────────────── */
 .page-wrapper {
-  background-color: var(--vp-cream);
+  background-color: var(--vp-cream); /* #FFF8F3 warm cream */
   min-height: 100vh;
   padding: 48px 24px;
   display: flex;
@@ -39,6 +67,10 @@
   font-size: 1.6rem;
 }
 
+/* ── BACK BUTTON ──────────────────────────────────────────────
+   default: --vp-white bg / --vp-border border / --vp-orange-dk text
+   hover:   --vp-orange-lt bg / --vp-orange border / translateX(-2px)
+   ─────────────────────────────────────────────────────────── */
 .back-btn {
   display: inline-flex;
   align-items: center;
@@ -56,6 +88,9 @@
 }
 .back-btn:hover { background: var(--vp-orange-lt); border-color: var(--vp-orange); transform: translateX(-2px); }
 
+/* ── ERROR BANNER ─────────────────────────────────────────────
+   bg: #FFF0F0  border: 1.5px #FFCDD2  text: #C0392B  (danger red)
+   ─────────────────────────────────────────────────────────── */
 .profile-error-banner {
   background: #FFF0F0;
   border: 1.5px solid #FFCDD2;
@@ -67,8 +102,14 @@
   margin-bottom: 20px;
 }
 
+/* ── PROFILE CARD ─────────────────────────────────────────────
+   bg: --vp-white (#FFF)
+   border: 1px --vp-border (#E8D6CC)
+   shadow: --vp-shadow  0 4px 30px rgba(249,107,56,.12)
+   border-radius: --vp-radius (16px)
+   ─────────────────────────────────────────────────────────── */
 .profile-card {
-  background: var(--vp-white);
+  background: var(--vp-white); /* #FFF card surface */
   border-radius: var(--vp-radius);
   box-shadow: var(--vp-shadow);
   padding: 40px;
@@ -84,6 +125,13 @@
   margin-bottom: 32px;
 }
 
+/* ── AVATAR & STATUS DOT ──────────────────────────────────────
+   avatar icon color: --vp-orange (#F96B38)
+   drop-shadow: 0 4px 12px rgba(249,107,56,.25)
+   online dot:  #1E7D56  (green)
+   offline dot: #C0392B  (red)
+   both have 2px --vp-white border so they pop off the card
+   ─────────────────────────────────────────────────────────── */
 .profile-avatar-wrap { position: relative; display: inline-flex; }
 .profile-avatar {
   font-size: 88px;
@@ -108,8 +156,12 @@
   color: var(--vp-ink);
   font-size: 1.9rem;
 }
+/* ── ROLE BADGE ───────────────────────────────────────────────
+   bg: --vp-orange-lt (#FDDECA)  text: --vp-orange-dk (#D94E1B)
+   all-caps, 0.74rem, letter-spacing .1em
+   ─────────────────────────────────────────────────────────── */
 .role-badge {
-  background: var(--vp-orange-lt);
+  background: var(--vp-orange-lt); /* #FDDECA warm peach tint */
   color: var(--vp-orange-dk);
   padding: 5px 14px;
   border-radius: 20px;
@@ -128,6 +180,13 @@
   margin-top: 6px;
 }
 
+/* ── INFO BOXES ───────────────────────────────────────────────
+   bg: --vp-cream (#FFF8F3)  border: 1px --vp-border
+   hover: shadow 0 4px 16px rgba(249,107,56,.1) + translateY(-1px)
+   icon chip: --vp-white bg / --vp-orange icon  box-shadow: subtle
+   label: --vp-muted (#7A5C4E) uppercase 0.7rem
+   value: --vp-ink (#1A0A00) bold
+   ─────────────────────────────────────────────────────────── */
 .profile-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -189,6 +248,13 @@
   justify-content: flex-end;
 }
 
+/* ── CTA BUTTON (.brand-btn) ──────────────────────────────────
+   bg: linear-gradient(135deg, --vp-orange, --vp-orange-dk)
+       #F96B38 → #D94E1B
+   text: --vp-white  shadow: 0 4px 16px rgba(249,107,56,.3)
+   hover: translateY(-2px)  shadow: 0 8px 24px rgba(249,107,56,.4)
+   disabled: #ccc bg, no shadow, no transform
+   ─────────────────────────────────────────────────────────── */
 .brand-btn {
   display: inline-flex;
   align-items: center;

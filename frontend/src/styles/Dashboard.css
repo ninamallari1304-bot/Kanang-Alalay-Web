@@ -1,21 +1,63 @@
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap');
 
+/* ============================================================
+   Dashboard.css — Color System
+   ============================================================
+   BRAND PALETTE
+   ┌─────────────────────────────────────────────────────────┐
+   │  --d-orange      #F96B38  │ Primary CTA, active states  │
+   │  --d-orange-dk   #D94E1B  │ Hover darken, gradient end  │
+   │  --d-orange-lt   #FDDECA  │ Tinted BG, chips, hover fill│
+   │  --d-sidebar-bg  #7d3a06  │ Sidebar background (deep)   │
+   │  --d-sidebar-2   #3D1A00  │ Sidebar gradient dark end   │
+   │  --d-muted       #7A5C4E  │ Secondary text, icons       │
+   └─────────────────────────────────────────────────────────┘
+   NEUTRALS
+   ┌─────────────────────────────────────────────────────────┐
+   │  --d-ink         #1A0A00  │ Primary text                │
+   │  --d-cream       #FFF8F3  │ Page / input background     │
+   │  --d-border      #E8D6CC  │ Borders, dividers           │
+   │  --d-white       #FFFFFF  │ Cards, modals               │
+   └─────────────────────────────────────────────────────────┘
+   SEMANTIC (hard-coded, not tokens — listed for reference)
+   ┌─────────────────────────────────────────────────────────┐
+   │  Success bg/text  #EEFBF5 / #1E7D56                    │
+   │  Danger  bg/text  #FFF0F0 / #C0392B                    │
+   │  Warning bg/text  #FFF8E1 / #E65100                    │
+   │  Info    bg/text  #E8F4FD / #1565C0                    │
+   │  Purple  bg/text  #EDE7F6 / #512DA8  (admin badge)     │
+   │  Blue    bg/text  #E1F5FE / #0277BD  (nurse badge)     │
+   │  Green   bg/text  #E8F5E9 / #2E7D32  (caregiver badge) │
+   └─────────────────────────────────────────────────────────┘
+   ============================================================ */
+
 :root {
-  --d-orange:     #F96B38;
-  --d-orange-dk:  #D94E1B;
-  --d-orange-lt:  #FDDECA;
-  --d-cream:      #FFF8F3;
-  --d-ink:        #1A0A00;
-  --d-muted:      #7A5C4E;
-  --d-border:     #E8D6CC;
-  --d-white:      #FFFFFF;
-  --d-sidebar-bg: #7d3a06;
-  --d-sidebar-2:  #3D1A00;
+  /* ── Brand ── */
+  --d-orange:     #F96B38;   /* primary CTA, active nav item accent, stat icons */
+  --d-orange-dk:  #D94E1B;   /* gradient end, hover darken */
+  --d-orange-lt:  #FDDECA;   /* light tinted fill: chips, hover bg, badges */
+
+  /* ── Sidebar ── */
+  --d-sidebar-bg: #7d3a06;   /* sidebar background — deep warm brown */
+  --d-sidebar-2:  #3D1A00;   /* sidebar gradient dark anchor */
+
+  /* ── Neutrals ── */
+  --d-cream:      #FFF8F3;   /* page/body bg, input fill, table header bg */
+  --d-ink:        #1A0A00;   /* primary text */
+  --d-muted:      #7A5C4E;   /* secondary text, icons, placeholders */
+  --d-border:     #E8D6CC;   /* dividers, card borders, input borders */
+  --d-white:      #FFFFFF;   /* card/modal/topbar background */
+
+  /* ── Layout ── */
   --d-radius:     14px;
+
+  /* ── Typography ── */
   --d-font-head:  'Playfair Display', Georgia, serif;
   --d-font-body:  'DM Sans', system-ui, sans-serif;
-  --d-shadow:     0 4px 30px rgba(249,107,56,.12);
-  --d-shadow-sm:  0 2px 12px rgba(0,0,0,.07);
+
+  /* ── Shadows ── */
+  --d-shadow:     0 4px 30px rgba(249,107,56,.12);   /* orange-tinted card hover */
+  --d-shadow-sm:  0 2px 12px rgba(0,0,0,.07);        /* default card resting */
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -40,9 +82,15 @@ body {
   overflow: hidden;
 }
 
+/* ── SIDEBAR ──────────────────────────────────────────────────
+   bg: --d-sidebar-bg (#7d3a06) deep warm brown
+   text/icons default: rgba(255,255,255,.65)  →  white on hover/active
+   active item: rgba(249,107,56,.15) left-border --d-orange
+   footer hover: rgba(220,53,69,.2) danger red tint
+   ─────────────────────────────────────────────────────────── */
 .sidebar {
   width: 260px;
-  background: var(--d-sidebar-bg);
+  background: var(--d-sidebar-bg); /* #7d3a06 deep brown */
   color: var(--d-white);
   display: flex;
   flex-direction: column;
@@ -70,7 +118,7 @@ body {
 .logo-circle {
   width: 44px;
   height: 44px;
-  background: linear-gradient(135deg, var(--d-orange), var(--d-orange-dk));
+  background: linear-gradient(135deg, var(--d-orange), var(--d-orange-dk)); /* #F96B38 → #D94E1B */
   border-radius: 12px;
   flex-shrink: 0;
   box-shadow: 0 4px 12px rgba(249,107,56,.4);
@@ -241,7 +289,12 @@ body {
   overflow: hidden;
 }
 
-/* ── Top Bar ──────────────────────────────────────────────── */
+/* ── TOPBAR ───────────────────────────────────────────────────
+   bg: --d-white (#FFF)  border-bottom: --d-border (#E8D6CC)
+   search bg: --d-cream (#FFF8F3) → white on focus
+   focus ring: rgba(249,107,56,.10)  border: --d-orange (#F96B38)
+   user trigger hover: --d-orange-lt (#FDDECA) bg + --d-orange border
+   ─────────────────────────────────────────────────────────── */
 .admin-topbar {
   display: flex;
   align-items: center;
@@ -398,11 +451,15 @@ body {
   height: 100%;
   font-family: var(--d-font-head);
   font-size: 1.1rem;
-  color: var(--d-muted);
+  color: var(--d-muted); /* #7A5C4E */
 }
 
+/* ── CONTENT CARDS ────────────────────────────────────────────
+   bg: --d-white (#FFF)  border: --d-border (#E8D6CC)
+   shadow: --d-shadow-sm  header border-bottom: --d-border
+   ─────────────────────────────────────────────────────────── */
 .card-white {
-  background: var(--d-white);
+  background: var(--d-white); /* #FFF */
   border-radius: var(--d-radius);
   box-shadow: var(--d-shadow-sm);
   padding: 24px 28px 28px;
@@ -428,6 +485,13 @@ body {
   color: var(--d-ink);
 }
 
+/* ── STAT CARDS ───────────────────────────────────────────────
+   bg: --d-white  border: --d-border  shadow: --d-shadow-sm
+   hover shadow: --d-shadow (orange-tinted 0 4px 30px rgba(249,107,56,.12))
+   clickable hover: 0 8px 24px rgba(249,107,56,.18)
+   icon bg: --d-orange (#F96B38)  icon color: white
+   value text: --d-font-head  label: --d-muted (#7A5C4E)
+   ─────────────────────────────────────────────────────────── */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -489,6 +553,11 @@ body {
   letter-spacing: .04em;
 }
 
+/* ── ACTIVITY FEED ────────────────────────────────────────────
+   time chip: --d-orange-lt bg / --d-orange text
+   dividers: --d-border
+   details text: --d-muted
+   ─────────────────────────────────────────────────────────── */
 .activity-feed { max-height: 340px; overflow-y: auto; }
 
 .activity-list { list-style: none; padding: 0; margin: 0; }
@@ -524,6 +593,13 @@ body {
   font-style: italic;
 }
 
+/* ── TABLE ────────────────────────────────────────────────────
+   thead bg: --d-cream (#FFF8F3)  text: --d-muted
+   thead border-bottom: 2px --d-border
+   tbody row border: --d-border
+   tbody row hover: #FFF5F0  (warm off-white)
+   td text: --d-ink
+   ─────────────────────────────────────────────────────────── */
 .custom-table {
   width: 100%;
   border-collapse: collapse;
@@ -556,6 +632,17 @@ body {
   vertical-align: middle;
 }
 
+/* ── STATUS BADGES ────────────────────────────────────────────
+   All use bg/text pairs; no brand tokens — semantic only:
+   active / approved / paid  →  #EEFBF5 / #1E7D56  (green)
+   inactive / rejected / deactivated → #FFF0F0 / #C0392B  (red)
+   pending / processing / restricted  → #FFF8E1 / #E65100  (amber)
+   cancelled / refunded / terminated  → #F3F4F6 / #6B7280  (grey)
+   verified / on_leave                → #E8F4FD / #1565C0  (blue)
+   completed                          → #E8EAF6 / #3949AB  (indigo)
+   suspended                          → #FFF3CD / #856404  (yellow)
+   warning                            → #fff8e1 / #7c5a00
+   ─────────────────────────────────────────────────────────── */
 .status {
   display: inline-flex;
   align-items: center;
@@ -585,6 +672,12 @@ body {
 .status.terminated  { background: #F3F4F6; color: #4B5563; }
 .status.deactivated { background: #FFF0F0; color: #C0392B; }
 
+/* ── ROLE BADGES ──────────────────────────────────────────────
+   admin    → #EDE7F6 / #512DA8  (purple)
+   nurse    → #E1F5FE / #0277BD  (light-blue)
+   staff    → --d-orange-lt / --d-orange-dk  (brand orange)
+   caregiver→ #E8F5E9 / #2E7D32  (green)
+   ─────────────────────────────────────────────────────────── */
 .badge-custom {
   display: inline-block;
   padding: 3px 10px;
@@ -600,6 +693,14 @@ body {
 .badge-custom.staff     { background: var(--d-orange-lt); color: var(--d-orange-dk); }
 .badge-custom.caregiver { background: #E8F5E9; color: #2E7D32; }
 
+/* ── BUTTON SYSTEM ────────────────────────────────────────────
+   btn-primary-sm  → gradient #F96B38→#D94E1B  white text
+   btn-success-sm  → solid #1E7D56  white text
+   btn-danger-sm   → #fff0f0 bg / #dc3545 text  →  solid red on hover
+   btn-outline-sm  → transparent / --d-orange-dk  →  --d-orange-lt fill on hover
+   btn-brand       → gradient --d-orange→--d-orange-dk  (same as primary)
+   btn-view-all    → transparent / --d-muted  →  --d-orange-lt on hover
+   ─────────────────────────────────────────────────────────── */
 .btn-primary-sm {
   display: inline-flex;
   align-items: center;
@@ -697,6 +798,13 @@ body {
 }
 .btn-brand:hover { transform: translateY(-2px); box-shadow: 0 7px 20px rgba(249,107,56,.4); }
 
+/* ── ACTION ICON BUTTONS (.actions span) ─────────────────────
+   view       → #F3F4F6 bg / #6B7280 text  (grey)
+   edit       → #E1F5FE bg / #0277BD text  (blue)
+   deactivate → #FFF8E1 bg / #E65100 text  (amber)
+   activate   → #E8F5E9 bg / #2E7D32 text  (green)
+   delete     → #FFF0F0 bg / #C0392B text  (red)
+   ─────────────────────────────────────────────────────────── */
 .actions {
   display: flex;
   align-items: center;
@@ -726,6 +834,13 @@ body {
 .actions .delete           { background: #FFF0F0; color: #C0392B; }
 .actions .delete:hover     { background: #FFD7D7; }
 
+/* ── SEARCH / FILTER ──────────────────────────────────────────
+   search-input bg: --d-cream → --d-white on focus
+   border focus: --d-orange  ring: rgba(249,107,56,.1)
+   clear-btn: --d-orange-lt bg / --d-orange-dk text
+   filter-btn default: --d-white / --d-muted
+   filter-btn active: --d-orange bg + border / white text
+   ─────────────────────────────────────────────────────────── */
 .search-container { margin-bottom: 20px; }
 
 .search-wrapper {
@@ -825,6 +940,14 @@ body {
   border-radius: 10px;
 }
 
+/* ── PAGINATION ───────────────────────────────────────────────
+   page-btn default: --d-white bg / --d-muted text / --d-border border
+   page-btn hover:   --d-orange-lt bg / --d-orange-dk text / --d-orange border
+   page-btn active:  --d-orange bg+border / white text
+                     shadow: 0 3px 10px rgba(249,107,56,.35)
+   page-btn disabled: --d-cream bg, opacity .35
+   info pill: --d-cream bg / --d-border border
+   ─────────────────────────────────────────────────────────── */
 .pagination-container {
   display: flex;
   align-items: center;
@@ -953,6 +1076,13 @@ body {
 }
 .otp-management h5 { color: var(--d-orange-dk); margin: 0 0 6px; font-family: var(--d-font-head); }
 
+/* ── OTP PANEL ────────────────────────────────────────────────
+   border: 2px --d-orange  bg: #fffaf7 (near-white warm)
+   header text: --d-ink
+   input focus: --d-orange border  ring: rgba(249,107,56,.1)
+   verify-btn: gradient --d-orange→--d-orange-dk
+   resend-btn: --d-orange-dk text (underlined link style)
+   ─────────────────────────────────────────────────────────── */
 .otp-panel {
   margin-top: 24px;
   padding: 22px 24px;
@@ -1022,6 +1152,10 @@ body {
 .empty-state { text-align: center; padding: 50px 20px; color: var(--d-muted); }
 .empty-state p { font-size: .95rem; margin: 12px 0 0; }
 
+/* ── MODAL OVERLAY ────────────────────────────────────────────
+   backdrop: rgba(26,10,0,.6) — near-black warm tint + blur(4px)
+   modal bg: --d-white  border-radius: 20px
+   ─────────────────────────────────────────────────────────── */
 .modal-overlay {
   position: fixed;
   inset: 0;
