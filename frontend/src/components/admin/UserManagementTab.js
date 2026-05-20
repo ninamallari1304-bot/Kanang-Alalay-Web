@@ -1,11 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import {
     FaEdit, FaSearch, FaFilter,
     FaPrint, FaExclamationTriangle, FaChevronLeft, FaChevronRight,
-    FaUserCircle, FaTimes, FaUserCheck, FaBan, FaUserPlus, FaLock,
+    FaUserCircle, FaTimes, FaUserCheck, FaBan, FaUserPlus,
+    FaUserShield, FaUserTie, FaUser, FaCheckCircle, FaEnvelope, FaSpinner,
 } from 'react-icons/fa';
 import { API_URL } from '../../config/api';
+
+// ─── constants ────────────────────────────────────────────────────────────────
 
 const ROLES = ['admin', 'head_caregiver', 'caregiver'];
 const ROLE_FILTER_OPTIONS = ['all', ...ROLES];
@@ -33,6 +36,45 @@ const STATUS_STYLE = {
     on_leave:    { bg: '#EFF6FF', color: '#1D4ED8' },
 };
 
+const ROLE_OPTIONS = [
+    {
+        key: 'admin',
+        label: 'Admin',
+        desc: 'Full system access — manage users, bookings, inventory and reports.',
+        icon: FaUserShield,
+        color: '#dc3545',
+        lightBg: '#fff0f0',
+        border: '#f5c6cb',
+    },
+    {
+        key: 'head_caregiver',
+        label: 'Head Caregiver',
+        desc: 'Leads caregiver teams, approves tasks and monitors resident care.',
+        icon: FaUserTie,
+        color: '#b85c2d',
+        lightBg: '#fff8f3',
+        border: '#E8D6CC',
+    },
+    {
+        key: 'caregiver',
+        label: 'Caregiver',
+        desc: 'Provides daily care, logs vitals and assists residents.',
+        icon: FaUser,
+        color: '#28a745',
+        lightBg: '#eefbf5',
+        border: '#b7e4cc',
+    },
+];
+
+const SHIFTS = [
+    { key: 'morning',   label: 'Morning',   time: '6:00 AM – 2:00 PM'  },
+    { key: 'afternoon', label: 'Afternoon', time: '2:00 PM – 10:00 PM' },
+    { key: 'night',     label: 'Night',     time: '10:00 PM – 6:00 AM' },
+    { key: 'flexible',  label: 'Flexible',  time: 'Variable hours'     },
+];
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
 const getAccountStatus = (u) => {
     if (u.status && ['active','pending','restricted','suspended','deactivated','on_leave','terminated'].includes(u.status)) return u.status;
     if (!u.isVerified && !u.isActive) return 'pending';
@@ -40,12 +82,81 @@ const getAccountStatus = (u) => {
     return 'deactivated';
 };
 
-// ── Deactivate Modal ──────────────────────────────────────────────────────────
+const validateField = (field, value, existingPhones = []) => {
+    switch (field) {
+        case 'firstName':
+        case 'lastName': {
+            const t = value.trim();
+            if (!t) return `${field === 'firstName' ? 'First' : 'Last'} name is required.`;
+            if (t.length < 2) return 'Minimum 2 characters.';
+            if (!/^[a-zA-ZÀ-ÖØ-öø-ÿ\s'-]+$/.test(t)) return 'Letters only — no numbers or symbols.';
+            return '';
+        }
+        case 'email': {
+            if (!value.trim()) return 'Email is required.';
+            if (value.length > 3 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+                return 'Enter a valid email (e.g. juan@gmail.com).';
+            return '';
+        }
+        case 'phone': {
+            if (!value) return '';
+            if (!/^09\d{9}$/.test(value))
+                return 'Must start with 09 and be exactly 11 digits.';
+            if (existingPhones.includes(value))
+                return 'This phone number is already used by another account.';
+            return '';
+        }
+        default: return '';
+    }
+};
+
+// ─── shared style tokens ──────────────────────────────────────────────────────
+
+const mkInp = (hasError) => ({
+    width: '100%',
+    padding: '10px 14px',
+    border: `1.5px solid ${hasError ? '#dc3545' : '#E8D6CC'}`,
+    borderRadius: 10,
+    fontSize: '.9rem',
+    background: hasError ? '#fff5f5' : '#FFF8F3',
+    color: '#1A0A00',
+    outline: 'none',
+    boxSizing: 'border-box',
+    fontFamily: "'DM Sans', system-ui, sans-serif",
+    transition: 'border-color .2s, background .2s',
+});
+
+const LBL = {
+    display: 'block',
+    fontSize: '.76rem',
+    fontWeight: 700,
+    color: '#5a3e2b',
+    textTransform: 'uppercase',
+    letterSpacing: '.04em',
+    marginBottom: 5,
+};
+
+const ERR = { color: '#dc3545', fontSize: '.75rem', marginTop: 4, display: 'block' };
+
+// ─── DeactivateModal ──────────────────────────────────────────────────────────
+
 const DeactivateModal = ({ user, onConfirm, onClose }) => {
     const [reason, setReason] = useState('');
     const [err, setErr] = useState('');
-    const confirm = () => { if (!reason.trim()) { setErr('A reason is required.'); return; } onConfirm(user._id, reason); };
-    const inp = { border: `1.5px solid ${err ? '#dc3545' : '#E8D6CC'}`, borderRadius: 10, padding: '10px 14px', width: '100%', fontSize: '.88rem', background: '#FFF8F3', color: '#1A0A00', outline: 'none', boxSizing: 'border-box', resize: 'vertical', fontFamily: "'DM Sans', system-ui, sans-serif" };
+
+    const confirm = () => {
+        if (!reason.trim()) { setErr('A reason is required.'); return; }
+        onConfirm(user._id, reason);
+    };
+
+    const inp = {
+        border: `1.5px solid ${err ? '#dc3545' : '#E8D6CC'}`,
+        borderRadius: 10, padding: '10px 14px', width: '100%',
+        fontSize: '.88rem', background: '#FFF8F3', color: '#1A0A00',
+        outline: 'none', boxSizing: 'border-box', resize: 'vertical',
+        fontFamily: "'DM Sans', system-ui, sans-serif",
+    };
+
     return (
         <div className="modal-overlay" style={{ zIndex: 10002 }}>
             <div className="registration-modal" style={{ maxWidth: 480, padding: 0 }}>
@@ -78,11 +189,18 @@ const DeactivateModal = ({ user, onConfirm, onClose }) => {
     );
 };
 
-// ── Edit Modal (includes role change) ─────────────────────────────────────────
+// ─── EditUserModal ────────────────────────────────────────────────────────────
+
 const EditUserModal = ({ user, onSave, onClose }) => {
-    const [form, setForm] = useState({ firstName: user.firstName || '', lastName: user.lastName || '', email: user.email || '', phone: user.phone || '', role: user.role || 'caregiver' });
+    const [form, setForm] = useState({
+        firstName: user.firstName || '',
+        lastName:  user.lastName  || '',
+        email:     user.email     || '',
+        phone:     user.phone     || '',
+        role:      user.role      || 'caregiver',
+    });
     const [saving, setSaving] = useState(false);
-    const [err, setErr] = useState('');
+    const [err, setErr]       = useState('');
 
     const handleSave = async () => {
         if (!form.firstName.trim() || !form.lastName.trim()) { setErr('First and last name are required.'); return; }
@@ -137,124 +255,322 @@ const EditUserModal = ({ user, onSave, onClose }) => {
     );
 };
 
-// ── Add New Staff Modal ───────────────────────────────────────────────────────
-const AddStaffModal = ({ onClose, onAdded }) => {
-    const [form, setForm] = useState({
-        firstName: '', lastName: '', email: '', phone: '',
-        username: '', password: '', role: 'caregiver',
-    });
-    const [saving, setSaving] = useState(false);
-    const [err, setErr] = useState('');
-    const [showPass, setShowPass] = useState(false);
+// ─── AddStaffModal (3-step wizard) ────────────────────────────────────────────
 
-    const handleAdd = async () => {
-        if (!form.firstName.trim() || !form.lastName.trim()) { setErr('First and last name are required.'); return; }
-        if (!form.email.trim()) { setErr('Email is required.'); return; }
-        if (!form.username.trim()) { setErr('Username is required.'); return; }
-        if (!form.password || form.password.length < 6) { setErr('Password must be at least 6 characters.'); return; }
-        setSaving(true);
-        try {
-            const token = localStorage.getItem('token');
-            const res = await axios.post(`${API_URL}/admin/users`, form, { headers: { Authorization: `Bearer ${token}` } });
-            onAdded && onAdded(res.data.data || res.data);
-            onClose();
-        } catch (e) { setErr(e.response?.data?.message || 'Failed to create staff account.'); }
-        finally { setSaving(false); }
+const AddStaffModal = ({ onClose, onAdded, existingPhones = [] }) => {
+    const [step, setStep]       = useState(1);   // 1 | 2 | 3 | 4(success)
+    const [role, setRole]       = useState('');
+    const [form, setForm]       = useState({ firstName: '', lastName: '', email: '', phone: '', shift: 'morning' });
+    const [errors, setErrors]   = useState({});
+    const [touched, setTouched] = useState({});
+    const [saving, setSaving]   = useState(false);
+    const [apiErr, setApiErr]   = useState('');
+
+    const selectedRole = ROLE_OPTIONS.find(r => r.key === role);
+
+    // real-time validation
+    const handleChange = useCallback((field, raw) => {
+        let value = raw;
+        if (field === 'phone') value = raw.replace(/\D/g, '').slice(0, 11);
+        setForm(prev => ({ ...prev, [field]: value }));
+        if (touched[field]) {
+            setErrors(prev => ({ ...prev, [field]: validateField(field, value, existingPhones) }));
+        }
+    }, [touched, existingPhones]);
+
+    const handleBlur = useCallback((field) => {
+        setTouched(prev => ({ ...prev, [field]: true }));
+        setErrors(prev => ({ ...prev, [field]: validateField(field, form[field], existingPhones) }));
+    }, [form, existingPhones]);
+
+    const handleProceedToReview = () => {
+        const fields = ['firstName', 'lastName', 'email', 'phone'];
+        const newErrors = {};
+        fields.forEach(f => { newErrors[f] = validateField(f, form[f], existingPhones); });
+        setErrors(newErrors);
+        setTouched({ firstName: true, lastName: true, email: true, phone: true });
+        if (!Object.values(newErrors).some(Boolean)) setStep(3);
     };
 
-    const inp = { width: '100%', padding: '10px 14px', border: '1.5px solid #E8D6CC', borderRadius: 10, fontSize: '.9rem', background: '#FFF8F3', color: '#1A0A00', outline: 'none', boxSizing: 'border-box', fontFamily: "'DM Sans',system-ui,sans-serif" };
-    const lbl = { display: 'block', fontSize: '.76rem', fontWeight: 700, color: '#5a3e2b', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 5 };
+    const handleSubmit = async () => {
+        setSaving(true);
+        setApiErr('');
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_URL}/admin/create-user-enhanced`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({
+                    firstName: form.firstName.trim(),
+                    lastName:  form.lastName.trim(),
+                    email:     form.email.trim().toLowerCase(),
+                    phone:     form.phone.trim(),
+                    shift:     form.shift,
+                    role,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || 'Failed to create account.');
+            onAdded && onAdded(data);
+            setStep(4);
+        } catch (e) {
+            setApiErr(e.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const stepLabel = { 1: 'Step 1 of 3 — Choose a role', 2: 'Step 2 of 3 — Basic information', 3: 'Step 3 of 3 — Review & confirm', 4: 'Account created successfully' };
 
     return (
-        <div className="modal-overlay" style={{ zIndex: 10002 }}>
-            <div className="registration-modal" style={{ maxWidth: 520, padding: 0, borderRadius: 20, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,.25)' }}>
+        <div
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 10002, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+            onClick={onClose}
+        >
+            <div
+                style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: step === 1 ? 560 : 500, maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 28px 72px rgba(0,0,0,.28)', animation: 'modalSlideIn .22s ease' }}
+                onClick={e => e.stopPropagation()}
+            >
                 {/* Header */}
-                <div style={{ padding: '20px 26px', background: 'linear-gradient(135deg,#b85c2d,#7d3a06)', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ padding: '20px 26px', background: 'linear-gradient(135deg,#b85c2d,#7d3a06)', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
                     <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'rgba(255,255,255,.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <FaUserPlus style={{ color: '#fff', fontSize: '1rem' }} />
                     </div>
                     <div>
                         <h4 style={{ margin: 0, color: '#fff', fontFamily: "'Playfair Display',serif", fontSize: '1.1rem' }}>Add New Staff</h4>
-                        <p style={{ margin: 0, color: 'rgba(255,255,255,.75)', fontSize: '.75rem' }}>Create a new staff account</p>
+                        <p style={{ margin: 0, color: 'rgba(255,255,255,.75)', fontSize: '.72rem' }}>{stepLabel[step]}</p>
                     </div>
                     <button onClick={onClose} style={{ marginLeft: 'auto', background: 'rgba(255,255,255,.15)', border: '2px solid rgba(255,255,255,.2)', color: '#fff', width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FaTimes /></button>
                 </div>
 
+                {/* Progress bar */}
+                {step < 4 && (
+                    <div style={{ height: 4, background: '#f0e8e0', flexShrink: 0 }}>
+                        <div style={{ height: '100%', width: `${(step / 3) * 100}%`, background: 'linear-gradient(90deg,#b85c2d,#F96B38)', transition: 'width .35s ease', borderRadius: '0 2px 2px 0' }} />
+                    </div>
+                )}
+
                 {/* Body */}
-                <div style={{ padding: '24px 26px', maxHeight: '70vh', overflowY: 'auto' }}>
-                    {err && <div style={{ background: '#f8d7da', color: '#721c24', padding: '10px 14px', borderRadius: 8, marginBottom: 14, fontSize: '.85rem', display: 'flex', gap: 8, alignItems: 'center' }}><FaExclamationTriangle /> {err}</div>}
+                <div style={{ padding: '24px 26px', overflowY: 'auto', flex: 1 }}>
 
-                    {/* Name row */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                    {/* ── Step 1: Role picker ── */}
+                    {step === 1 && (
                         <div>
-                            <label style={lbl}>First Name *</label>
-                            <input style={inp} value={form.firstName} onChange={e => setForm(p => ({ ...p, firstName: e.target.value }))} placeholder="Juan" />
+                            <p style={{ margin: '0 0 18px', fontSize: '.88rem', color: '#7A5C4E' }}>
+                                Select the account type for this new staff member. This determines their dashboard access and permissions.
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                {ROLE_OPTIONS.map(r => {
+                                    const Icon = r.icon;
+                                    return (
+                                        <button
+                                            key={r.key}
+                                            onClick={() => { setRole(r.key); setStep(2); }}
+                                            style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', border: `2px solid ${r.border}`, borderRadius: 14, background: r.lightBg, cursor: 'pointer', textAlign: 'left', transition: 'transform .15s, box-shadow .15s, border-color .15s', fontFamily: "'DM Sans',sans-serif" }}
+                                            onMouseEnter={e => { e.currentTarget.style.transform = 'translateX(4px)'; e.currentTarget.style.boxShadow = `0 4px 16px ${r.color}22`; e.currentTarget.style.borderColor = r.color; }}
+                                            onMouseLeave={e => { e.currentTarget.style.transform = 'translateX(0)'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.borderColor = r.border; }}
+                                        >
+                                            <div style={{ width: 52, height: 52, borderRadius: 14, background: r.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                <Icon size={24} />
+                                            </div>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ fontWeight: 700, fontSize: '.95rem', color: '#1A0A00', marginBottom: 3 }}>{r.label}</div>
+                                                <div style={{ fontSize: '.8rem', color: '#7A5C4E', lineHeight: 1.4 }}>{r.desc}</div>
+                                            </div>
+                                            <span style={{ color: r.color, fontSize: '1.3rem', flexShrink: 0 }}>›</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
+                    )}
+
+                    {/* ── Step 2: Basic info ── */}
+                    {step === 2 && (
                         <div>
-                            <label style={lbl}>Last Name *</label>
-                            <input style={inp} value={form.lastName} onChange={e => setForm(p => ({ ...p, lastName: e.target.value }))} placeholder="Dela Cruz" />
+                            {/* Role badge */}
+                            {selectedRole && (() => { const Icon = selectedRole.icon; return (
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: selectedRole.lightBg, border: `1.5px solid ${selectedRole.border}`, borderRadius: 20, padding: '5px 14px', fontSize: '.8rem', fontWeight: 700, color: selectedRole.color, marginBottom: 18 }}>
+                                    <Icon size={12} /> {selectedRole.label}
+                                </div>
+                            ); })()}
+
+                            {/* Name */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                                <div>
+                                    <label style={LBL}>First Name *</label>
+                                    <input
+                                        style={mkInp(!!errors.firstName && touched.firstName)}
+                                        value={form.firstName}
+                                        onChange={e => handleChange('firstName', e.target.value)}
+                                        onBlur={() => handleBlur('firstName')}
+                                        placeholder="Juan"
+                                        autoFocus
+                                    />
+                                    {errors.firstName && touched.firstName && <span style={ERR}>{errors.firstName}</span>}
+                                </div>
+                                <div>
+                                    <label style={LBL}>Last Name *</label>
+                                    <input
+                                        style={mkInp(!!errors.lastName && touched.lastName)}
+                                        value={form.lastName}
+                                        onChange={e => handleChange('lastName', e.target.value)}
+                                        onBlur={() => handleBlur('lastName')}
+                                        placeholder="Dela Cruz"
+                                    />
+                                    {errors.lastName && touched.lastName && <span style={ERR}>{errors.lastName}</span>}
+                                </div>
+                            </div>
+
+                            {/* Email */}
+                            <div style={{ marginBottom: 14 }}>
+                                <label style={LBL}>Email Address *</label>
+                                <input
+                                    type="email"
+                                    style={mkInp(!!errors.email && touched.email)}
+                                    value={form.email}
+                                    onChange={e => handleChange('email', e.target.value)}
+                                    onBlur={() => handleBlur('email')}
+                                    placeholder="juan.delacruz@email.com"
+                                />
+                                {errors.email && touched.email
+                                    ? <span style={ERR}>{errors.email}</span>
+                                    : <span style={{ fontSize: '.73rem', color: '#A38070', marginTop: 4, display: 'block' }}>Login credentials will be sent to this address.</span>
+                                }
+                            </div>
+
+                            {/* Phone */}
+                            <div style={{ marginBottom: 14 }}>
+                                <label style={LBL}>Phone Number <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: '.72rem' }}>(optional)</span></label>
+                                <input
+                                    style={mkInp(!!errors.phone && touched.phone)}
+                                    value={form.phone}
+                                    onChange={e => handleChange('phone', e.target.value)}
+                                    onBlur={() => handleBlur('phone')}
+                                    placeholder="09XXXXXXXXX"
+                                    inputMode="numeric"
+                                />
+                                {errors.phone && touched.phone
+                                    ? <span style={ERR}>{errors.phone}</span>
+                                    : <span style={{ fontSize: '.73rem', color: '#A38070', marginTop: 4, display: 'block' }}>11 digits, must start with 09.</span>
+                                }
+                            </div>
+
+                            {/* Shift */}
+                            <div>
+                                <label style={LBL}>Assigned Shift</label>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                                    {SHIFTS.map(s => (
+                                        <button
+                                            key={s.key}
+                                            type="button"
+                                            onClick={() => setForm(p => ({ ...p, shift: s.key }))}
+                                            style={{ padding: '9px 12px', borderRadius: 10, border: `1.5px solid ${form.shift === s.key ? '#b85c2d' : '#E8D6CC'}`, background: form.shift === s.key ? '#fff3eb' : '#FFF8F3', cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans',sans-serif", transition: 'border-color .15s, background .15s' }}
+                                        >
+                                            <div style={{ fontWeight: 700, fontSize: '.82rem', color: form.shift === s.key ? '#b85c2d' : '#1A0A00' }}>{s.label}</div>
+                                            <div style={{ fontSize: '.72rem', color: '#7A5C4E' }}>{s.time}</div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
-                    {/* Email */}
-                    <div style={{ marginBottom: 14 }}>
-                        <label style={lbl}>Email *</label>
-                        <input type="email" style={inp} value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} placeholder="juan@kanangalalay.org" />
-                    </div>
+                    {/* ── Step 3: Review ── */}
+                    {step === 3 && (
+                        <div>
+                            {apiErr && (
+                                <div style={{ background: '#f8d7da', color: '#721c24', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: '.85rem', display: 'flex', gap: 8, alignItems: 'center' }}>
+                                    <FaExclamationTriangle style={{ flexShrink: 0 }} /> {apiErr}
+                                </div>
+                            )}
+                            <p style={{ margin: '0 0 16px', fontSize: '.87rem', color: '#7A5C4E' }}>
+                                Review the details below. A username and temporary password will be auto-generated and emailed to the new staff member.
+                            </p>
 
-                    {/* Phone */}
-                    <div style={{ marginBottom: 14 }}>
-                        <label style={lbl}>Phone</label>
-                        <input style={inp} value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value.replace(/\D/g,'').slice(0,11) }))} placeholder="09XXXXXXXXX" />
-                    </div>
+                            {/* Summary */}
+                            <div style={{ border: '1.5px solid #E8D6CC', borderRadius: 14, overflow: 'hidden', marginBottom: 16 }}>
+                                {[
+                                    { label: 'Full Name', value: `${form.firstName} ${form.lastName}` },
+                                    { label: 'Role',      value: selectedRole?.label || role },
+                                    { label: 'Email',     value: form.email },
+                                    { label: 'Phone',     value: form.phone || '—' },
+                                    { label: 'Shift',     value: (() => { const s = SHIFTS.find(x => x.key === form.shift); return s ? `${s.label} (${s.time})` : form.shift; })() },
+                                ].map((row, i) => (
+                                    <div key={row.label} style={{ display: 'flex', gap: 12, padding: '11px 16px', borderBottom: i < 4 ? '1px solid #E8D6CC' : 'none', background: i % 2 === 0 ? '#FFF8F3' : '#fff' }}>
+                                        <span style={{ fontSize: '.78rem', fontWeight: 700, color: '#A38070', textTransform: 'uppercase', letterSpacing: '.04em', minWidth: 80, flexShrink: 0 }}>{row.label}</span>
+                                        <span style={{ fontSize: '.88rem', color: '#1A0A00', fontWeight: 500, wordBreak: 'break-all' }}>{row.value}</span>
+                                    </div>
+                                ))}
+                            </div>
 
-                    {/* Username */}
-                    <div style={{ marginBottom: 14 }}>
-                        <label style={lbl}>Username *</label>
-                        <input style={inp} value={form.username} onChange={e => setForm(p => ({ ...p, username: e.target.value.replace(/\s/g,'') }))} placeholder="juan.delacruz" />
-                    </div>
-
-                    {/* Password */}
-                    <div style={{ marginBottom: 14 }}>
-                        <label style={lbl}>Password *</label>
-                        <div style={{ position: 'relative' }}>
-                            <input type={showPass ? 'text' : 'password'} style={{ ...inp, paddingRight: 40 }} value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} placeholder="Min. 6 characters" />
-                            <button type="button" onClick={() => setShowPass(v => !v)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#7A5C4E', display: 'flex', alignItems: 'center' }}>
-                                <FaLock size={13} />
-                            </button>
+                            {/* Email notice */}
+                            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: '#e8f4fd', border: '1.5px solid #bee0f7', borderRadius: 10, padding: '12px 14px', fontSize: '.82rem', color: '#1565C0' }}>
+                                <FaEnvelope style={{ flexShrink: 0, marginTop: 2 }} />
+                                <span>A welcome email with login credentials will be sent to <strong>{form.email}</strong>. The staff member must verify via OTP and complete their profile on first login.</span>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
-                    {/* Role */}
-                    <div style={{ marginBottom: 6 }}>
-                        <label style={lbl}>Role *</label>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            {ROLES.map(r => {
-                                const rc = ROLE_COLOR[r];
-                                const selected = form.role === r;
-                                return (
-                                    <button key={r} type="button" onClick={() => setForm(p => ({ ...p, role: r }))} style={{ padding: '7px 18px', borderRadius: 20, fontSize: '.8rem', fontWeight: 700, cursor: 'pointer', border: `2px solid ${selected ? rc.bg : '#E8D6CC'}`, background: selected ? rc.bg : '#FFF8F3', color: selected ? rc.color : '#7A5C4E', transition: 'all .15s' }}>
-                                        {ROLE_LABEL[r]}
-                                    </button>
-                                );
-                            })}
+                    {/* ── Step 4: Success ── */}
+                    {step === 4 && (
+                        <div style={{ textAlign: 'center', padding: '16px 0 8px' }}>
+                            <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#eefbf5', border: '3px solid #b7e4cc', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px', animation: 'popIn .35s cubic-bezier(.34,1.56,.64,1)' }}>
+                                <FaCheckCircle size={32} color="#28a745" />
+                            </div>
+                            <h3 style={{ margin: '0 0 8px', fontFamily: "'Playfair Display',serif", color: '#1A0A00' }}>Account Created!</h3>
+                            <p style={{ margin: '0 0 20px', color: '#7A5C4E', fontSize: '.88rem', lineHeight: 1.55 }}>
+                                The account for <strong>{form.firstName} {form.lastName}</strong> has been created as <strong>{selectedRole?.label}</strong>.<br />
+                                Login credentials have been emailed to <strong>{form.email}</strong>.
+                            </p>
+                            <div style={{ background: '#FFF8F3', border: '1.5px solid #E8D6CC', borderRadius: 10, padding: '12px 16px', fontSize: '.82rem', color: '#7A5C4E' }}>
+                                The new staff member will be prompted to verify via OTP and complete their profile on first login before accessing the dashboard.
+                            </div>
                         </div>
-                    </div>
+                    )}
+                </div>
 
-                    {/* Footer */}
-                    <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 22, paddingTop: 16, borderTop: '1.5px solid #E8D6CC' }}>
-                        <button onClick={onClose} style={{ padding: '9px 20px', borderRadius: 10, border: '1.5px solid #E8D6CC', background: 'transparent', cursor: 'pointer', fontWeight: 600, color: '#7A5C4E', fontFamily: "'DM Sans',sans-serif" }}>Cancel</button>
-                        <button onClick={handleAdd} disabled={saving} style={{ padding: '9px 24px', borderRadius: 10, border: 'none', background: saving ? '#ccc' : 'linear-gradient(135deg,#b85c2d,#7d3a06)', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 700, fontFamily: "'DM Sans',sans-serif", display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-                            <FaUserPlus size={13} /> {saving ? 'Creating…' : 'Create Staff Account'}
+                {/* Footer */}
+                <div style={{ padding: '14px 26px 20px', borderTop: '1.5px solid #E8D6CC', display: 'flex', gap: 10, justifyContent: step === 1 ? 'flex-end' : 'space-between', flexShrink: 0 }}>
+                    {/* Back / Cancel */}
+                    {step === 1 && <button onClick={onClose} style={{ padding: '9px 20px', borderRadius: 10, border: '1.5px solid #E8D6CC', background: 'transparent', cursor: 'pointer', fontWeight: 600, color: '#7A5C4E', fontFamily: "'DM Sans',sans-serif" }}>Cancel</button>}
+                    {step === 2 && <button onClick={() => setStep(1)} style={{ padding: '9px 20px', borderRadius: 10, border: '1.5px solid #E8D6CC', background: 'transparent', cursor: 'pointer', fontWeight: 600, color: '#7A5C4E', fontFamily: "'DM Sans',sans-serif" }}>← Back</button>}
+                    {step === 3 && <button onClick={() => { setApiErr(''); setStep(2); }} style={{ padding: '9px 20px', borderRadius: 10, border: '1.5px solid #E8D6CC', background: 'transparent', cursor: 'pointer', fontWeight: 600, color: '#7A5C4E', fontFamily: "'DM Sans',sans-serif" }}>← Back</button>}
+
+                    {/* Primary action */}
+                    {step === 2 && (
+                        <button onClick={handleProceedToReview} style={{ padding: '9px 24px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b85c2d,#7d3a06)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontFamily: "'DM Sans',sans-serif" }}>
+                            Review →
                         </button>
-                    </div>
+                    )}
+                    {step === 3 && (
+                        <button onClick={handleSubmit} disabled={saving} style={{ padding: '9px 24px', borderRadius: 10, border: 'none', background: saving ? '#ccc' : 'linear-gradient(135deg,#b85c2d,#7d3a06)', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 700, fontFamily: "'DM Sans',sans-serif", display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                            {saving ? <><FaSpinner style={{ animation: 'spin .7s linear infinite' }} /> Creating…</> : <><FaEnvelope size={13} /> Confirm & Send Email</>}
+                        </button>
+                    )}
+                    {step === 4 && (
+                        <button onClick={onClose} style={{ padding: '9px 26px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#28a745,#1e7d40)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontFamily: "'DM Sans',sans-serif", flex: 1 }}>
+                            Done
+                        </button>
+                    )}
                 </div>
             </div>
+
+            <style>{`
+                @keyframes modalSlideIn { from { opacity:0; transform:scale(.95) translateY(10px); } to { opacity:1; transform:scale(1) translateY(0); } }
+                @keyframes popIn { from { transform:scale(0); } to { transform:scale(1); } }
+                @keyframes spin { to { transform:rotate(360deg); } }
+            `}</style>
         </div>
     );
 };
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// ─── UserManagementTab (main) ─────────────────────────────────────────────────
+
 const UserManagementTab = ({ users = [], setUsers, onEdit }) => {
     const [deactivateTarget, setDeactivateTarget] = useState(null);
     const [editTarget, setEditTarget]             = useState(null);
@@ -267,6 +583,8 @@ const UserManagementTab = ({ users = [], setUsers, onEdit }) => {
     const printRef = useRef(null);
 
     useEffect(() => { setPage(1); }, [search, roleFilter, statusFilter]);
+
+    const existingPhones = users.map(u => u.phone).filter(Boolean);
 
     const handleActivate = async (userId) => {
         setActivating(userId);
@@ -293,28 +611,28 @@ const UserManagementTab = ({ users = [], setUsers, onEdit }) => {
         setEditTarget(null);
     };
 
+    const handleStaffAdded = (newUser) => {
+        setUsers && setUsers(prev => [newUser, ...prev]);
+    };
+
     const handlePrint = () => {
         const win = window.open('', '_blank');
         win.document.write(`<html><head><title>Personnel Report</title><style>body{font-family:sans-serif;padding:24px;color:#1A0A00}h2{color:#b85c2d}table{width:100%;border-collapse:collapse;font-size:.85rem}th{background:#b85c2d;color:#fff;padding:10px 12px;text-align:left}td{padding:9px 12px;border-bottom:1px solid #E8D6CC}tr:nth-child(even) td{background:#FFF8F3}</style></head><body><h2>Kanang-Alalay — Personnel Report</h2><p>Generated: ${new Date().toLocaleString('en-PH')} | ${filteredUsers.length} shown</p><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Username</th></tr></thead><tbody>${filteredUsers.map(u=>`<tr><td>${u.firstName||''} ${u.lastName||''}</td><td>${u.email||'—'}</td><td>${ROLE_LABEL[u.role]||u.role||'—'}</td><td>${getAccountStatus(u)}</td><td>@${u.username||'—'}</td></tr>`).join('')}</tbody></table></body></html>`);
         win.document.close(); win.focus(); win.print(); win.close();
     };
 
-    const handleStaffAdded = (newUser) => {
-        setUsers && setUsers(prev => [newUser, ...prev]);
-    };
-
     const filteredUsers = users.filter(u => {
         const q = search.toLowerCase();
-        const nameMatch = !q || `${u.firstName} ${u.lastName}`.toLowerCase().includes(q) || (u.email||'').toLowerCase().includes(q) || (u.username||'').toLowerCase().includes(q);
-        const roleMatch = roleFilter === 'all' || u.role === roleFilter;
+        const nameMatch  = !q || `${u.firstName} ${u.lastName}`.toLowerCase().includes(q) || (u.email||'').toLowerCase().includes(q) || (u.username||'').toLowerCase().includes(q);
+        const roleMatch  = roleFilter === 'all' || u.role === roleFilter;
         const statusMatch = statusFilter === 'all' || getAccountStatus(u) === statusFilter;
         return nameMatch && roleMatch && statusMatch;
     });
 
     const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PER_PAGE));
-    const paged = filteredUsers.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+    const paged      = filteredUsers.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
-    const sel = { padding: '8px 12px', border: '1.5px solid #E8D6CC', borderRadius: 9, fontSize: '.85rem', background: '#FFF8F3', color: '#1A0A00', outline: 'none', fontFamily: "'DM Sans',sans-serif", cursor: 'pointer' };
+    const sel   = { padding: '8px 12px', border: '1.5px solid #E8D6CC', borderRadius: 9, fontSize: '.85rem', background: '#FFF8F3', color: '#1A0A00', outline: 'none', fontFamily: "'DM Sans',sans-serif", cursor: 'pointer' };
     const pgBtn = (disabled) => ({ padding: '5px 9px', borderRadius: 8, border: '1.5px solid #E8D6CC', background: disabled ? '#f5f5f5' : '#FFF8F3', cursor: disabled ? 'not-allowed' : 'pointer', color: '#7A5C4E', display: 'flex', alignItems: 'center' });
 
     return (
@@ -364,8 +682,8 @@ const UserManagementTab = ({ users = [], setUsers, onEdit }) => {
                                 </td></tr>
                             ) : paged.map(u => {
                                 const st = getAccountStatus(u);
-                                const stStyle = STATUS_STYLE[st] || STATUS_STYLE.pending;
-                                const isActive = st === 'active';
+                                const stStyle   = STATUS_STYLE[st] || STATUS_STYLE.pending;
+                                const isActive  = st === 'active';
                                 const roleStyle = ROLE_COLOR[u.role] || { bg: '#6c757d', color: '#fff' };
                                 return (
                                     <tr key={u._id}>
@@ -431,8 +749,14 @@ const UserManagementTab = ({ users = [], setUsers, onEdit }) => {
             </div>
 
             {/* Modals */}
-            {showAddModal && <AddStaffModal onClose={() => setShowAddModal(false)} onAdded={handleStaffAdded} />}
-            {editTarget && <EditUserModal user={editTarget} onSave={handleEditSave} onClose={() => setEditTarget(null)} />}
+            {showAddModal && (
+                <AddStaffModal
+                    onClose={() => setShowAddModal(false)}
+                    onAdded={handleStaffAdded}
+                    existingPhones={existingPhones}
+                />
+            )}
+            {editTarget      && <EditUserModal    user={editTarget}       onSave={handleEditSave}          onClose={() => setEditTarget(null)} />}
             {deactivateTarget && <DeactivateModal user={deactivateTarget} onConfirm={handleDeactivateConfirm} onClose={() => setDeactivateTarget(null)} />}
         </div>
     );
