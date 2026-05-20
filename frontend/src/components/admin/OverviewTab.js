@@ -185,22 +185,78 @@ const ReportsSection = ({ stats = {}, bookings = [], donations = [], staff = [],
                 ))}
             </div>
 
-            {/* Report cards */}
-            <div className="reports-grid">
+            {/* Report cards — 3-column grid matching screenshot */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 22 }}>
                 {cards.map((card, i) => (
-                    <div key={i} className="report-card" style={{ borderTop: `4px solid ${card.bg}` }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                            <div style={{ width: 36, height: 36, borderRadius: 9, background: `${card.bg}20`, color: card.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem' }}>
+                    <div key={i} style={{
+                        background: '#fff',
+                        borderRadius: 14,
+                        border: '1.5px solid #E8D6CC',
+                        borderTop: `4px solid ${card.bg}`,
+                        padding: '18px 20px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 0,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                    }}>
+                        {/* Icon + Title */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                            <div style={{
+                                width: 36, height: 36, borderRadius: 10,
+                                background: `${card.bg}18`, color: card.bg,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: '1rem', flexShrink: 0,
+                            }}>
                                 {card.icon}
                             </div>
-                            <h6 style={{ margin: 0, color: '#555', fontSize: '.88rem' }}>{card.title}</h6>
+                            <span style={{
+                                fontWeight: 700, fontSize: '.78rem', color: '#555',
+                                textTransform: 'uppercase', letterSpacing: '0.06em',
+                            }}>
+                                {card.title}
+                            </span>
                         </div>
-                        <h3 style={{ margin: '0 0 4px', color: card.bg, fontSize: '1.6rem', fontFamily: "'Playfair Display', serif" }}>{card.value}</h3>
-                        <p style={{ fontSize: '.8rem', color: '#7A5C4E', margin: '0 0 14px' }}>{card.subtext}</p>
-                        <div style={{ display: 'flex', gap: 8 }}>
+
+                        {/* Value */}
+                        <div style={{
+                            fontSize: '1.75rem', fontWeight: 700, color: card.bg,
+                            fontFamily: "'Playfair Display', serif", marginBottom: 4, lineHeight: 1,
+                        }}>
+                            {card.value}
+                        </div>
+
+                        {/* Subtext */}
+                        <p style={{ fontSize: '.8rem', color: '#7A5C4E', margin: '0 0 16px' }}>
+                            {card.subtext}
+                        </p>
+
+                        {/* Action buttons */}
+                        <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
                             {card.actions.map((a, j) => (
-                                <button key={j} className="btn-outline-sm" onClick={a.fn} style={{ flex: 1, fontSize: '.78rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-                                    <FaDownload /> {a.label}
+                                <button
+                                    key={j}
+                                    onClick={a.fn}
+                                    style={{
+                                        flex: 1,
+                                        padding: '7px 10px',
+                                        borderRadius: 8,
+                                        border: `1.5px solid ${card.bg}`,
+                                        background: 'transparent',
+                                        color: card.bg,
+                                        fontWeight: 600,
+                                        fontSize: '.78rem',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: 6,
+                                        fontFamily: "'DM Sans', sans-serif",
+                                        transition: 'background 0.15s, color 0.15s',
+                                    }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = card.bg; e.currentTarget.style.color = '#fff'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = card.bg; }}
+                                >
+                                    <FaDownload size={11} /> {a.label}
                                 </button>
                             ))}
                         </div>
