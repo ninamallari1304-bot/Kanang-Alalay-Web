@@ -3,7 +3,7 @@ import axios from 'axios';
 import {
     FaEdit, FaSearch, FaFilter,
     FaPrint, FaExclamationTriangle, FaChevronLeft, FaChevronRight,
-    FaUserCircle, FaTimes, FaUserCheck, FaBan,
+    FaUserCircle, FaTimes, FaUserCheck, FaBan, FaUserPlus, FaLock,
 } from 'react-icons/fa';
 import { API_URL } from '../../config/api';
 
@@ -137,10 +137,128 @@ const EditUserModal = ({ user, onSave, onClose }) => {
     );
 };
 
+// ── Add New Staff Modal ───────────────────────────────────────────────────────
+const AddStaffModal = ({ onClose, onAdded }) => {
+    const [form, setForm] = useState({
+        firstName: '', lastName: '', email: '', phone: '',
+        username: '', password: '', role: 'caregiver',
+    });
+    const [saving, setSaving] = useState(false);
+    const [err, setErr] = useState('');
+    const [showPass, setShowPass] = useState(false);
+
+    const handleAdd = async () => {
+        if (!form.firstName.trim() || !form.lastName.trim()) { setErr('First and last name are required.'); return; }
+        if (!form.email.trim()) { setErr('Email is required.'); return; }
+        if (!form.username.trim()) { setErr('Username is required.'); return; }
+        if (!form.password || form.password.length < 6) { setErr('Password must be at least 6 characters.'); return; }
+        setSaving(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.post(`${API_URL}/admin/users`, form, { headers: { Authorization: `Bearer ${token}` } });
+            onAdded && onAdded(res.data.data || res.data);
+            onClose();
+        } catch (e) { setErr(e.response?.data?.message || 'Failed to create staff account.'); }
+        finally { setSaving(false); }
+    };
+
+    const inp = { width: '100%', padding: '10px 14px', border: '1.5px solid #E8D6CC', borderRadius: 10, fontSize: '.9rem', background: '#FFF8F3', color: '#1A0A00', outline: 'none', boxSizing: 'border-box', fontFamily: "'DM Sans',system-ui,sans-serif" };
+    const lbl = { display: 'block', fontSize: '.76rem', fontWeight: 700, color: '#5a3e2b', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 5 };
+
+    return (
+        <div className="modal-overlay" style={{ zIndex: 10002 }}>
+            <div className="registration-modal" style={{ maxWidth: 520, padding: 0, borderRadius: 20, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,.25)' }}>
+                {/* Header */}
+                <div style={{ padding: '20px 26px', background: 'linear-gradient(135deg,#b85c2d,#7d3a06)', display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'rgba(255,255,255,.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <FaUserPlus style={{ color: '#fff', fontSize: '1rem' }} />
+                    </div>
+                    <div>
+                        <h4 style={{ margin: 0, color: '#fff', fontFamily: "'Playfair Display',serif", fontSize: '1.1rem' }}>Add New Staff</h4>
+                        <p style={{ margin: 0, color: 'rgba(255,255,255,.75)', fontSize: '.75rem' }}>Create a new staff account</p>
+                    </div>
+                    <button onClick={onClose} style={{ marginLeft: 'auto', background: 'rgba(255,255,255,.15)', border: '2px solid rgba(255,255,255,.2)', color: '#fff', width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FaTimes /></button>
+                </div>
+
+                {/* Body */}
+                <div style={{ padding: '24px 26px', maxHeight: '70vh', overflowY: 'auto' }}>
+                    {err && <div style={{ background: '#f8d7da', color: '#721c24', padding: '10px 14px', borderRadius: 8, marginBottom: 14, fontSize: '.85rem', display: 'flex', gap: 8, alignItems: 'center' }}><FaExclamationTriangle /> {err}</div>}
+
+                    {/* Name row */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                        <div>
+                            <label style={lbl}>First Name *</label>
+                            <input style={inp} value={form.firstName} onChange={e => setForm(p => ({ ...p, firstName: e.target.value }))} placeholder="Juan" />
+                        </div>
+                        <div>
+                            <label style={lbl}>Last Name *</label>
+                            <input style={inp} value={form.lastName} onChange={e => setForm(p => ({ ...p, lastName: e.target.value }))} placeholder="Dela Cruz" />
+                        </div>
+                    </div>
+
+                    {/* Email */}
+                    <div style={{ marginBottom: 14 }}>
+                        <label style={lbl}>Email *</label>
+                        <input type="email" style={inp} value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} placeholder="juan@kanangalalay.org" />
+                    </div>
+
+                    {/* Phone */}
+                    <div style={{ marginBottom: 14 }}>
+                        <label style={lbl}>Phone</label>
+                        <input style={inp} value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value.replace(/\D/g,'').slice(0,11) }))} placeholder="09XXXXXXXXX" />
+                    </div>
+
+                    {/* Username */}
+                    <div style={{ marginBottom: 14 }}>
+                        <label style={lbl}>Username *</label>
+                        <input style={inp} value={form.username} onChange={e => setForm(p => ({ ...p, username: e.target.value.replace(/\s/g,'') }))} placeholder="juan.delacruz" />
+                    </div>
+
+                    {/* Password */}
+                    <div style={{ marginBottom: 14 }}>
+                        <label style={lbl}>Password *</label>
+                        <div style={{ position: 'relative' }}>
+                            <input type={showPass ? 'text' : 'password'} style={{ ...inp, paddingRight: 40 }} value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} placeholder="Min. 6 characters" />
+                            <button type="button" onClick={() => setShowPass(v => !v)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#7A5C4E', display: 'flex', alignItems: 'center' }}>
+                                <FaLock size={13} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Role */}
+                    <div style={{ marginBottom: 6 }}>
+                        <label style={lbl}>Role *</label>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            {ROLES.map(r => {
+                                const rc = ROLE_COLOR[r];
+                                const selected = form.role === r;
+                                return (
+                                    <button key={r} type="button" onClick={() => setForm(p => ({ ...p, role: r }))} style={{ padding: '7px 18px', borderRadius: 20, fontSize: '.8rem', fontWeight: 700, cursor: 'pointer', border: `2px solid ${selected ? rc.bg : '#E8D6CC'}`, background: selected ? rc.bg : '#FFF8F3', color: selected ? rc.color : '#7A5C4E', transition: 'all .15s' }}>
+                                        {ROLE_LABEL[r]}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 22, paddingTop: 16, borderTop: '1.5px solid #E8D6CC' }}>
+                        <button onClick={onClose} style={{ padding: '9px 20px', borderRadius: 10, border: '1.5px solid #E8D6CC', background: 'transparent', cursor: 'pointer', fontWeight: 600, color: '#7A5C4E', fontFamily: "'DM Sans',sans-serif" }}>Cancel</button>
+                        <button onClick={handleAdd} disabled={saving} style={{ padding: '9px 24px', borderRadius: 10, border: 'none', background: saving ? '#ccc' : 'linear-gradient(135deg,#b85c2d,#7d3a06)', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 700, fontFamily: "'DM Sans',sans-serif", display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                            <FaUserPlus size={13} /> {saving ? 'Creating…' : 'Create Staff Account'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 const UserManagementTab = ({ users = [], setUsers, onEdit }) => {
     const [deactivateTarget, setDeactivateTarget] = useState(null);
     const [editTarget, setEditTarget]             = useState(null);
+    const [showAddModal, setShowAddModal]         = useState(false);
     const [search, setSearch]                     = useState('');
     const [roleFilter, setRoleFilter]             = useState('all');
     const [statusFilter, setStatusFilter]         = useState('all');
@@ -181,6 +299,10 @@ const UserManagementTab = ({ users = [], setUsers, onEdit }) => {
         win.document.close(); win.focus(); win.print(); win.close();
     };
 
+    const handleStaffAdded = (newUser) => {
+        setUsers && setUsers(prev => [newUser, ...prev]);
+    };
+
     const filteredUsers = users.filter(u => {
         const q = search.toLowerCase();
         const nameMatch = !q || `${u.firstName} ${u.lastName}`.toLowerCase().includes(q) || (u.email||'').toLowerCase().includes(q) || (u.username||'').toLowerCase().includes(q);
@@ -214,6 +336,14 @@ const UserManagementTab = ({ users = [], setUsers, onEdit }) => {
                     {STATUS_FILTER_OPTIONS.map(s => <option key={s} value={s}>{s === 'all' ? 'Status: All' : s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
                 </select>
                 <button className="btn-outline-sm" onClick={handlePrint} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><FaPrint /> Print</button>
+                <button
+                    onClick={() => setShowAddModal(true)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b85c2d,#7d3a06)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '.88rem', fontFamily: "'DM Sans',sans-serif", boxShadow: '0 3px 10px rgba(184,92,45,.35)', transition: 'opacity .2s' }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = '.88'}
+                    onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                >
+                    <FaUserPlus size={13} /> Add New Staff
+                </button>
             </div>
 
             {/* Table */}
@@ -301,6 +431,7 @@ const UserManagementTab = ({ users = [], setUsers, onEdit }) => {
             </div>
 
             {/* Modals */}
+            {showAddModal && <AddStaffModal onClose={() => setShowAddModal(false)} onAdded={handleStaffAdded} />}
             {editTarget && <EditUserModal user={editTarget} onSave={handleEditSave} onClose={() => setEditTarget(null)} />}
             {deactivateTarget && <DeactivateModal user={deactivateTarget} onConfirm={handleDeactivateConfirm} onClose={() => setDeactivateTarget(null)} />}
         </div>
