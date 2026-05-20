@@ -302,23 +302,31 @@ const AddResidentModal = ({ onClose, onSaved, doFetch, toast, caregivers, fetchC
                             className="form-input"
                             value={f.primaryCaregiver}
                             onChange={e => setField('primaryCaregiver', e.target.value)}>
-                            <option value="">-- Auto-assign to me --</option>
-                            {caregivers.map(c => (
-                                <option key={c._id} value={c._id}>
-                                    {c.firstName} {c.lastName} {c.role === 'head_caregiver' ? '(Head)' : '(Caregiver)'}
-                                </option>
-                            ))}
+                            <option value="">— Select a caregiver —</option>
+                            {caregivers
+                                .filter(c => c.role === 'caregiver')
+                                .map(c => (
+                                    <option key={c._id} value={c._id}>
+                                        {c.firstName} {c.lastName}
+                                    </option>
+                                ))}
                         </select>
                         {selectedCaregiverName && (
                             <small className="field-hint success">
                                 <FaCheckCircle style={{ marginRight: 4 }} />
-                                Will be assigned to: {selectedCaregiverName}
+                                Assigned to: {selectedCaregiverName}
                             </small>
                         )}
-                        {!f.primaryCaregiver && (
+                        {!f.primaryCaregiver && caregivers.filter(c => c.role === 'caregiver').length === 0 && (
+                            <small className="field-hint" style={{ color: 'var(--d-orange-dk)' }}>
+                                <FaExclamationTriangle style={{ marginRight: 4 }} />
+                                No caregiver accounts found. Please register a caregiver first.
+                            </small>
+                        )}
+                        {!f.primaryCaregiver && caregivers.filter(c => c.role === 'caregiver').length > 0 && (
                             <small className="field-hint">
                                 <FaUserMd style={{ marginRight: 4 }} />
-                                Auto-assigned to: {JSON.parse(localStorage.getItem('user') || '{}')?.firstName || 'You'}
+                                Optional — can be assigned later.
                             </small>
                         )}
                     </Field>
