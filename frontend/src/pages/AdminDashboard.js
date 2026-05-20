@@ -15,7 +15,8 @@ import {
 import UserRegistrationModal from '../components/UserRegistrationModal';
 import AddInventoryModal from '../components/AddInventoryModal';
 import InventoryTab from '../components/admin/InventoryTab';
-import ReportsTab from '../components/admin/ReportsTab';
+// ReportsTab removed — reports now embedded in OverviewTab
+import OverviewTab from '../components/admin/OverviewTab';
 import StaffRosterTab from '../components/admin/StaffRosterTab';
 import UserManagementTab from '../components/admin/UserManagementTab';
 import DonationManagementTab from '../components/admin/DonationManagementTab';
@@ -1155,8 +1156,21 @@ const AdminDashboard = () => {
         }
     };
 
-    // Overview Tab
+    // Overview Tab — uses OverviewTab component which includes embedded Reports & Analytics
     const renderOverview = () => (
+        <OverviewTab
+            stats={stats}
+            activities={[]}
+            setActiveSection={setActiveSection}
+            bookings={bookings}
+            donations={donations}
+            staff={staff}
+            inventory={inventory}
+        />
+    );
+
+    // OLD renderOverview kept below for reference — DELETE after migration
+    const _renderOverview_OLD = () => (
         <div>
             {apiError && (
                 <div className="api-error-banner" style={{ background: '#f8d7da', color: '#721c24', padding: '12px 16px', borderRadius: 8, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1437,16 +1451,7 @@ const AdminDashboard = () => {
         { day: 'Thu', rate: 95 }, { day: 'Fri', rate: 92 }, { day: 'Sat', rate: 89 }, { day: 'Sun', rate: 92 }
     ];
 
-    // Reports Tab
-    const renderReports = () => (
-        <ReportsTab
-            stats={stats}
-            bookings={bookings}
-            donations={donations}
-            staff={staff}
-            inventory={inventory}
-        />
-    );
+    // renderReports removed — reports are now embedded in System Overview (OverviewTab)
 
     const renderContent = () => {
         if (loading) return (
@@ -1465,7 +1470,7 @@ const AdminDashboard = () => {
             case 'alerts': return renderAlerts();
             case 'inventory': return renderInventory();
             case 'compliance': return renderCompliance();
-            case 'reports': return renderReports();
+            case 'reports': return renderOverview(); // redirect to overview which contains reports
             default: return renderOverview();
         }
     };
@@ -1494,7 +1499,7 @@ const AdminDashboard = () => {
                             { key: 'inventory', icon: <FaExclamationTriangle />, label: 'Inventory Alerts', badge: realLowStockCount },
                             { key: 'compliance', icon: <FaChartBar />, label: 'Compliance Chart' },
                             { key: 'donation', icon: <FaMoneyBillWave />, label: 'Donation Ledger' },
-                            { key: 'reports', icon: <FaFileAlt />, label: 'Reports & Analytics' },
+                            // Reports & Analytics removed — now in System Overview (lower section)
                         ].map(({ key, icon, label, badge }) => (
                             <li key={key} 
                                 className={activeSection === key ? 'active' : ''} 

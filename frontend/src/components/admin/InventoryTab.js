@@ -3,6 +3,8 @@ import {
     FaBox, FaEdit, FaTrash, FaExclamationTriangle,
     FaClock, FaSearch, FaPrint, FaFilter,
     FaChevronLeft, FaChevronRight, FaTimes,
+    FaUpload, FaFileAlt, FaCheckCircle, FaTimesCircle,
+    FaDownload, FaCloudUploadAlt,
 } from 'react-icons/fa';
 
 const API_BASE_URL =
@@ -30,6 +32,387 @@ const getStatusStyle = (item) => {
         : Infinity;
     if (daysLeft <= 30) return { label: 'Expiring Soon', bg: '#fff8e1', color: '#7c5a00' };
     return { label: 'In Stock', bg: '#e0faf4', color: '#0d6b4f' };
+};
+
+// ── Bulk CSV Import Modal ──────────────────────────────────────────────────────
+const CSV_TEMPLATE_HEADERS = 'name,category,quantity,unit,minThreshold,expirationDate,notes';
+const CSV_TEMPLATE_EXAMPLE = [
+    'Paracetamol 500mg,medication,100,pcs,20,2026-12-31,Keep in cool dry place',
+    'Face Masks,medical_supplies,500,pcs,50,,Surgical grade',
+    'Rice (5kg bag),food,30,bag,10,2026-06-30,Store away from moisture',
+    'Hand Sanitizer,hygiene,50,bottle,15,,70% alcohol',
+].join('\n');
+
+const VALID_CATEGORIES = ['medication', 'medical_supplies', 'food', 'hygiene', 'General'];
+const VALID_UNITS = ['pcs', 'box', 'bottle', 'pack', 'bag', 'kg', 'liters', 'set', 'roll', 'pair'];
+
+const parseCSV = (text) => {
+    const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
+    if (lines.length < 2) return { rows: [], error: 'CSV must have a header row and at least one data row.' };
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    const required = ['name', 'quantity', 'unit'];
+    const missing = required.filter(r => !headers.includes(r));
+    if (missing.length) return { rows: [], error: `Missing required columns: ${missing.join(', ')}` };
+
+    const rows = [];
+    for (let i = 1; i < lines.length; i++) {
+        // Handle quoted fields
+        const cols = [];
+        let cur = '', inQ = false;
+        for (const ch of lines[i]) {
+            if (ch === '"') { inQ = !inQ; }
+            else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+            else cur += ch;
+        }
+        cols.push(cur.trim());
+
+        const row = {};
+        headers.forEach((h, idx) => { row[h] = cols[idx] ?? ''; });
+
+        const errors = [];
+        if (!row.name) errors.push('Name is required');
+        const qty = Number(row.quantity);
+        if (isNaN(qty) || qty < 0) errors.push('Quantity must be a non-negative number');
+        if (!row.unit) errors.push('Unit is required');
+        if (row.category && !VALID_CATEGORIES.includes(row.category)) errors.push(`Category "${row.category}" invalid`);
+        if (row.minthreshold && isNaN(Number(row.minthreshold))) errors.push('minThreshold must be a number');
+        if (row.expirationdate && isNaN(Date.parse(row.expirationdate))) errors.push('Expiration date must be YYYY-MM-DD');
+
+        rows.push({
+            _raw: row,
+            name: row.name,
+            category: VALID_CATEGORIES.includes(row.category) ? row.category : 'General',
+            quantity: isNaN(qty) ? 0 : qty,
+            unit: row.unit || 'pcs',
+            minThreshold: Number(row.minthreshold) || 10,
+            expirationDate: row.expirationdate || '',
+            notes: row.notes || '',
+            errors,
+            valid: errors.length === 0,
+        });
+    }
+    return { rows, error: null };
+};
+
+const BulkImportModal = ({ onClose, onImported }) => {
+    const [step, setStep]           = useState('upload'); // 'upload' | 'preview' | 'importing' | 'done'
+    const [dragOver, setDragOver]   = useState(false);
+    const [rows, setRows]           = useState([]);
+    const [parseError, setParseError] = useState('');
+    const [fileName, setFileName]   = useState('');
+    const [results, setResults]     = useState({ success: 0, failed: 0 });
+    const fileRef = useRef(null);
+
+    const handleFile = (file) => {
+        if (!file) return;
+        if (!file.name.endsWith('.csv')) { setParseError('Please upload a .csv file.'); return; }
+        setFileName(file.name);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const { rows: parsed, error } = parseCSV(e.target.result);
+            if (error) { setParseError(error); return; }
+            setParseError('');
+            setRows(parsed);
+            setStep('preview');
+        };
+        reader.readAsText(file);
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault(); setDragOver(false);
+        handleFile(e.dataTransfer.files[0]);
+    };
+
+    const downloadTemplate = () => {
+        const blob = new Blob([CSV_TEMPLATE_HEADERS + '\n' + CSV_TEMPLATE_EXAMPLE], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'inventory_template.csv'; a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const handleImport = async () => {
+        const valid = rows.filter(r => r.valid);
+        if (!valid.length) return;
+        setStep('importing');
+        const token = localStorage.getItem('token');
+        let success = 0, failed = 0;
+        const imported = [];
+        for (const row of valid) {
+            try {
+                const res = await fetch(`${API_BASE_URL}/admin/inventory`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) },
+                    body: JSON.stringify({
+                        name: row.name, category: row.category, quantity: row.quantity,
+                        unit: row.unit, minThreshold: row.minThreshold,
+                        expirationDate: row.expirationDate || undefined, notes: row.notes,
+                    }),
+                });
+                const data = await res.json();
+                if (data.success) { success++; imported.push(data.data); }
+                else failed++;
+            } catch { failed++; }
+        }
+        setResults({ success, failed });
+        onImported(imported);
+        setStep('done');
+    };
+
+    const validCount   = rows.filter(r => r.valid).length;
+    const invalidCount = rows.filter(r => !r.valid).length;
+
+    // ── Styles ──────────────────────────────────────────────────────────────────
+    const overlay = { position: 'fixed', inset: 0, background: 'rgba(20,8,0,0.55)', backdropFilter: 'blur(3px)', zIndex: 10002, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 };
+    const modal   = { background: '#fff', borderRadius: 20, width: '100%', maxWidth: 720, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,0.22)', overflow: 'hidden' };
+    const header  = { padding: '18px 24px', background: 'linear-gradient(135deg, #b85c2d, #7d3a06)', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 };
+    const body    = { padding: '24px', overflowY: 'auto', flex: 1 };
+    const footer  = { padding: '16px 24px', borderTop: '1.5px solid #E8D6CC', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FFF8F3', flexShrink: 0 };
+    const pill    = (color, bg) => ({ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 20, fontSize: '.74rem', fontWeight: 700, color, background: bg, border: `1.5px solid ${color}30` });
+
+    return (
+        <div style={overlay}>
+            <div style={modal}>
+                {/* Header */}
+                <div style={header}>
+                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,.18)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <FaCloudUploadAlt style={{ color: '#fff', fontSize: '1.1rem' }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                        <h4 style={{ margin: 0, color: '#fff', fontFamily: "'Playfair Display', serif", fontSize: '1.05rem' }}>Bulk Import via CSV</h4>
+                        <small style={{ color: 'rgba(255,255,255,.7)', fontSize: '.76rem' }}>
+                            {step === 'upload' && 'Upload a .csv file to add multiple items at once'}
+                            {step === 'preview' && `Previewing ${rows.length} row${rows.length !== 1 ? 's' : ''} from ${fileName}`}
+                            {step === 'importing' && 'Importing items, please wait…'}
+                            {step === 'done' && 'Import complete'}
+                        </small>
+                    </div>
+                    {/* Step indicator */}
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        {['upload', 'preview', 'done'].map((s, idx) => (
+                            <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <div style={{ width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.7rem', fontWeight: 700, background: step === s ? '#fff' : 'rgba(255,255,255,.25)', color: step === s ? '#b85c2d' : 'rgba(255,255,255,.8)' }}>
+                                    {idx + 1}
+                                </div>
+                                {idx < 2 && <div style={{ width: 18, height: 2, background: 'rgba(255,255,255,.3)' }} />}
+                            </div>
+                        ))}
+                    </div>
+                    <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,.15)', border: '1.5px solid rgba(255,255,255,.25)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
+                        <FaTimes size={12} />
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div style={body}>
+
+                    {/* ── STEP 1: Upload ── */}
+                    {step === 'upload' && (<>
+                        {/* Template download */}
+                        <div style={{ background: 'linear-gradient(135deg, #FFF8F3, #fef3ec)', border: '1.5px solid #F3D5C0', borderRadius: 14, padding: '16px 20px', marginBottom: 20, display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg, #F96B38, #D94E1B)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <FaFileAlt style={{ color: '#fff' }} />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <p style={{ margin: 0, fontWeight: 700, color: '#1A0A00', fontSize: '.9rem' }}>Download CSV Template</p>
+                                <p style={{ margin: '4px 0 10px', color: '#7A5C4E', fontSize: '.82rem', lineHeight: 1.5 }}>
+                                    Use our template to ensure correct formatting. Required columns: <strong>name, quantity, unit</strong>. Optional: category, minThreshold, expirationDate (YYYY-MM-DD), notes.
+                                </p>
+                                <button onClick={downloadTemplate} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 16px', borderRadius: 8, border: '1.5px solid #F96B38', background: 'transparent', color: '#D94E1B', fontWeight: 700, fontSize: '.82rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                                    <FaDownload size={11} /> Download Template
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Drop zone */}
+                        <div
+                            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                            onDragLeave={() => setDragOver(false)}
+                            onDrop={handleDrop}
+                            onClick={() => fileRef.current?.click()}
+                            style={{
+                                border: `2.5px dashed ${dragOver ? '#b85c2d' : '#E8D6CC'}`,
+                                borderRadius: 16, padding: '40px 24px', textAlign: 'center',
+                                cursor: 'pointer', transition: 'all .25s',
+                                background: dragOver ? '#FFF0E8' : '#FAFAFA',
+                            }}
+                        >
+                            <div style={{ width: 60, height: 60, borderRadius: '50%', background: dragOver ? 'linear-gradient(135deg, #F96B38, #D94E1B)' : '#F0E8E0', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', transition: 'all .25s' }}>
+                                <FaCloudUploadAlt style={{ fontSize: '1.6rem', color: dragOver ? '#fff' : '#b85c2d' }} />
+                            </div>
+                            <p style={{ margin: '0 0 6px', fontWeight: 700, color: '#1A0A00', fontSize: '1rem', fontFamily: "'Playfair Display', serif" }}>
+                                {dragOver ? 'Release to upload' : 'Drag & drop your CSV here'}
+                            </p>
+                            <p style={{ margin: 0, color: '#7A5C4E', fontSize: '.83rem' }}>or <span style={{ color: '#b85c2d', fontWeight: 700 }}>click to browse</span> — .csv files only</p>
+                            <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={e => handleFile(e.target.files[0])} />
+                        </div>
+
+                        {parseError && (
+                            <div style={{ marginTop: 14, padding: '10px 14px', background: '#fdecea', border: '1.5px solid #f5c6cb', borderRadius: 10, color: '#721c24', fontSize: '.84rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <FaTimesCircle /> {parseError}
+                            </div>
+                        )}
+
+                        {/* Format guide */}
+                        <div style={{ marginTop: 20, borderRadius: 12, overflow: 'hidden', border: '1.5px solid #E8D6CC' }}>
+                            <div style={{ background: '#E8D6CC', padding: '8px 16px' }}>
+                                <small style={{ fontWeight: 700, color: '#7A5C4E', textTransform: 'uppercase', fontSize: '.7rem', letterSpacing: '.06em' }}>Expected Format</small>
+                            </div>
+                            <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.78rem' }}>
+                                    <thead>
+                                        <tr style={{ background: '#FFF8F3' }}>
+                                            {['name *', 'category', 'quantity *', 'unit *', 'minThreshold', 'expirationDate', 'notes'].map(h => (
+                                                <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: '#7A5C4E', fontWeight: 700, borderBottom: '1px solid #E8D6CC', whiteSpace: 'nowrap' }}>{h}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td style={{ padding: '8px 12px', borderBottom: '1px solid #F0E8E0', color: '#1A0A00' }}>Paracetamol</td>
+                                            <td style={{ padding: '8px 12px', borderBottom: '1px solid #F0E8E0', color: '#1A0A00' }}>medication</td>
+                                            <td style={{ padding: '8px 12px', borderBottom: '1px solid #F0E8E0', color: '#1A0A00' }}>100</td>
+                                            <td style={{ padding: '8px 12px', borderBottom: '1px solid #F0E8E0', color: '#1A0A00' }}>pcs</td>
+                                            <td style={{ padding: '8px 12px', borderBottom: '1px solid #F0E8E0', color: '#1A0A00' }}>20</td>
+                                            <td style={{ padding: '8px 12px', borderBottom: '1px solid #F0E8E0', color: '#1A0A00' }}>2026-12-31</td>
+                                            <td style={{ padding: '8px 12px', borderBottom: '1px solid #F0E8E0', color: '#7A5C4E', fontStyle: 'italic' }}>optional</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div style={{ padding: '10px 14px', background: '#FFF8F3', borderTop: '1.5px solid #E8D6CC' }}>
+                                <small style={{ color: '#7A5C4E', fontSize: '.75rem' }}>
+                                    Valid categories: <code style={{ background: '#E8D6CC', padding: '1px 5px', borderRadius: 4 }}>{VALID_CATEGORIES.join(', ')}</code>&nbsp;&nbsp;
+                                    Valid units: <code style={{ background: '#E8D6CC', padding: '1px 5px', borderRadius: 4 }}>{VALID_UNITS.join(', ')}</code>
+                                </small>
+                            </div>
+                        </div>
+                    </>)}
+
+                    {/* ── STEP 2: Preview ── */}
+                    {step === 'preview' && (<>
+                        {/* Summary bar */}
+                        <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+                            <div style={{ flex: 1, minWidth: 130, background: '#e0faf4', border: '1.5px solid #0d6b4f30', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <FaCheckCircle style={{ color: '#0d6b4f', fontSize: '1.2rem' }} />
+                                <div><div style={{ fontWeight: 800, fontSize: '1.2rem', color: '#0d6b4f' }}>{validCount}</div><div style={{ fontSize: '.74rem', color: '#0d6b4f', fontWeight: 600 }}>Ready to Import</div></div>
+                            </div>
+                            {invalidCount > 0 && (
+                                <div style={{ flex: 1, minWidth: 130, background: '#fdecea', border: '1.5px solid #b71c1c30', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <FaTimesCircle style={{ color: '#b71c1c', fontSize: '1.2rem' }} />
+                                    <div><div style={{ fontWeight: 800, fontSize: '1.2rem', color: '#b71c1c' }}>{invalidCount}</div><div style={{ fontSize: '.74rem', color: '#b71c1c', fontWeight: 600 }}>Has Errors</div></div>
+                                </div>
+                            )}
+                            <div style={{ flex: 1, minWidth: 130, background: '#FFF8F3', border: '1.5px solid #E8D6CC', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <FaFileAlt style={{ color: '#b85c2d', fontSize: '1.2rem' }} />
+                                <div><div style={{ fontWeight: 800, fontSize: '1.2rem', color: '#1A0A00' }}>{rows.length}</div><div style={{ fontSize: '.74rem', color: '#7A5C4E', fontWeight: 600 }}>Total Rows</div></div>
+                            </div>
+                        </div>
+
+                        {invalidCount > 0 && (
+                            <div style={{ background: '#fff8e1', border: '1.5px solid #ffc10740', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: '.82rem', color: '#7c5a00', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                                <FaExclamationTriangle style={{ flexShrink: 0, marginTop: 2 }} />
+                                <span>Rows with errors will be <strong>skipped</strong>. Fix the CSV and re-upload to import all rows.</span>
+                            </div>
+                        )}
+
+                        {/* Preview table */}
+                        <div style={{ borderRadius: 12, border: '1.5px solid #E8D6CC', overflow: 'hidden' }}>
+                            <div style={{ overflowX: 'auto', maxHeight: 340 }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.78rem' }}>
+                                    <thead>
+                                        <tr style={{ background: '#b85c2d', position: 'sticky', top: 0 }}>
+                                            <th style={{ padding: '10px 12px', textAlign: 'left', color: '#fff', fontWeight: 700, whiteSpace: 'nowrap' }}>#</th>
+                                            <th style={{ padding: '10px 12px', textAlign: 'left', color: '#fff', fontWeight: 700 }}>Name</th>
+                                            <th style={{ padding: '10px 12px', textAlign: 'left', color: '#fff', fontWeight: 700 }}>Category</th>
+                                            <th style={{ padding: '10px 12px', textAlign: 'left', color: '#fff', fontWeight: 700 }}>Qty</th>
+                                            <th style={{ padding: '10px 12px', textAlign: 'left', color: '#fff', fontWeight: 700 }}>Unit</th>
+                                            <th style={{ padding: '10px 12px', textAlign: 'left', color: '#fff', fontWeight: 700 }}>Min</th>
+                                            <th style={{ padding: '10px 12px', textAlign: 'left', color: '#fff', fontWeight: 700, whiteSpace: 'nowrap' }}>Expiry</th>
+                                            <th style={{ padding: '10px 12px', textAlign: 'left', color: '#fff', fontWeight: 700 }}>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {rows.map((row, i) => (
+                                            <tr key={i} style={{ background: row.valid ? (i % 2 === 0 ? '#fff' : '#FAFAFA') : '#fff5f5', borderBottom: '1px solid #F0E8E0' }}>
+                                                <td style={{ padding: '8px 12px', color: '#7A5C4E', fontWeight: 600 }}>{i + 1}</td>
+                                                <td style={{ padding: '8px 12px', fontWeight: 600, color: '#1A0A00' }}>{row.name || <span style={{ color: '#ccc' }}>—</span>}</td>
+                                                <td style={{ padding: '8px 12px', color: '#7A5C4E' }}>{row.category}</td>
+                                                <td style={{ padding: '8px 12px', fontWeight: 700, color: row.quantity === 0 ? '#dc3545' : '#1A0A00' }}>{row.quantity}</td>
+                                                <td style={{ padding: '8px 12px', color: '#7A5C4E' }}>{row.unit}</td>
+                                                <td style={{ padding: '8px 12px', color: '#7A5C4E' }}>{row.minThreshold}</td>
+                                                <td style={{ padding: '8px 12px', color: '#7A5C4E', whiteSpace: 'nowrap', fontSize: '.74rem' }}>{row.expirationDate || '—'}</td>
+                                                <td style={{ padding: '8px 12px' }}>
+                                                    {row.valid
+                                                        ? <span style={pill('#0d6b4f', '#e0faf4')}><FaCheckCircle size={9} /> Valid</span>
+                                                        : (
+                                                            <span title={row.errors.join('; ')} style={{ ...pill('#b71c1c', '#fdecea'), cursor: 'help' }}>
+                                                                <FaTimesCircle size={9} /> {row.errors[0]}{row.errors.length > 1 ? ` (+${row.errors.length - 1})` : ''}
+                                                            </span>
+                                                        )
+                                                    }
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </>)}
+
+                    {/* ── STEP: Importing ── */}
+                    {step === 'importing' && (
+                        <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                            <div style={{ width: 70, height: 70, borderRadius: '50%', background: 'linear-gradient(135deg, #F96B38, #D94E1B)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', animation: 'spin 1s linear infinite' }}>
+                                <FaCloudUploadAlt style={{ color: '#fff', fontSize: '1.8rem' }} />
+                            </div>
+                            <p style={{ fontWeight: 700, fontSize: '1rem', color: '#1A0A00', margin: '0 0 6px', fontFamily: "'Playfair Display', serif" }}>Importing {validCount} item{validCount !== 1 ? 's' : ''}…</p>
+                            <p style={{ color: '#7A5C4E', fontSize: '.85rem', margin: 0 }}>Please wait, do not close this window.</p>
+                            <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+                        </div>
+                    )}
+
+                    {/* ── STEP: Done ── */}
+                    {step === 'done' && (
+                        <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                            <div style={{ width: 70, height: 70, borderRadius: '50%', background: results.success > 0 ? 'linear-gradient(135deg, #28a745, #1e7e34)' : '#dc3545', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+                                {results.success > 0 ? <FaCheckCircle style={{ color: '#fff', fontSize: '2rem' }} /> : <FaTimesCircle style={{ color: '#fff', fontSize: '2rem' }} />}
+                            </div>
+                            <p style={{ fontWeight: 700, fontSize: '1.1rem', color: '#1A0A00', margin: '0 0 10px', fontFamily: "'Playfair Display', serif" }}>Import Complete!</p>
+                            <div style={{ display: 'inline-flex', gap: 12, background: '#FFF8F3', borderRadius: 14, padding: '14px 24px', border: '1.5px solid #E8D6CC', marginBottom: 14 }}>
+                                <div><div style={{ fontWeight: 800, fontSize: '1.4rem', color: '#28a745' }}>{results.success}</div><div style={{ fontSize: '.75rem', color: '#7A5C4E' }}>Imported</div></div>
+                                <div style={{ width: 1, background: '#E8D6CC' }} />
+                                <div><div style={{ fontWeight: 800, fontSize: '1.4rem', color: results.failed > 0 ? '#dc3545' : '#ccc' }}>{results.failed}</div><div style={{ fontSize: '.75rem', color: '#7A5C4E' }}>Failed</div></div>
+                            </div>
+                            {results.failed > 0 && <p style={{ color: '#7A5C4E', fontSize: '.83rem', margin: 0 }}>Some items could not be saved. Check for duplicate names or server errors.</p>}
+                        </div>
+                    )}
+                </div>
+
+                {/* Footer */}
+                <div style={footer}>
+                    <div>
+                        {step === 'preview' && (
+                            <button onClick={() => { setStep('upload'); setRows([]); setFileName(''); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 9, border: '1.5px solid #E8D6CC', background: 'transparent', color: '#7A5C4E', cursor: 'pointer', fontWeight: 600, fontSize: '.85rem', fontFamily: "'DM Sans', sans-serif" }}>
+                                ← Re-upload
+                            </button>
+                        )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                        {step !== 'importing' && (
+                            <button onClick={onClose} style={{ padding: '9px 20px', borderRadius: 9, border: '1.5px solid #E8D6CC', background: 'transparent', cursor: 'pointer', fontWeight: 600, color: '#7A5C4E', fontFamily: "'DM Sans', sans-serif" }}>
+                                {step === 'done' ? 'Close' : 'Cancel'}
+                            </button>
+                        )}
+                        {step === 'preview' && (
+                            <button onClick={handleImport} disabled={validCount === 0} style={{ padding: '9px 22px', borderRadius: 9, border: 'none', background: validCount === 0 ? '#ccc' : 'linear-gradient(135deg, #F96B38, #D94E1B)', color: '#fff', cursor: validCount === 0 ? 'not-allowed' : 'pointer', fontWeight: 700, fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', gap: 7 }}>
+                                <FaUpload size={12} /> Import {validCount} Item{validCount !== 1 ? 's' : ''}
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 // ── Edit Modal ─────────────────────────────────────────────────────────────────
@@ -157,13 +540,14 @@ const DeleteInventoryModal = ({ item, onConfirm, onClose }) => {
 
 // ── Main ───────────────────────────────────────────────────────────────────────
 const InventoryTab = ({ inventory, setInventory, setShowAddInventory }) => {
-    const [editItem, setEditItem]         = useState(null);
-    const [deleteTarget, setDeleteTarget] = useState(null);
-    const [deleting, setDeleting]         = useState(false);
-    const [localSearch, setLocalSearch]   = useState('');
+    const [editItem, setEditItem]           = useState(null);
+    const [deleteTarget, setDeleteTarget]   = useState(null);
+    const [deleting, setDeleting]           = useState(false);
+    const [localSearch, setLocalSearch]     = useState('');
     const [categoryFilter, setCategoryFilter] = useState('All');
-    const [statusFilter, setStatusFilter] = useState('All');
-    const [page, setPage]                 = useState(1);
+    const [statusFilter, setStatusFilter]   = useState('All');
+    const [page, setPage]                   = useState(1);
+    const [showBulkImport, setShowBulkImport] = useState(false);
     const printRef = useRef(null);
 
     const lowCount      = inventory.filter(i => i.quantity > 0 && i.quantity <= (i.minThreshold ?? 10)).length;
@@ -209,6 +593,10 @@ const InventoryTab = ({ inventory, setInventory, setShowAddInventory }) => {
         } finally {
             setDeleting(false);
         }
+    };
+
+    const handleBulkImported = (newItems) => {
+        setInventory(prev => [...prev, ...newItems]);
     };
 
     const handlePrint = () => {
@@ -268,6 +656,9 @@ const InventoryTab = ({ inventory, setInventory, setShowAddInventory }) => {
                     <h5>Inventory &amp; Stock Management</h5>
                     <div style={{ display: 'flex', gap: 8 }}>
                         <button className="btn-outline-sm" onClick={handlePrint}><FaPrint /> Print Report</button>
+                        <button className="btn-outline-sm" onClick={() => setShowBulkImport(true)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <FaUpload size={12} /> Bulk Import
+                        </button>
                         <button className="btn-primary-sm" onClick={() => setShowAddInventory(true)}><FaBox /> Add Item</button>
                     </div>
                 </div>
@@ -425,6 +816,7 @@ const InventoryTab = ({ inventory, setInventory, setShowAddInventory }) => {
 
             {editItem && <EditItemModal item={editItem} onSave={handleSaveEdit} onClose={() => setEditItem(null)} />}
             {deleteTarget && <DeleteInventoryModal item={deleteTarget} onConfirm={handleDeleteConfirm} onClose={() => setDeleteTarget(null)} />}
+            {showBulkImport && <BulkImportModal onClose={() => setShowBulkImport(false)} onImported={handleBulkImported} />}
         </>
     );
 };

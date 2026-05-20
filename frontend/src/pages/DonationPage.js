@@ -87,15 +87,78 @@ export default function DonationPage() {
     amount: '', donationType: 'online',
     notes: '', anonymous: false, appointmentDate: '', appointmentTime: ''
   });
-  const [proofFile, setProofFile]       = useState(null);
-  const [proofPreview, setProofPreview] = useState(null);
-  const [errors, setErrors]             = useState({});
-  const [apiError, setApiError]         = useState('');
-  const [loading, setLoading]           = useState(false);
-  const [submitted, setSubmitted]       = useState(false);
-  const [receipt, setReceipt]           = useState(null);
-  const [showModal, setShowModal]       = useState(false);
-  const [modalData, setModalData]       = useState(null);
+  const [proofFile, setProofFile]           = useState(null);
+  const [proofPreview, setProofPreview]     = useState(null);
+  const [errors, setErrors]                 = useState({});
+  const [apiError, setApiError]             = useState('');
+  const [loading, setLoading]               = useState(false);
+  const [submitted, setSubmitted]           = useState(false);
+  const [receipt, setReceipt]               = useState(null);
+  const [showModal, setShowModal]           = useState(false);
+  const [modalData, setModalData]           = useState(null);
+  const [aiVerifying, setAiVerifying]       = useState(false);
+  const [aiResult, setAiResult]             = useState(null);
+
+
+  const verifyReceiptWithAI = async (file, dataUrl) => {
+    if (!file.type.startsWith('image/')) {
+      setAiResult({ valid: null, confidence: 'low', reason: 'PDF uploaded — needs manual review', details: 'PDF receipts cannot be auto-verified by our AI. Our team will review it manually.' });
+      return;
+    }
+    setAiVerifying(true);
+    setAiResult(null);
+    try {
+      const base64 = dataUrl.split(',')[1];
+      const mediaType = file.type;
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+              {
+                type: 'text',
+                text: `You are a payment receipt verification assistant for a Philippine charity called Kanang-Alalay.
+
+Analyze this image and determine if it is a genuine payment receipt or proof of payment (e.g. GCash, Maya, bank transfer, QRPH transaction screenshot, online banking confirmation, or similar Philippine payment platforms).
+
+Respond ONLY with a JSON object — no markdown, no explanation outside the JSON:
+{
+  "valid": true or false or null,
+  "confidence": "high" or "medium" or "low",
+  "reason": "one short sentence max 12 words explaining your decision",
+  "details": "one to two sentences with specific observations"
+}
+
+Rules:
+- valid true means looks like a real receipt or transaction confirmation
+- valid false means clearly not a receipt such as a selfie meme random photo blank image or screenshot of something unrelated
+- valid null means unclear or ambiguous and needs manual review
+- confidence reflects how certain you are
+- Be lenient: a simple transaction screenshot with an amount and reference number counts
+- Do NOT require personal data to be visible`
+              }
+            ]
+          }]
+        })
+      });
+      if (!response.ok) throw new Error('AI service unavailable');
+      const data = await response.json();
+      const text = data.content?.find(b => b.type === 'text')?.text || '';
+      const clean = text.replace(/```json|```/g, '').trim();
+      const parsed = JSON.parse(clean);
+      setAiResult(parsed);
+    } catch (err) {
+      console.warn('AI receipt verification failed:', err);
+      setAiResult({ valid: null, confidence: 'low', reason: 'Verification unavailable', details: 'Could not auto-verify this image. Our team will review it manually.' });
+    } finally {
+      setAiVerifying(false);
+    }
+  };
 
   const setFormField = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const setAmt = v => { setFormField('amount', v.toString()); setErrors(p => ({ ...p, amount: '' })); };
@@ -126,19 +189,25 @@ export default function DonationPage() {
       return;
     }
     setErrors(p => ({ ...p, proof: '' }));
+    setAiResult(null);
     setProofFile(file);
     if (file.type.startsWith('image/')) {
       const reader = new FileReader();
-      reader.onload = ev => setProofPreview(ev.target.result);
+      reader.onload = ev => {
+        setProofPreview(ev.target.result);
+        verifyReceiptWithAI(file, ev.target.result);
+      };
       reader.readAsDataURL(file);
     } else {
       setProofPreview('pdf');
+      verifyReceiptWithAI(file, null);
     }
   };
 
   const removeProof = () => {
     setProofFile(null);
     setProofPreview(null);
+    setAiResult(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -637,6 +706,65 @@ export default function DonationPage() {
                     </div>
                   )}
                 </div>
+
+                {/* AI Verification Badge */}
+                {proofFile && (
+                  <div style={{ marginTop: 10 }}>
+                    {aiVerifying && (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '10px 14px', borderRadius: 10,
+                        background: '#F0F4FF', border: '1.5px solid #C7D7F9',
+                        fontSize: '.82rem', color: '#3B5998',
+                      }}>
+                        <span style={{ display: 'inline-block', width: 16, height: 16, border: '2.5px solid #3B5998', borderTopColor: 'transparent', borderRadius: '50%', animation: 'dp-spin 0.8s linear infinite', flexShrink: 0 }} />
+                        <span><strong>AI is verifying your receipt…</strong> This only takes a moment.</span>
+                      </div>
+                    )}
+
+                    {!aiVerifying && aiResult && (() => {
+                      const { valid, confidence, reason, details } = aiResult;
+                      const cfg = valid === true
+                        ? { bg: '#F0FFF4', border: '#68D391', icon: '✅', label: 'Valid Receipt', labelColor: '#276749', barColor: '#48BB78' }
+                        : valid === false
+                        ? { bg: '#FFF5F5', border: '#FC8181', icon: '❌', label: 'Not a Receipt', labelColor: '#9B2C2C', barColor: '#FC8181' }
+                        : { bg: '#FFFBEB', border: '#F6C90E', icon: '⚠️', label: 'Needs Review', labelColor: '#744210', barColor: '#F6C90E' };
+                      const confW = confidence === 'high' ? '90%' : confidence === 'medium' ? '55%' : '25%';
+                      return (
+                        <div style={{ padding: '12px 16px', borderRadius: 12, background: cfg.bg, border: `1.5px solid ${cfg.border}` }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                            <span style={{ fontSize: '1rem' }}>{cfg.icon}</span>
+                            <strong style={{ fontSize: '.85rem', color: cfg.labelColor }}>AI Receipt Check: {cfg.label}</strong>
+                            <span style={{ marginLeft: 'auto', fontSize: '.72rem', color: '#888', background: '#fff', padding: '2px 8px', borderRadius: 20, border: '1px solid #eee' }}>
+                              Powered by Claude AI
+                            </span>
+                          </div>
+                          <p style={{ margin: '0 0 8px', fontSize: '.8rem', color: '#444', lineHeight: 1.5 }}>
+                            {reason}. {details}
+                          </p>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: '.72rem', color: '#888', whiteSpace: 'nowrap' }}>Confidence</span>
+                            <div style={{ flex: 1, height: 5, background: '#E2E8F0', borderRadius: 99, overflow: 'hidden' }}>
+                              <div style={{ width: confW, height: '100%', background: cfg.barColor, borderRadius: 99, transition: 'width 0.6s ease' }} />
+                            </div>
+                            <span style={{ fontSize: '.72rem', color: '#888', textTransform: 'capitalize', whiteSpace: 'nowrap' }}>{confidence}</span>
+                          </div>
+                          {valid === false && (
+                            <p style={{ margin: '8px 0 0', fontSize: '.78rem', color: '#9B2C2C', background: '#FED7D7', padding: '7px 10px', borderRadius: 7 }}>
+                              ⚠️ Please upload a genuine payment screenshot (e.g. GCash, Maya, bank transfer confirmation). Random photos will not be accepted.
+                            </p>
+                          )}
+                          {valid === null && (
+                            <p style={{ margin: '8px 0 0', fontSize: '.78rem', color: '#744210', background: '#FEFCBF', padding: '7px 10px', borderRadius: 7 }}>
+                              Our team will review this manually after submission.
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
                 {errors.proof
                   ? <div className="dp-err-msg" style={{ marginTop: 6 }}>{errors.proof}</div>
                   : <div className="dp-hint" style={{ marginTop: 6 }}>Required — attach your QRPH payment screenshot.</div>
