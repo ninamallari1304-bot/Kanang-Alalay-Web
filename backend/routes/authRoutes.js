@@ -334,6 +334,8 @@ router.post('/register-staff', async (req, res) => {
 
         const finalStaffId = staffId || `LSAE-${Date.now().toString().slice(-6)}`;
 
+        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
         const user = new User({
             staffId: finalStaffId,
             username: username || email.split('@')[0],
@@ -343,15 +345,13 @@ router.post('/register-staff', async (req, res) => {
             lastName,
             phone,
             role: codeDoc.role,
+            status: 'pending',
             isVerified: false,
-            isActive: false
+            isActive: false,
+            otpCode,
+            otpExpires: new Date(Date.now() + 15 * 60 * 1000),
         });
 
-        await user.save();
-
-        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-        user.otpCode = otpCode;
-        user.otpExpires = new Date(Date.now() + 15 * 60 * 1000);
         await user.save();
 
         try {
