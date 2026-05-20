@@ -6,6 +6,7 @@ const MedicationLog = require('../models/MedicationLog');
 const Inventory = require('../models/Inventory');
 const VitalsLog = require('../models/VitalsLog');
 const StockRequest = require('../models/StockRequest');
+const User = require('../models/User');
 const { protect } = require('../middleware/authMiddleware');
 
 router.use(protect);
@@ -51,15 +52,53 @@ async function autoMarkOverdue(logs) {
     return logs;
 }
 
+// ─────────────────────────────────────────────────────────────
+// GET CAREGIVERS (for dropdown - real-time)
+// ─────────────────────────────────────────────────────────────
+router.get('/caregivers', async (req, res) => {
+    try {
+        const caregivers = await User.find(
+            { 
+                role: { $in: ['caregiver', 'head_caregiver'] },
+                isActive: true,
+                status: 'active'
+            },
+            'firstName lastName role email staffId'
+        ).sort({ firstName: 1 });
+        
+        res.json({ 
+            success: true, 
+            data: caregivers.map(c => ({
+                _id: c._id,
+                name: `${c.firstName} ${c.lastName}`,
+                firstName: c.firstName,
+                lastName: c.lastName,
+                role: c.role,
+                email: c.email,
+                staffId: c.staffId
+            }))
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────
+// GET RESIDENTS
+// ─────────────────────────────────────────────────────────────
 router.get('/residents', async (req, res) => {
     try {
-        const residents = await Resident.find({ status: 'active' }).sort({ roomNumber: 1 });
+        const residents = await Resident.find({ status: 'active' })
+            .populate('primaryCaregiverId', 'firstName lastName role')
+            .sort({ roomNumber: 1 });
+        
         const shaped = residents.map(r => ({
             _id: r._id,
             residentId: r.residentId,
-            name: `${r.firstName} ${r.lastName}`,
+            name: `${r.firstName} ${r.lastName}`.trim(),
             firstName: r.firstName,
             lastName: r.lastName,
+            nickname: r.nickname || '',
             age: r.age,
             gender: r.gender,
             room: r.roomNumber,
@@ -71,8 +110,9 @@ router.get('/residents', async (req, res) => {
             overdueMed: r.overdueMed || '',
             overdueAt: r.overdueAt || null,
             nextMed: r.nextMed || '',
-            primaryNurse: r.assignedNurse || '',
-            secondaryNurse: r.assignedCaregiver || '',
+            primaryCaregiver: r.primaryCaregiver,
+            primaryCaregiverName: r.primaryCaregiverName,
+            primaryCaregiverId: r.primaryCaregiverId,
             status: r.status,
         }));
         res.json({ success: true, data: shaped, count: shaped.length });
@@ -81,29 +121,66 @@ router.get('/residents', async (req, res) => {
     }
 });
 
+// ─────────────────────────────────────────────────────────────
+// CREATE RESIDENT (with caregiver assignment)
+// ─────────────────────────────────────────────────────────────
 router.post('/residents', async (req, res) => {
     try {
-        const { firstName, lastName, middleName, age, gender, roomNumber, floor, bed, conditions, primaryNurse, alertLevel, admissionDate } = req.body;
-        if (!firstName || !lastName || !age || !gender || !roomNumber)
-            return res.status(400).json({ success: false, message: 'firstName, lastName, age, gender, roomNumber are required.' });
+        const { 
+            firstName, lastName, middleName, nickname, age, gender, 
+            roomNumber, floor, bed, conditions, primaryCaregiver, 
+            alertLevel, admissionDate 
+        } = req.body;
+        
+        if (!firstName || !age || !gender || !roomNumber) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'First name, age, gender, and room number are required.' 
+            });
+        }
 
         const residentId = 'RES' + Date.now().toString().slice(-6);
+        
+        let primaryCaregiverName = '';
+        let primaryCaregiverId = null;
+        
+        // If a specific caregiver was selected, get their info
+        if (primaryCaregiver) {
+            const caregiver = await User.findById(primaryCaregiver);
+            if (caregiver) {
+                primaryCaregiverName = `${caregiver.firstName} ${caregiver.lastName}`;
+                primaryCaregiverId = caregiver._id;
+            }
+        }
+        
         const resident = new Resident({
-            residentId, firstName, lastName, middleName: middleName || '', age, gender,
-            roomNumber, floor: floor || '', bed: bed || '',
+            residentId, 
+            firstName, 
+            lastName: lastName || '', 
+            middleName: middleName || '', 
+            nickname: nickname || '',
+            age, 
+            gender,
+            roomNumber, 
+            floor: floor || '', 
+            bed: bed || '',
             alertLevel: alertLevel || 'stable',
             admissionDate: admissionDate ? new Date(admissionDate) : new Date(),
             medicalConditions: (conditions || []).map(c => ({ name: c })),
-            assignedNurse: primaryNurse || `${req.user.firstName} ${req.user.lastName}`,
+            primaryCaregiver: primaryCaregiverName,
+            primaryCaregiverId: primaryCaregiverId,
+            primaryCaregiverName: primaryCaregiverName,
+            assignedNurse: primaryCaregiverName || (primaryCaregiver ? 'Assigned' : `${req.user.firstName} ${req.user.lastName}`),
         });
         await resident.save();
 
         const shaped = {
             _id: resident._id,
             residentId: resident.residentId,
-            name: `${resident.firstName} ${resident.lastName}`,
+            name: `${resident.firstName} ${resident.lastName}`.trim(),
             firstName: resident.firstName,
             lastName: resident.lastName,
+            nickname: resident.nickname,
             age: resident.age,
             gender: resident.gender,
             room: resident.roomNumber,
@@ -115,29 +192,51 @@ router.post('/residents', async (req, res) => {
             overdueMed: resident.overdueMed || '',
             overdueAt: resident.overdueAt || null,
             nextMed: resident.nextMed || '',
-            primaryNurse: resident.assignedNurse || '',
-            secondaryNurse: resident.assignedCaregiver || '',
+            primaryCaregiver: resident.primaryCaregiver,
+            primaryCaregiverName: resident.primaryCaregiverName,
             status: resident.status,
         };
         res.status(201).json({ success: true, data: shaped });
     } catch (err) {
+        console.error('Create resident error:', err);
         res.status(500).json({ success: false, message: err.message });
     }
 });
 
+// ─────────────────────────────────────────────────────────────
+// UPDATE RESIDENT
+// ─────────────────────────────────────────────────────────────
 router.put('/residents/:id', async (req, res) => {
     try {
-        const { conditions, ...rest } = req.body;
+        const { conditions, primaryCaregiver, ...rest } = req.body;
         const update = { ...rest };
-        if (conditions) update.medicalConditions = conditions.map(c => ({ name: c }));
+        
+        if (conditions) {
+            update.medicalConditions = conditions.map(c => ({ name: c }));
+        }
+        
+        // If caregiver changed, update the name and ID
+        if (primaryCaregiver) {
+            const caregiver = await User.findById(primaryCaregiver);
+            if (caregiver) {
+                update.primaryCaregiver = `${caregiver.firstName} ${caregiver.lastName}`;
+                update.primaryCaregiverId = caregiver._id;
+                update.primaryCaregiverName = `${caregiver.firstName} ${caregiver.lastName}`;
+            }
+        }
+        
         const resident = await Resident.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
         if (!resident) return res.status(404).json({ success: false, message: 'Resident not found.' });
+        
         res.json({ success: true, data: resident });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
 });
 
+// ─────────────────────────────────────────────────────────────
+// LOG VITAL SIGNS
+// ─────────────────────────────────────────────────────────────
 router.post('/residents/:id/vitals', async (req, res) => {
     try {
         const { bloodPressure, heartRate, temperature, oxygenSat, weight, notes } = req.body;
@@ -174,6 +273,9 @@ router.post('/residents/:id/vitals', async (req, res) => {
     }
 });
 
+// ─────────────────────────────────────────────────────────────
+// GET VITALS HISTORY
+// ─────────────────────────────────────────────────────────────
 router.get('/residents/:id/vitals', async (req, res) => {
     try {
         const vitals = await VitalsLog.find({ residentId: req.params.id })
@@ -185,6 +287,9 @@ router.get('/residents/:id/vitals', async (req, res) => {
     }
 });
 
+// ─────────────────────────────────────────────────────────────
+// GET MEDICATIONS
+// ─────────────────────────────────────────────────────────────
 router.get('/medications', async (req, res) => {
     try {
         const meds = await Medication.find({ isActive: true }).sort({ name: 1 });
@@ -194,6 +299,9 @@ router.get('/medications', async (req, res) => {
     }
 });
 
+// ─────────────────────────────────────────────────────────────
+// GET SCHEDULE
+// ─────────────────────────────────────────────────────────────
 router.get('/schedule', async (req, res) => {
     try {
         const { date, residentId } = req.query;
@@ -209,7 +317,7 @@ router.get('/schedule', async (req, res) => {
         if (residentId) query.residentId = residentId;
 
         let logs = await MedicationLog.find(query)
-            .populate('residentId', 'firstName lastName roomNumber floor bed')
+            .populate('residentId', 'firstName lastName roomNumber floor bed nickname')
             .populate('medicationId', 'name dosage form purpose')
             .sort({ scheduledTime: 1 });
 
@@ -220,6 +328,9 @@ router.get('/schedule', async (req, res) => {
     }
 });
 
+// ─────────────────────────────────────────────────────────────
+// GET ALL SCHEDULE
+// ─────────────────────────────────────────────────────────────
 router.get('/schedule/all', async (req, res) => {
     try {
         const { date } = req.query;
@@ -229,7 +340,7 @@ router.get('/schedule/all', async (req, res) => {
         nextDay.setDate(nextDay.getDate() + 1);
 
         let logs = await MedicationLog.find({ scheduledTime: { $gte: target, $lt: nextDay } })
-            .populate('residentId', 'firstName lastName roomNumber floor bed')
+            .populate('residentId', 'firstName lastName roomNumber floor bed nickname')
             .populate('medicationId', 'name dosage form purpose')
             .sort({ scheduledTime: 1 });
 
@@ -240,6 +351,9 @@ router.get('/schedule/all', async (req, res) => {
     }
 });
 
+// ─────────────────────────────────────────────────────────────
+// CREATE SCHEDULE
+// ─────────────────────────────────────────────────────────────
 router.post('/schedule', async (req, res) => {
     try {
         const {
@@ -247,13 +361,18 @@ router.post('/schedule', async (req, res) => {
             dosage, frequency, nextDose, notes
         } = req.body;
 
-        if (!residentId || !medicationId || !scheduledTime)
-            return res.status(400).json({ success: false, message: 'residentId, medicationId, and scheduledTime are required.' });
+        if (!residentId || !medicationId || !scheduledTime) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Resident ID, medication ID, and scheduled time are required.' 
+            });
+        }
 
         const [resident, medication] = await Promise.all([
             Resident.findById(residentId),
             Medication.findById(medicationId),
         ]);
+        
         if (!resident) return res.status(404).json({ success: false, message: 'Resident not found.' });
         if (!medication) return res.status(404).json({ success: false, message: 'Medication not found.' });
 
@@ -264,7 +383,7 @@ router.post('/schedule', async (req, res) => {
             residentId: resident._id,
             medicationId: medication._id,
             caregiverId: req.user._id,
-            residentName: `${resident.firstName} ${resident.lastName}`,
+            residentName: `${resident.firstName} ${resident.lastName}`.trim(),
             medicationName: medication.name,
             room: resident.roomNumber || '',
             floor: resident.floor || '',
@@ -285,21 +404,23 @@ router.post('/schedule', async (req, res) => {
     }
 });
 
+// ─────────────────────────────────────────────────────────────
+// GET RESIDENT HISTORY
+// ─────────────────────────────────────────────────────────────
 router.get('/residents/:id/history', async (req, res) => {
     try {
-        const logs = await MedicationLog.find({ 
-            residentId: req.params.id,
-        })
-        .sort({ scheduledTime: -1 })
-        .limit(50);
-        
+        const logs = await MedicationLog.find({ residentId: req.params.id })
+            .sort({ scheduledTime: -1 })
+            .limit(50);
         res.json({ success: true, data: logs });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
 });
 
-// Alias used by the frontend
+// ─────────────────────────────────────────────────────────────
+// GET MEDICATION HISTORY (alias)
+// ─────────────────────────────────────────────────────────────
 router.get('/residents/:id/medication-history', async (req, res) => {
     try {
         const logs = await MedicationLog.find({ residentId: req.params.id })
@@ -311,12 +432,19 @@ router.get('/residents/:id/medication-history', async (req, res) => {
     }
 });
 
+// ─────────────────────────────────────────────────────────────
+// UPDATE SCHEDULE STATUS
+// ─────────────────────────────────────────────────────────────
 router.put('/schedule/:id/status', async (req, res) => {
     try {
         const { status, notes, verificationMethod } = req.body;
         const allowed = ['scheduled', 'administered', 'overdue', 'missed', 'skipped', 'completed', 'pending'];
-        if (!allowed.includes(status))
-            return res.status(400).json({ success: false, message: `Invalid status. Allowed: ${allowed.join(', ')}` });
+        if (!allowed.includes(status)) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Invalid status. Allowed: ${allowed.join(', ')}` 
+            });
+        }
 
         const log = await MedicationLog.findById(req.params.id);
         if (!log) return res.status(404).json({ success: false, message: 'Log not found.' });
@@ -353,6 +481,9 @@ router.put('/schedule/:id/status', async (req, res) => {
     }
 });
 
+// ─────────────────────────────────────────────────────────────
+// UPDATE SCHEDULE
+// ─────────────────────────────────────────────────────────────
 router.put('/schedule/:id', async (req, res) => {
     try {
         const { scheduledTime, dosage, notes, nextDose, frequency } = req.body;
@@ -364,7 +495,7 @@ router.put('/schedule/:id', async (req, res) => {
         if (frequency !== undefined) update.frequency = frequency;
 
         const log = await MedicationLog.findByIdAndUpdate(req.params.id, update, { new: true })
-            .populate('residentId', 'firstName lastName roomNumber floor bed')
+            .populate('residentId', 'firstName lastName roomNumber floor bed nickname')
             .populate('medicationId', 'name dosage form purpose');
 
         if (!log) return res.status(404).json({ success: false, message: 'Log not found.' });
@@ -374,6 +505,9 @@ router.put('/schedule/:id', async (req, res) => {
     }
 });
 
+// ─────────────────────────────────────────────────────────────
+// GET INVENTORY
+// ─────────────────────────────────────────────────────────────
 router.get('/inventory', async (req, res) => {
     try {
         const items = await Inventory.find({
@@ -385,11 +519,18 @@ router.get('/inventory', async (req, res) => {
     }
 });
 
+// ─────────────────────────────────────────────────────────────
+// REQUEST STOCK
+// ─────────────────────────────────────────────────────────────
 router.post('/inventory/request', async (req, res) => {
     try {
         const { itemId, itemName, quantity, reason } = req.body;
-        if (!itemName || !quantity)
-            return res.status(400).json({ success: false, message: 'itemName and quantity are required.' });
+        if (!itemName || !quantity) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Item name and quantity are required.' 
+            });
+        }
 
         const request = new StockRequest({
             itemId: itemId || '',
@@ -410,21 +551,33 @@ router.post('/inventory/request', async (req, res) => {
     }
 });
 
+// ─────────────────────────────────────────────────────────────
+// SAVE VOICE NOTE
+// ─────────────────────────────────────────────────────────────
 router.post('/voice-note', async (req, res) => {
     try {
         const { note, logId } = req.body;
         if (!note) return res.status(400).json({ success: false, message: 'Note text is required.' });
         if (logId) await MedicationLog.findByIdAndUpdate(logId, { notes: note });
-        res.json({ success: true, message: 'Voice note saved.', data: { note, savedAt: new Date(), savedBy: req.user._id } });
+        res.json({ 
+            success: true, 
+            message: 'Voice note saved.', 
+            data: { note, savedAt: new Date(), savedBy: req.user._id } 
+        });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
 });
 
+// ─────────────────────────────────────────────────────────────
+// GET STATISTICS
+// ─────────────────────────────────────────────────────────────
 router.get('/stats', async (req, res) => {
     try {
-        const today = new Date(); today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+        const today = new Date(); 
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today); 
+        tomorrow.setDate(tomorrow.getDate() + 1);
 
         const [totalResidents, todayLogs, invItems] = await Promise.all([
             Resident.countDocuments({ status: 'active' }),
@@ -441,7 +594,20 @@ router.get('/stats', async (req, res) => {
         const complianceRate = total > 0 ? Math.round((onTime / total) * 100) : 0;
         const lowMedStock = invItems.filter(i => i.quantity <= (i.minThreshold ?? 10)).length;
 
-        res.json({ success: true, data: { totalResidents, total, onTime, delayed, missed, pending, overdue, complianceRate, lowMedStock } });
+        res.json({ 
+            success: true, 
+            data: { 
+                totalResidents, 
+                total, 
+                onTime, 
+                delayed, 
+                missed, 
+                pending, 
+                overdue, 
+                complianceRate, 
+                lowMedStock 
+            } 
+        });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
