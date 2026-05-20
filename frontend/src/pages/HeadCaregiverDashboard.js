@@ -102,6 +102,7 @@ const SaveBtn = ({ saving, label, onClick, disabled }) => (
 /// ════════════════════════════════════════════════════════════
 //  MODAL: Add Resident (UPDATED with better UI and caregivers dropdown - NO EMOJIS)
 // ════════════════════════════════════════════════════════════
+// AddResidentModal - FIXED VERSION
 const AddResidentModal = ({ onClose, onSaved, doFetch, toast, caregivers, fetchCaregivers }) => {
     const [f, setF] = useState({
         firstName: '',
@@ -114,7 +115,7 @@ const AddResidentModal = ({ onClose, onSaved, doFetch, toast, caregivers, fetchC
         floor: '',
         bed: '',
         conditions: '',
-        primaryCaregiver: '',
+        primaryCaregiverId: '',  // CHANGED: use ID field name that matches schema
         admissionDate: new Date().toISOString().slice(0, 10),
         alertLevel: 'stable',
     });
@@ -139,6 +140,10 @@ const AddResidentModal = ({ onClose, onSaved, doFetch, toast, caregivers, fetchC
         if (Object.keys(e).length) { setErrs(e); return; }
 
         setSaving(true);
+        
+        // Find selected caregiver to get their name
+        const selectedCaregiver = caregivers.find(c => c._id === f.primaryCaregiverId);
+        
         const r = await doFetch('/head-caregiver/residents', {
             method: 'POST',
             body: JSON.stringify({
@@ -153,8 +158,10 @@ const AddResidentModal = ({ onClose, onSaved, doFetch, toast, caregivers, fetchC
                 bed: f.bed,
                 alertLevel: f.alertLevel,
                 admissionDate: f.admissionDate,
-                conditions: f.conditions ? f.conditions.split(',').map(c => c.trim()).filter(Boolean) : [],
-                primaryCaregiver: f.primaryCaregiver,
+                conditions: f.conditions ? f.conditions.split(',').map(c => ({ name: c.trim() })).filter(c => c.name) : [],
+                primaryCaregiverId: f.primaryCaregiverId || null,  // Send as ObjectId reference
+                primaryCaregiver: selectedCaregiver ? `${selectedCaregiver.firstName} ${selectedCaregiver.lastName}` : '',  // Store name for display
+                primaryCaregiverName: selectedCaregiver ? `${selectedCaregiver.firstName} ${selectedCaregiver.lastName}` : '',
             })
         });
         setSaving(false);
@@ -167,8 +174,8 @@ const AddResidentModal = ({ onClose, onSaved, doFetch, toast, caregivers, fetchC
         }
     };
 
-    // Find selected caregiver name
-    const selectedCaregiver = caregivers.find(c => c._id === f.primaryCaregiver);
+    // Find selected caregiver
+    const selectedCaregiver = caregivers.find(c => c._id === f.primaryCaregiverId);
     const selectedCaregiverName = selectedCaregiver ? `${selectedCaregiver.firstName} ${selectedCaregiver.lastName}` : '';
 
     return (
@@ -293,21 +300,21 @@ const AddResidentModal = ({ onClose, onSaved, doFetch, toast, caregivers, fetchC
                         <small className="field-hint">Separate multiple conditions with commas</small>
                     </Field>
 
-                    {/* Assignment Section with Real-time Caregivers Dropdown */}
+                    {/* Assignment Section with Caregivers Dropdown */}
                     <div className="modal-section-label">
                         <FaUserMd style={{ marginRight: 6 }} /> Assignment
                     </div>
                     <Field label="Primary Caregiver">
                         <select
                             className="form-input"
-                            value={f.primaryCaregiver}
-                            onChange={e => setField('primaryCaregiver', e.target.value)}>
+                            value={f.primaryCaregiverId}
+                            onChange={e => setField('primaryCaregiverId', e.target.value)}>
                             <option value="">— Select a caregiver —</option>
                             {caregivers
-                                .filter(c => c.role === 'caregiver')
+                                .filter(c => c.role === 'caregiver' || c.role === 'head_caregiver')
                                 .map(c => (
                                     <option key={c._id} value={c._id}>
-                                        {c.firstName} {c.lastName}
+                                        {c.firstName} {c.lastName} ({c.role === 'head_caregiver' ? 'Head' : 'Caregiver'})
                                     </option>
                                 ))}
                         </select>
@@ -317,13 +324,13 @@ const AddResidentModal = ({ onClose, onSaved, doFetch, toast, caregivers, fetchC
                                 Assigned to: {selectedCaregiverName}
                             </small>
                         )}
-                        {!f.primaryCaregiver && caregivers.filter(c => c.role === 'caregiver').length === 0 && (
+                        {!f.primaryCaregiverId && caregivers.filter(c => c.role === 'caregiver' || c.role === 'head_caregiver').length === 0 && (
                             <small className="field-hint" style={{ color: 'var(--d-orange-dk)' }}>
                                 <FaExclamationTriangle style={{ marginRight: 4 }} />
-                                No caregiver accounts found. Please register a caregiver first.
+                                No caregiver accounts found. Please register a caregiver first in User Management.
                             </small>
                         )}
-                        {!f.primaryCaregiver && caregivers.filter(c => c.role === 'caregiver').length > 0 && (
+                        {!f.primaryCaregiverId && caregivers.filter(c => c.role === 'caregiver' || c.role === 'head_caregiver').length > 0 && (
                             <small className="field-hint">
                                 <FaUserMd style={{ marginRight: 4 }} />
                                 Optional — can be assigned later.
