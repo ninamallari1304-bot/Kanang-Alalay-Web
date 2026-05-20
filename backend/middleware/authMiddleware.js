@@ -5,8 +5,7 @@ const COOKIE_NAME = 'ka_token';
 
 const protect = async (req, res, next) => {
     try {
-        // Read token from httpOnly cookie instead of Authorization header
-        const token = req.cookies?.[COOKIE_NAME];
+        const token = req.cookies?.[COOKIE_NAME] || req.headers['x-auth-token'] || req.headers.authorization?.split(' ')[1];
 
         if (!token) {
             console.error('Auth protect: missing token');

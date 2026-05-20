@@ -1,0 +1,195 @@
+const express = require('express');
+const router = express.Router();
+
+const Medication = require('../models/Medication');
+const Resident = require('../models/Resident');
+const ScanHistory = require('../models/ScanHistory');
+
+// POST /api/medication-scanner/lookup
+router.post('/lookup', async (req, res) => {
+  try {
+    const { barcode } = req.body;
+    if (!barcode) {
+      return res.status(400).json({ error: 'Barcode is required' });
+    }
+
+    const cleanBarcode = String(barcode).replace(/[$\s-]/g, '');
+
+    let medication = await Medication.findOne({
+      $or: [
+        { barcode: cleanBarcode },
+        { barcode: barcode },
+        { ndc: cleanBarcode },
+        { ndc: barcode },
+      ],
+    });
+
+    if (!medication) {
+      medication = await Medication.findOne({
+        name: { $regex: cleanBarcode, $options: 'i' },
+      });
+    }
+
+    if (!medication) {
+      const allMeds = await Medication.find({}, { name: 1, barcode: 1, ndc: 1 });
+      console.log('Medication lookup failed. Known codes:');
+      allMeds.forEach((m) => {
+        console.log(`  - ${m.name} | barcode: "${m.barcode}" | ndc: "${m.ndc}"`);
+      });
+
+      return res.status(404).json({
+        error: 'Medication not found',
+        barcode: cleanBarcode,
+        suggestion: 'No medication matched this barcode. Check server logs to see what barcodes exist in your database.',
+      });
+    }
+
+    const medicationName = medication.name.toLowerCase();
+    const allResidents = await Resident.find();
+
+    const matchedResidents = allResidents.filter((resident) => {
+      if (!resident.medications || resident.medications.length === 0) return false;
+      return resident.medications.some((med) => {
+        const medName = med.name?.toLowerCase() || '';
+        return medName.includes(medicationName) || medicationName.includes(medName);
+      });
+    });
+
+    const scanHistory = await ScanHistory.create({
+      barcode: cleanBarcode,
+      medication: medication._id,
+      residents: matchedResidents.map((r) => r._id),
+      source: 'database',
+    });
+
+    res.json({
+      success: true,
+      medication: {
+        id: medication._id,
+        name: medication.name,
+        genericName: medication.genericName,
+        dosage: medication.dosage,
+        strength: medication.strength,
+        form: medication.form,
+        manufacturer: medication.manufacturer,
+        purpose: medication.purpose,
+        instructions: medication.instructions,
+        warnings: medication.warnings,
+        sideEffects: medication.sideEffects,
+        contraindications: medication.contraindications,
+        drugInteractions: medication.drugInteractions,
+        pregnancy: medication.pregnancy,
+        storage: medication.storage,
+      },
+      residents: matchedResidents.map((resident) => {
+        const matchingMed = resident.medications.find((med) => {
+          const medName = med.name?.toLowerCase() || '';
+          return medName.includes(medicationName) || medicationName.includes(medName);
+        });
+        return {
+          id: resident._id,
+          name: resident.fullName || `${resident.firstName || ''} ${resident.lastName || ''}`.trim(),
+          room: resident.room || resident.roomNumber,
+          bed: resident.bed || '1',
+          age: resident.age,
+          ward: resident.ward,
+          medicationDetails: matchingMed
+            ? {
+                name: matchingMed.name,
+                dosage: matchingMed.dosage,
+                frequency: matchingMed.frequency,
+                scheduleTime: matchingMed.scheduleTime,
+              }
+            : null,
+        };
+      }),
+      scanId: scanHistory._id,
+      source: 'database',
+      timestamp: scanHistory.createdAt,
+    });
+  } catch (error) {
+    console.error('Lookup error:', error);
+    res.status(500).json({ error: 'Server error during medication lookup: ' + error.message });
+  }
+});
+
+router.get('/last-results', async (req, res) => {
+  try {
+    const results = await ScanHistory.find()
+      .populate('medication')
+      .populate('residents')
+      .sort({ createdAt: -1 })
+      .limit(10);
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error('Last scan results error:', error);
+    res.status(500).json({ error: 'Server error while getting last scan results: ' + error.message });
+  }
+});
+
+router.get('/all-results', async (req, res) => {
+  try {
+    const results = await ScanHistory.find()
+      .populate('medication')
+      .populate('residents')
+      .sort({ createdAt: -1 });
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error('All scan results error:', error);
+    res.status(500).json({ error: 'Server error while getting all scan results: ' + error.message });
+  }
+});
+
+router.post('/confirm', async (req, res) => {
+  try {
+    const { scanId, residentId, medicationName, dosage, notes = '' } = req.body;
+
+    if (!scanId || !residentId || !medicationName) {
+      return res.status(400).json({ success: false, error: 'scanId, residentId and medicationName are required.' });
+    }
+
+    const scanHistory = await ScanHistory.findById(scanId);
+    if (!scanHistory) {
+      return res.status(404).json({ success: false, error: 'Scan history not found.' });
+    }
+
+    const resident = await Resident.findById(residentId);
+    if (!resident) {
+      return res.status(404).json({ success: false, error: 'Resident not found.' });
+    }
+
+    const matchLower = medicationName.toLowerCase();
+    const embeddedMedication = resident.medications.find((med) => {
+      const medName = med.name?.toLowerCase() || '';
+      return medName.includes(matchLower) || matchLower.includes(medName);
+    });
+
+    if (embeddedMedication) {
+      embeddedMedication.status = 'administered';
+      embeddedMedication.lastAdministered = new Date();
+      await resident.save();
+    }
+
+    scanHistory.status = 'confirmed';
+    scanHistory.notes = notes;
+    await scanHistory.save();
+
+    res.json({
+      success: true,
+      message: 'Medication scan confirmed.',
+      scanHistory,
+      resident: {
+        id: resident._id,
+        name: resident.fullName || `${resident.firstName || ''} ${resident.lastName || ''}`.trim(),
+        room: resident.room || resident.roomNumber,
+        bed: resident.bed,
+        medications: resident.medications
+      }
+    });
+  } catch (error) {
+    console.error('Confirm scan error:', error);
+    res.status(500).json({ success: false, error: 'Server error while confirming medication scan.' });
+  }
+});
+
+module.exports = router;

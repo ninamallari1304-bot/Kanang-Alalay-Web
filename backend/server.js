@@ -25,6 +25,9 @@ const paymentRoutes = require('./routes/PaymentRoutes');
 const headCaregiverRoutes = require('./routes/headCaregiverRoutes');
 const residentRoutes = require('./routes/residentRoutes');
 const medicationRoutes = require('./routes/medicationRoutes');
+const medicationScannerRoutes = require('./routes/medication-scanner');
+const scheduleRoutes = require('./routes/schedule');
+const voiceRoutes = require('./routes/voiceRoutes');
 const userRoutes = require('./routes/userRoutes');
 
 const app = express();
@@ -229,6 +232,9 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/head-caregiver', headCaregiverRoutes);
 app.use('/api/residents', residentRoutes);
 app.use('/api/medications', medicationRoutes);
+app.use('/api/medication-scanner', medicationScannerRoutes);
+app.use('/api/schedule', scheduleRoutes);
+app.use('/api/voice', voiceRoutes);
 
 app.get('/api/stats', async (req, res) => {
     try {
@@ -366,127 +372,6 @@ app.get('/api/inventory/:id/qr', async (req, res) => {
     } catch (error) {
         console.error('QR code generation error:', error);
         res.status(500).json({ success: false, message: 'Error generating QR code.' });
-    }
-});
-
-app.post('/api/voice/transcribe', upload.single('audio'), async (req, res) => {
-    try {
-        if (!process.env.OPENAI_API_KEY) {
-            return res.status(500).json({ success: false, message: 'OpenAI API key is not configured.' });
-        }
-
-        if (!req.file) {
-            return res.status(400).json({ success: false, message: 'No audio file uploaded.' });
-        }
-
-        const audioBuffer = fs.readFileSync(req.file.path);
-        const audioBlob = new Blob([audioBuffer], { type: req.file.mimetype });
-
-        const formData = new FormData();
-        formData.append('file', audioBlob, req.file.originalname);
-        formData.append('model', 'whisper-1');
-
-        const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-            },
-            body: formData,
-        });
-
-        const result = await response.json();
-
-        fs.unlink(req.file.path, (unlinkErr) => {
-            if (unlinkErr) console.warn('Audio temp file cleanup failed:', unlinkErr);
-        });
-
-        if (!response.ok) {
-            return res.status(response.status).json({
-                success: false,
-                message: result.error?.message || 'Audio transcription failed.',
-                error: result,
-            });
-        }
-
-        res.json({ success: true, data: result });
-    } catch (error) {
-        console.error('Voice transcription error:', error);
-        if (req.file) {
-            fs.unlink(req.file.path, () => {})
-        }
-        res.status(500).json({ success: false, message: 'Server error transcribing audio.' });
-    }
-});
-
-app.post('/api/voice/respond', async (req, res) => {
-    try {
-        if (!process.env.OPENAI_API_KEY) {
-            return res.status(500).json({ success: false, message: 'OpenAI API key is not configured.' });
-        }
-
-        const { message } = req.body;
-        if (!message || !message.trim()) {
-            return res.status(400).json({ success: false, message: 'Message text is required.' });
-        }
-
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-            },
-            body: JSON.stringify({
-                model: 'gpt-4',
-                messages: [
-                    {
-                        role: 'system',
-                        content: `You are a helpful medication assistant for the Kanang-Alalay caregiving system. You have access to information about the backend system including:
-
-SYSTEM CAPABILITIES:
-- User management: Admin, Head Caregiver, Caregiver roles
-- Inventory management: Track medications, supplies, quantities, expiration dates
-- Resident management: Patient records, care plans
-- Booking system: Appointment scheduling and management
-- Donation tracking: Financial contributions and records
-- Medication administration: Logging and monitoring
-- Alert system: Notifications for low stock, medication reminders
-- Payment processing: Transaction handling
-
-CURRENT SYSTEM FEATURES:
-- QR code generation for inventory items
-- Real-time notifications via Socket.io
-- Role-based access control
-- Voice transcription and response generation
-- Multi-platform support (web, mobile)
-
-As a medication assistant, provide safe, accurate information about medications, administration guidelines, and general caregiving practices. Always emphasize safety and consulting healthcare professionals for medical decisions.
-
-If asked about system capabilities or data, explain what the Kanang-Alalay system can do based on the above features.`,
-                    },
-                    {
-                        role: 'user',
-                        content: message,
-                    },
-                ],
-                temperature: 0.7,
-                max_tokens: 500,
-            }),
-        });
-
-        const result = await response.json();
-        if (!response.ok) {
-            return res.status(response.status).json({
-                success: false,
-                message: result.error?.message || 'OpenAI response generation failed.',
-                error: result,
-            });
-        }
-
-        const reply = result.choices?.[0]?.message?.content?.trim() || '';
-        res.json({ success: true, data: { text: reply, raw: result } });
-    } catch (error) {
-        console.error('Voice response error:', error);
-        res.status(500).json({ success: false, message: 'Server error generating OpenAI response.' });
     }
 });
 

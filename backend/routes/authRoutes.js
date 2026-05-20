@@ -49,6 +49,34 @@ router.get('/profile', protect, async (req, res) => {
     }
 });
 
+router.get('/me', protect, async (req, res) => {
+    try {
+        res.json({
+            success: true,
+            user: {
+                id: req.user._id,
+                staffId: req.user.staffId,
+                username: req.user.username,
+                email: req.user.email,
+                firstName: req.user.firstName,
+                lastName: req.user.lastName,
+                middleName: req.user.middleName,
+                phone: req.user.phone,
+                role: req.user.role,
+                department: req.user.department,
+                shift: req.user.shift,
+                isActive: req.user.isActive,
+                isVerified: req.user.isVerified,
+                createdAt: req.user.createdAt,
+                hireDate: req.user.hireDate,
+            }
+        });
+    } catch (error) {
+        console.error('Profile error:', error);
+        res.status(500).json({ success: false, message: 'Server error fetching profile' });
+    }
+});
+
 // ── Login ─────────────────────────────────────────────────────────────────────
 router.post('/login', async (req, res) => {
     try {
@@ -124,8 +152,9 @@ router.post('/login', async (req, res) => {
             });
         }
 
+        const isMobileLogin = req.body.platform === 'mobile';
         const WEB_ALLOWED_ROLES = ['admin', 'head_caregiver'];
-        if (!WEB_ALLOWED_ROLES.includes(user.role)) {
+        if (!isMobileLogin && !WEB_ALLOWED_ROLES.includes(user.role)) {
             return res.status(403).json({
                 success: false,
                 message: 'Web access is not available for your role. Please use the mobile app.',
@@ -143,6 +172,7 @@ router.post('/login', async (req, res) => {
 
         res.json({
             success: true,
+            token,
             message: 'Login successful',
             user: {
                 id: user._id,
@@ -188,8 +218,9 @@ router.post('/verify-first-login', async (req, res) => {
             return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
         }
 
+        const isMobileLogin = req.body.platform === 'mobile';
         const WEB_ALLOWED_ROLES = ['admin', 'head_caregiver'];
-        if (!WEB_ALLOWED_ROLES.includes(user.role)) {
+        if (!isMobileLogin && !WEB_ALLOWED_ROLES.includes(user.role)) {
             return res.status(403).json({
                 success: false,
                 message: 'Web access is not available for your role. Please use the mobile app.',
@@ -221,6 +252,7 @@ router.post('/verify-first-login', async (req, res) => {
 
         res.json({
             success: true,
+            token,
             needsProfileUpdate: user.needsProfileUpdate,
             user: {
                 id: user._id,
@@ -245,10 +277,6 @@ router.post('/verify-first-login', async (req, res) => {
 
 // ── Validate token (session restore) ─────────────────────────────────────────
 router.get('/validate-token', protect, async (req, res) => {
-    const WEB_ALLOWED_ROLES = ['admin', 'head_caregiver'];
-    if (!WEB_ALLOWED_ROLES.includes(req.user.role)) {
-        return res.status(403).json({ success: false, message: 'Role no longer valid for web login.' });
-    }
     res.json({
         success: true,
         user: {
@@ -540,9 +568,101 @@ router.post('/verify-reset-otp', async (req, res) => {
         user.resetPasswordOtpExpires = new Date(Date.now() + 5 * 60 * 1000);
         await user.save();
 
-        res.json({ success: true, message: 'OTP verified. You may now reset your password.' });
+        const resetToken = jwt.sign(
+            { userId: user._id, purpose: 'password-reset' },
+            process.env.JWT_SECRET || 'fallback_secret',
+            { expiresIn: '10m' }
+        );
+
+        res.json({
+            success: true,
+            message: 'OTP verified. You may now reset your password.',
+            resetToken,
+            userId: user._id
+        });
     } catch (error) {
         console.error('Verify reset OTP error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// ── Reset password using temporary token (mobile reset flow) ──────────────────
+router.post('/reset-password', async (req, res) => {
+    try {
+        const { resetToken, newPassword, confirmPassword } = req.body;
+
+        if (!resetToken || !newPassword) {
+            return res.status(400).json({ success: false, message: 'Reset token and new password are required.' });
+        }
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({ success: false, message: 'Passwords do not match.' });
+        }
+        if (newPassword.length < 6) {
+            return res.status(400).json({ success: false, message: 'Password must be at least 6 characters.' });
+        }
+
+        let decoded;
+        try {
+            decoded = jwt.verify(resetToken, process.env.JWT_SECRET || 'fallback_secret');
+            if (decoded.purpose !== 'password-reset') {
+                return res.status(400).json({ success: false, message: 'Invalid reset token.' });
+            }
+        } catch (err) {
+            return res.status(400).json({ success: false, message: 'Reset token has expired or is invalid.' });
+        }
+
+        const user = await User.findById(decoded.userId);
+        if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+
+        user.password = newPassword;
+        user.resetPasswordOtp = undefined;
+        user.resetPasswordOtpExpires = undefined;
+        await user.save();
+
+        res.json({ success: true, message: 'Password reset successfully. You can now log in.' });
+    } catch (error) {
+        console.error('Reset password error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// ── Reset password using URL token (web flow) ─────────────────────────────────
+router.post('/reset-password/:token', async (req, res) => {
+    try {
+        const { token } = req.params;
+        const { password, confirmPassword } = req.body;
+
+        if (!token || !password) {
+            return res.status(400).json({ success: false, message: 'Reset token and new password are required.' });
+        }
+        if (confirmPassword && password !== confirmPassword) {
+            return res.status(400).json({ success: false, message: 'Passwords do not match.' });
+        }
+        if (password.length < 6) {
+            return res.status(400).json({ success: false, message: 'Password must be at least 6 characters.' });
+        }
+
+        let decoded;
+        try {
+            decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
+            if (decoded.purpose !== 'password-reset') {
+                return res.status(400).json({ success: false, message: 'Invalid reset token.' });
+            }
+        } catch (err) {
+            return res.status(400).json({ success: false, message: 'Reset token has expired or is invalid.' });
+        }
+
+        const user = await User.findById(decoded.userId);
+        if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+
+        user.password = password;
+        user.resetPasswordOtp = undefined;
+        user.resetPasswordOtpExpires = undefined;
+        await user.save();
+
+        res.json({ success: true, message: 'Password reset successfully. You can now log in.' });
+    } catch (error) {
+        console.error('Reset password token error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 });

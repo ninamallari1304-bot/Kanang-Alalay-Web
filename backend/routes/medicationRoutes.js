@@ -250,6 +250,176 @@ router.post('/scan', authMiddleware, async (req, res) => {
     }
 });
 
+router.post('/administer', authMiddleware, async (req, res) => {
+    try {
+        const {
+            residentId,
+            medicationId,
+            medicationName,
+            dosage,
+            scanId,
+            administeredAt,
+            status,
+            notes
+        } = req.body;
+
+        if (!residentId || !medicationId || !medicationName) {
+            return res.status(400).json({ success: false, message: 'residentId, medicationId, and medicationName are required.' });
+        }
+
+        const resident = await Resident.findById(residentId);
+        if (!resident) {
+            return res.status(404).json({ success: false, message: 'Resident not found.' });
+        }
+
+        const medication = await Medication.findById(medicationId);
+        if (medication && medication.stock?.current > 0) {
+            medication.stock.current -= 1;
+            await medication.save();
+        }
+
+        if (resident.medications && resident.medications.id(medicationId)) {
+            const embeddedMed = resident.medications.id(medicationId);
+            embeddedMed.status = 'administered';
+            embeddedMed.lastAdministered = administeredAt ? new Date(administeredAt) : new Date();
+            await resident.save();
+        }
+
+        const log = new MedicationLog({
+            logId: `MEDLOG-${Date.now().toString().slice(-6)}`,
+            residentId,
+            medicationId,
+            caregiverId: req.user._id,
+            residentName: resident.name || `${resident.firstName} ${resident.lastName}`.trim(),
+            medicationName,
+            room: resident.room || resident.roomNumber || '',
+            bed: resident.bed || '',
+            dosage: typeof dosage === 'string' ? dosage : (dosage?.value ? `${dosage.value}${dosage.unit}` : ''),
+            status: status || 'administered',
+            administeredTime: administeredAt ? new Date(administeredAt) : new Date(),
+            scheduledTime: administeredAt ? new Date(administeredAt) : undefined,
+            notes: notes || '',
+            verificationMethod: scanId ? 'scan' : 'manual',
+            scanData: scanId ? { medicationCode: scanId, scanTime: new Date(), match: true } : undefined
+        });
+
+        await log.save();
+
+        res.json({ success: true, data: log });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Failed to administer medication.' });
+    }
+});
+
+router.get('/history/:residentId', authMiddleware, async (req, res) => {
+    try {
+        const history = await MedicationLog.find({ residentId: req.params.residentId }).sort({ administeredTime: -1 });
+        res.json({ success: true, data: history });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Failed to fetch medication history.' });
+    }
+});
+
+router.post('/delay', authMiddleware, async (req, res) => {
+    try {
+        const { residentId, medicationId, medicationName, reason, duration, scanId, delayedUntil } = req.body;
+        if (!residentId || !medicationId || !medicationName) {
+            return res.status(400).json({ success: false, message: 'residentId, medicationId, and medicationName are required.' });
+        }
+
+        const resident = await Resident.findById(residentId);
+        if (!resident) return res.status(404).json({ success: false, message: 'Resident not found.' });
+
+        const log = new MedicationLog({
+            logId: `MEDLOG-${Date.now().toString().slice(-6)}`,
+            residentId,
+            medicationId,
+            caregiverId: req.user._id,
+            residentName: resident.name || `${resident.firstName} ${resident.lastName}`.trim(),
+            medicationName,
+            room: resident.room || resident.roomNumber || '',
+            bed: resident.bed || '',
+            dosage: duration || '',
+            status: 'pending',
+            scheduledTime: delayedUntil ? new Date(delayedUntil) : undefined,
+            notes: `Delayed: ${reason || 'No reason provided'}`,
+            verificationMethod: scanId ? 'scan' : 'manual',
+            scanData: scanId ? { medicationCode: scanId, scanTime: new Date(), match: true } : undefined
+        });
+        await log.save();
+        res.json({ success: true, data: log });
+    } catch (error) {
+        console.error('Delay medication error:', error);
+        res.status(500).json({ success: false, message: 'Failed to record medication delay.' });
+    }
+});
+
+router.post('/refuse', authMiddleware, async (req, res) => {
+    try {
+        const { residentId, medicationId, medicationName, reason, notes, doctorNotified, scanId } = req.body;
+        if (!residentId || !medicationId || !medicationName) {
+            return res.status(400).json({ success: false, message: 'residentId, medicationId, and medicationName are required.' });
+        }
+
+        const resident = await Resident.findById(residentId);
+        if (!resident) return res.status(404).json({ success: false, message: 'Resident not found.' });
+
+        const log = new MedicationLog({
+            logId: `MEDLOG-${Date.now().toString().slice(-6)}`,
+            residentId,
+            medicationId,
+            caregiverId: req.user._id,
+            residentName: resident.name || `${resident.firstName} ${resident.lastName}`.trim(),
+            medicationName,
+            room: resident.room || resident.roomNumber || '',
+            bed: resident.bed || '',
+            status: 'skipped',
+            notes: `Refusal: ${reason || 'No reason provided'}. ${notes || ''} ${doctorNotified ? 'Doctor notified.' : ''}`.trim(),
+            verificationMethod: scanId ? 'scan' : 'manual',
+            scanData: scanId ? { medicationCode: scanId, scanTime: new Date(), match: true } : undefined
+        });
+        await log.save();
+        res.json({ success: true, data: log });
+    } catch (error) {
+        console.error('Refuse medication error:', error);
+        res.status(500).json({ success: false, message: 'Failed to record medication refusal.' });
+    }
+});
+
+router.post('/side-effect', authMiddleware, async (req, res) => {
+    try {
+        const { residentId, medicationId, medicationName, symptoms, severity, doctorNotified, emergencyProtocol, scanId } = req.body;
+        if (!residentId || !medicationId || !medicationName) {
+            return res.status(400).json({ success: false, message: 'residentId, medicationId, and medicationName are required.' });
+        }
+
+        const resident = await Resident.findById(residentId);
+        if (!resident) return res.status(404).json({ success: false, message: 'Resident not found.' });
+
+        const log = new MedicationLog({
+            logId: `MEDLOG-${Date.now().toString().slice(-6)}`,
+            residentId,
+            medicationId,
+            caregiverId: req.user._id,
+            residentName: resident.name || `${resident.firstName} ${resident.lastName}`.trim(),
+            medicationName,
+            room: resident.room || resident.roomNumber || '',
+            bed: resident.bed || '',
+            status: 'missed',
+            notes: `Symptoms: ${Array.isArray(symptoms) ? symptoms.join(', ') : symptoms || 'None'}. Severity: ${severity || 'unknown'}. ${doctorNotified ? 'Doctor notified.' : ''} ${emergencyProtocol ? 'Emergency protocol activated.' : ''}`.trim(),
+            verificationMethod: scanId ? 'scan' : 'manual',
+            scanData: scanId ? { medicationCode: scanId, scanTime: new Date(), match: true } : undefined
+        });
+        await log.save();
+        res.json({ success: true, data: log });
+    } catch (error) {
+        console.error('Side effect error:', error);
+        res.status(500).json({ success: false, message: 'Failed to record side effect.' });
+    }
+});
+
 // Administer medication (with optional scanning)
 router.post('/administer/:logId', authMiddleware, async (req, res) => {
     try {

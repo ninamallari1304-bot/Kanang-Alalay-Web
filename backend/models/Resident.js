@@ -16,8 +16,28 @@ const residentSchema = new mongoose.Schema({
 
     // ── Location ──────────────────────────────────────────────────────────────
     roomNumber: { type: String, required: true },
+    room:       { type: String, default: '' },
     floor:      { type: String, default: '' },
     bed:        { type: String, default: '' },
+    conditions: [String],
+    allergies:  { type: String, default: '' },
+    medications: [
+        {
+            name: { type: String, required: true },
+            dosage: String,
+            frequency: String,
+            scheduleTime: String,
+            status: { type: String, default: 'active' },
+            lastAdministered: Date
+        }
+    ],
+    careNotes: [
+        {
+            note: { type: String, required: true },
+            nurseName: { type: String, default: 'Nurse' },
+            createdAt: { type: Date, default: Date.now }
+        }
+    ],
 
     // ── Medical ───────────────────────────────────────────────────────────────
     medicalConditions: [{
@@ -53,10 +73,34 @@ const residentSchema = new mongoose.Schema({
         default: 'active'
     },
 
-}, { timestamps: true });
+}, {
+    timestamps: true,
+    toJSON: {
+        virtuals: true,
+        transform: (doc, ret) => {
+            ret.name = ret.name || `${ret.firstName || ''} ${ret.lastName || ''}`.trim();
+            ret.room = ret.room || ret.roomNumber;
+            ret.conditions = (ret.conditions && ret.conditions.length > 0)
+                ? ret.conditions
+                : (ret.medicalConditions || []).map((condition) => condition.name).filter(Boolean);
+            return ret;
+        }
+    },
+    toObject: {
+        virtuals: true,
+        transform: (doc, ret) => {
+            ret.name = ret.name || `${ret.firstName || ''} ${ret.lastName || ''}`.trim();
+            ret.room = ret.room || ret.roomNumber;
+            ret.conditions = (ret.conditions && ret.conditions.length > 0)
+                ? ret.conditions
+                : (ret.medicalConditions || []).map((condition) => condition.name).filter(Boolean);
+            return ret;
+        }
+    }
+});
 
 residentSchema.virtual('fullName').get(function () {
-    return `${this.firstName} ${this.lastName}`;
+    return `${this.firstName} ${this.lastName}`.trim();
 });
 
 module.exports = mongoose.model('Resident', residentSchema);

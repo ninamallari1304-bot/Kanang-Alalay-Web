@@ -33,6 +33,86 @@ router.get('/assigned', protect, async (req, res) => {
     }
 });
 
+router.get('/:id/care-notes', protect, async (req, res) => {
+    try {
+        const resident = await Resident.findById(req.params.id);
+        if (!resident) return res.status(404).json({ success: false, message: 'Resident not found' });
+        res.json({ success: true, data: resident.careNotes || [] });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Server error fetching care notes' });
+    }
+});
+
+router.post('/:id/care-notes', protect, async (req, res) => {
+    try {
+        const resident = await Resident.findById(req.params.id);
+        if (!resident) return res.status(404).json({ success: false, message: 'Resident not found' });
+        const note = {
+            note: req.body.note,
+            nurseName: req.user.firstName ? `${req.user.firstName} ${req.user.lastName}`.trim() : 'Nurse'
+        };
+        resident.careNotes = resident.careNotes || [];
+        resident.careNotes.push(note);
+        await resident.save();
+        res.json({ success: true, data: resident.careNotes });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Server error adding care note' });
+    }
+});
+
+router.put('/:id/care-notes/:noteId', protect, async (req, res) => {
+    try {
+        const resident = await Resident.findById(req.params.id);
+        if (!resident) return res.status(404).json({ success: false, message: 'Resident not found' });
+        const note = resident.careNotes.id(req.params.noteId);
+        if (!note) return res.status(404).json({ success: false, message: 'Care note not found' });
+        note.note = req.body.note || note.note;
+        await resident.save();
+        res.json({ success: true, data: resident.careNotes });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Server error updating care note' });
+    }
+});
+
+router.delete('/:id/care-notes/:noteId', protect, async (req, res) => {
+    try {
+        const resident = await Resident.findById(req.params.id);
+        if (!resident) return res.status(404).json({ success: false, message: 'Resident not found' });
+        const note = resident.careNotes.id(req.params.noteId);
+        if (!note) return res.status(404).json({ success: false, message: 'Care note not found' });
+        note.remove();
+        await resident.save();
+        res.json({ success: true, data: resident.careNotes });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Server error deleting care note' });
+    }
+});
+
+router.post('/:id/administer/:medId', protect, async (req, res) => {
+    try {
+        const resident = await Resident.findById(req.params.id);
+        if (!resident) return res.status(404).json({ success: false, message: 'Resident not found' });
+
+        const medication = resident.medications.id(req.params.medId);
+        if (!medication) {
+            return res.status(404).json({ success: false, message: 'Embedded medication not found' });
+        }
+
+        medication.status = 'administered';
+        medication.lastAdministered = req.body.administeredAt ? new Date(req.body.administeredAt) : new Date();
+        await resident.save();
+
+        res.json({ success: true, data: medication });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Server error administering medication' });
+    }
+});
+
 // GET /api/residents/statistics
 router.get('/statistics', protect, async (req, res) => {
     try {
