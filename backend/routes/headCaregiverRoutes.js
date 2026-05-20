@@ -60,10 +60,9 @@ router.get('/caregivers', async (req, res) => {
         const caregivers = await User.find(
             { 
                 role: { $in: ['caregiver', 'head_caregiver'] },
-                isActive: true,
-                status: 'active'
+                status: { $nin: ['terminated', 'deactivated'] }
             },
-            'firstName lastName role email staffId'
+            'firstName lastName role email staffId status'
         ).sort({ firstName: 1 });
         
         res.json({ 
@@ -75,7 +74,8 @@ router.get('/caregivers', async (req, res) => {
                 lastName: c.lastName,
                 role: c.role,
                 email: c.email,
-                staffId: c.staffId
+                staffId: c.staffId,
+                status: c.status
             }))
         });
     } catch (err) {

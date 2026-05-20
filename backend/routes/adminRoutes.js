@@ -185,17 +185,7 @@ router.post('/create-user', async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────
 // ENHANCED CREATE USER (with auto-generated credentials)
-// FIXED: Removed phone unique constraint, added proper validation
 // ─────────────────────────────────────────────────────────────
-const generateRandomPassword = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
-    let password = '';
-    for (let i = 0; i < 12; i++) {
-        password += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return password;
-};
-
 router.post('/create-user-enhanced', async (req, res) => {
     try {
         const {
