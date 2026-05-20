@@ -10,8 +10,7 @@ const userSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    // FIXED: Remove unique constraint on phone to prevent 500 errors
-    phone: { type: String, default: '', index: false, sparse: true }, 
+    phone: { type: String, default: '' }, // REMOVED unique: true
     department: {
         type: String,
         trim: true,
@@ -43,13 +42,13 @@ const userSchema = new mongoose.Schema({
     status: {
         type: String,
         enum: ['active', 'pending', 'restricted', 'suspended', 'deactivated', 'on_leave', 'terminated'],
-        default: 'pending'  // FIXED: New accounts start as pending
+        default: 'pending'  // CHANGED from 'active' to 'pending'
     },
     statusReason: { type: String, default: '' },
     statusUpdatedAt: { type: Date },
     statusUpdatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     isVerified: { type: Boolean, default: false },
-    isActive: { type: Boolean, default: false },  // FIXED: New accounts start inactive
+    isActive: { type: Boolean, default: false },  // CHANGED from true to false
     isEmailVerified: { type: Boolean, default: false },
     otpCode: { type: String },
     otpExpires: { type: Date },
