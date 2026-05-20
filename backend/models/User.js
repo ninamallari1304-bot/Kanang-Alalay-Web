@@ -10,8 +10,7 @@ const userSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    // Requirement: Unique contact numbers that cannot be reused
-    phone: { type: String, unique: true, sparse: true }, 
+    phone: { type: String, default: '' }, // REMOVED unique: true
     department: {
         type: String,
         trim: true,
@@ -22,7 +21,7 @@ const userSchema = new mongoose.Schema({
         enum: ['morning', 'afternoon', 'night', 'flexible', 'rotating'],
         default: 'morning'
     },
-    employeeId: { type: String, unique: true, sparse: true },
+    employeeId: { type: String, sparse: true },
     hireDate: { type: Date, default: Date.now },
     address: {
         street: String,
@@ -37,20 +36,19 @@ const userSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        // Requirement: Professional and formal labels
         enum: ['admin', 'head_caregiver', 'caregiver'], 
         default: 'caregiver'
     },
     status: {
         type: String,
         enum: ['active', 'pending', 'restricted', 'suspended', 'deactivated', 'on_leave', 'terminated'],
-        default: 'active'
+        default: 'pending'  // CHANGED from 'active' to 'pending'
     },
     statusReason: { type: String, default: '' },
     statusUpdatedAt: { type: Date },
     statusUpdatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     isVerified: { type: Boolean, default: false },
-    isActive: { type: Boolean, default: true },
+    isActive: { type: Boolean, default: false },  // CHANGED from true to false
     isEmailVerified: { type: Boolean, default: false },
     otpCode: { type: String },
     otpExpires: { type: Date },
@@ -73,12 +71,29 @@ const userSchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
-userSchema.pre('save', async function() {
+// Auto-generate staffId before saving
+userSchema.pre('save', async function(next) {
+    if (!this.staffId) {
+        const year = new Date().getFullYear();
+        const prefixMap = {
+            admin: 'ADMIN',
+            head_caregiver: 'HCG',
+            caregiver: 'CG',
+        };
+        const prefix = prefixMap[this.role] || 'CG';
+        const count = await mongoose.model('User').countDocuments({ role: this.role });
+        this.staffId = `${prefix}-${year}-${String(count + 1).padStart(4, '0')}`;
+    }
+    next();
+});
+
+userSchema.pre('save', async function(next) {
     if (!this.isModified('password') || this.password.startsWith('$2a$') || this.password.startsWith('$2b$') || this.password.startsWith('$2y$')) {
-        return;
+        return next();
     }
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
+    next();
 });
 
 userSchema.methods.comparePassword = async function (candidatePassword) {

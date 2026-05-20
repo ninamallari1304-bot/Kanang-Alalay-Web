@@ -60,10 +60,9 @@ router.get('/caregivers', async (req, res) => {
         const caregivers = await User.find(
             { 
                 role: { $in: ['caregiver', 'head_caregiver'] },
-                isActive: true,
-                status: 'active'
+                status: { $nin: ['terminated', 'deactivated'] }
             },
-            'firstName lastName role email staffId'
+            'firstName lastName role email staffId status'
         ).sort({ firstName: 1 });
         
         res.json({ 
@@ -75,7 +74,8 @@ router.get('/caregivers', async (req, res) => {
                 lastName: c.lastName,
                 role: c.role,
                 email: c.email,
-                staffId: c.staffId
+                staffId: c.staffId,
+                status: c.status
             }))
         });
     } catch (err) {
@@ -122,13 +122,16 @@ router.get('/residents', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// CREATE RESIDENT (with caregiver assignment)
+// CREATE RESIDENT (with caregiver assignment) - FIXED VERSION
 // ─────────────────────────────────────────────────────────────
 router.post('/residents', async (req, res) => {
     try {
         const { 
             firstName, lastName, middleName, nickname, age, gender, 
-            roomNumber, floor, bed, conditions, primaryCaregiver, 
+            roomNumber, floor, bed, conditions, 
+            primaryCaregiverId,  // ← ADD THIS - the ObjectId from frontend
+            primaryCaregiver,    // ← Keep for backward compatibility
+            primaryCaregiverName, // ← ADD THIS - display name
             alertLevel, admissionDate 
         } = req.body;
         
@@ -141,16 +144,42 @@ router.post('/residents', async (req, res) => {
 
         const residentId = 'RES' + Date.now().toString().slice(-6);
         
-        let primaryCaregiverName = '';
-        let primaryCaregiverId = null;
+        let finalPrimaryCaregiverName = '';
+        let finalPrimaryCaregiverId = null;
         
-        // If a specific caregiver was selected, get their info
-        if (primaryCaregiver) {
+        // PRIORITY 1: Use primaryCaregiverId if provided (this is the preferred method)
+        if (primaryCaregiverId) {
+            const caregiver = await User.findById(primaryCaregiverId);
+            if (caregiver) {
+                finalPrimaryCaregiverName = `${caregiver.firstName} ${caregiver.lastName}`;
+                finalPrimaryCaregiverId = caregiver._id;
+            }
+        }
+        // PRIORITY 2: Fall back to primaryCaregiver as ID string
+        else if (primaryCaregiver && primaryCaregiver !== '') {
             const caregiver = await User.findById(primaryCaregiver);
             if (caregiver) {
-                primaryCaregiverName = `${caregiver.firstName} ${caregiver.lastName}`;
-                primaryCaregiverId = caregiver._id;
+                finalPrimaryCaregiverName = `${caregiver.firstName} ${caregiver.lastName}`;
+                finalPrimaryCaregiverId = caregiver._id;
             }
+        }
+        // PRIORITY 3: Use the provided display name
+        else if (primaryCaregiverName) {
+            finalPrimaryCaregiverName = primaryCaregiverName;
+        }
+        
+        // Process conditions - handle both string arrays and object arrays
+        let processedConditions = [];
+        if (conditions && Array.isArray(conditions)) {
+            processedConditions = conditions.map(c => {
+                if (typeof c === 'string') {
+                    return { name: c, severity: 'mild' };
+                }
+                return c;
+            });
+        } else if (conditions && typeof conditions === 'string') {
+            // If conditions is a comma-separated string
+            processedConditions = conditions.split(',').map(c => ({ name: c.trim(), severity: 'mild' }));
         }
         
         const resident = new Resident({
@@ -166,43 +195,49 @@ router.post('/residents', async (req, res) => {
             bed: bed || '',
             alertLevel: alertLevel || 'stable',
             admissionDate: admissionDate ? new Date(admissionDate) : new Date(),
-            medicalConditions: (conditions || []).map(c => ({ name: c })),
-            primaryCaregiver: primaryCaregiverName,
-            primaryCaregiverId: primaryCaregiverId,
-            primaryCaregiverName: primaryCaregiverName,
-            assignedNurse: primaryCaregiverName || (primaryCaregiver ? 'Assigned' : `${req.user.firstName} ${req.user.lastName}`),
+            medicalConditions: processedConditions,
+            primaryCaregiver: finalPrimaryCaregiverName,
+            primaryCaregiverId: finalPrimaryCaregiverId,
+            primaryCaregiverName: finalPrimaryCaregiverName,
+            assignedNurse: finalPrimaryCaregiverName || (primaryCaregiver ? 'Assigned' : `${req.user.firstName} ${req.user.lastName}`),
+            assignedCaregiver: finalPrimaryCaregiverName,
         });
         await resident.save();
 
+        // Fetch the full resident with populated caregiver info for response
+        const savedResident = await Resident.findById(resident._id)
+            .populate('primaryCaregiverId', 'firstName lastName role');
+        
         const shaped = {
-            _id: resident._id,
-            residentId: resident.residentId,
-            name: `${resident.firstName} ${resident.lastName}`.trim(),
-            firstName: resident.firstName,
-            lastName: resident.lastName,
-            nickname: resident.nickname,
-            age: resident.age,
-            gender: resident.gender,
-            room: resident.roomNumber,
-            floor: resident.floor || '',
-            bed: resident.bed || '',
-            conditions: (resident.medicalConditions || []).map(c => c.name || c),
-            alertLevel: resident.alertLevel || 'stable',
-            medicationOverdue: resident.medicationOverdue || false,
-            overdueMed: resident.overdueMed || '',
-            overdueAt: resident.overdueAt || null,
-            nextMed: resident.nextMed || '',
-            primaryCaregiver: resident.primaryCaregiver,
-            primaryCaregiverName: resident.primaryCaregiverName,
-            status: resident.status,
+            _id: savedResident._id,
+            residentId: savedResident.residentId,
+            name: `${savedResident.firstName} ${savedResident.lastName}`.trim(),
+            firstName: savedResident.firstName,
+            lastName: savedResident.lastName,
+            nickname: savedResident.nickname,
+            age: savedResident.age,
+            gender: savedResident.gender,
+            room: savedResident.roomNumber,
+            floor: savedResident.floor || '',
+            bed: savedResident.bed || '',
+            conditions: (savedResident.medicalConditions || []).map(c => c.name || c),
+            alertLevel: savedResident.alertLevel || 'stable',
+            medicationOverdue: savedResident.medicationOverdue || false,
+            overdueMed: savedResident.overdueMed || '',
+            overdueAt: savedResident.overdueAt || null,
+            nextMed: savedResident.nextMed || '',
+            primaryCaregiver: savedResident.primaryCaregiver,
+            primaryCaregiverName: savedResident.primaryCaregiverName,
+            primaryCaregiverId: savedResident.primaryCaregiverId,
+            status: savedResident.status,
         };
+        
         res.status(201).json({ success: true, data: shaped });
     } catch (err) {
         console.error('Create resident error:', err);
         res.status(500).json({ success: false, message: err.message });
     }
 });
-
 // ─────────────────────────────────────────────────────────────
 // UPDATE RESIDENT
 // ─────────────────────────────────────────────────────────────

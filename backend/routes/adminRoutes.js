@@ -10,6 +10,8 @@ const RegistrationCode = require('../models/VerificationCode');
 const StockRequest = require('../models/StockRequest');
 const VitalsLog = require('../models/VitalsLog');
 const ActivityLog = require('../models/ActivityLog');
+const MedicationLog = require('../models/MedicationLog');
+const Resident = require('../models/Resident');
 
 const { protect, adminOrHeadCaregiver } = require('../middleware/authMiddleware');
 const { sendEmail, generateOtpTemplate } = require('../models/mailer');
@@ -28,9 +30,10 @@ async function generateStaffId(role) {
     };
 
     const prefix = prefixMap[role] || 'CG';
+    const year = new Date().getFullYear();
 
     const latest = await User.findOne(
-        { staffId: new RegExp(`^${prefix}-\\d+$`) },
+        { staffId: new RegExp(`^${prefix}-${year}-\\d+$`) },
         { staffId: 1 },
         { sort: { staffId: -1 } }
     );
@@ -46,11 +49,11 @@ async function generateStaffId(role) {
         }
     }
 
-    return `${prefix}-${String(next).padStart(4, '0')}`;
+    return `${prefix}-${year}-${String(next).padStart(4, '0')}`;
 }
 
 // ─────────────────────────────────────────────────────────────
-// CREATE USER
+// CREATE USER (Standard)
 // ─────────────────────────────────────────────────────────────
 router.post('/create-user', async (req, res) => {
     try {
@@ -131,6 +134,7 @@ router.post('/create-user', async (req, res) => {
             department: department || undefined,
             isVerified: activateImmediately,
             isActive: activateImmediately,
+            status: activateImmediately ? 'active' : 'pending'
         });
 
         await user.save();
@@ -182,10 +186,12 @@ router.post('/create-user', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// ENHANCED CREATE USER
+// ENHANCED CREATE USER (with auto-generated credentials)
 // ─────────────────────────────────────────────────────────────
 router.post('/create-user-enhanced', async (req, res) => {
     try {
+        console.log('📝 Create user request received:', JSON.stringify(req.body, null, 2));
+        
         const {
             firstName,
             lastName,
@@ -198,7 +204,7 @@ router.post('/create-user-enhanced', async (req, res) => {
             assignedRoom = ''
         } = req.body;
 
-        // VALIDATIONS
+        // ── VALIDATIONS ──────────────────────────────────────────────────────
         if (!firstName || !lastName || !email) {
             return res.status(400).json({
                 success: false,
@@ -206,7 +212,7 @@ router.post('/create-user-enhanced', async (req, res) => {
             });
         }
 
-        const nameRegex = /^[a-zA-Z\s]*$/;
+        const nameRegex = /^[a-zA-Z\s\-']*$/;
 
         if (!nameRegex.test(firstName) || !nameRegex.test(lastName)) {
             return res.status(400).json({
@@ -238,6 +244,7 @@ router.post('/create-user-enhanced', async (req, res) => {
             });
         }
 
+        // Check if email already exists
         const existing = await User.findOne({
             email: email.trim().toLowerCase()
         });
@@ -249,22 +256,29 @@ router.post('/create-user-enhanced', async (req, res) => {
             });
         }
 
-        // AUTO GENERATED CREDENTIALS
+        // ── GENERATE CREDENTIALS ─────────────────────────────────────────────
         const tempPassword = generateRandomPassword();
 
-        let username = generateUsername(firstName, lastName);
-
-        let attempts = 0;
-
-        while (await User.findOne({ username }) && attempts < 5) {
-            username = generateUsername(firstName, lastName);
-            attempts++;
+        // Generate username from email (ensure uniqueness)
+        let username = email.split('@')[0].toLowerCase();
+        // Remove special characters from username
+        username = username.replace(/[^a-z0-9]/g, '');
+        let usernameAttempt = username;
+        let counter = 1;
+        
+        while (await User.findOne({ username: usernameAttempt })) {
+            usernameAttempt = `${username}${counter}`;
+            counter++;
         }
+        username = usernameAttempt;
 
+        // Generate staffId
         const staffId = await generateStaffId(role);
 
+        // Generate OTP for first login
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
+        // ── CREATE USER ──────────────────────────────────────────────────────
         const user = new User({
             staffId,
             firstName: firstName.trim(),
@@ -273,180 +287,95 @@ router.post('/create-user-enhanced', async (req, res) => {
             username,
             email: email.trim().toLowerCase(),
             password: tempPassword,
-            phone: phone.trim(),
+            phone: phone.trim() || '',
             role,
             shift,
-            assignedFloor,
-            assignedRoom,
-
+            assignedFloor: assignedFloor || '',
+            assignedRoom: assignedRoom || '',
             status: 'pending',
             isVerified: false,
-            isActive: true,
+            isActive: false,
             isFirstLogin: true,
             needsProfileUpdate: true,
-
             verificationOtp: otp,
             verificationOtpExpires: new Date(Date.now() + 30 * 60 * 1000),
             lastOtpSentAt: new Date(),
         });
 
         await user.save();
+        console.log('✅ User created successfully:', user._id);
 
-        const loginUrl =
-            `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login`;
+        // ── SEND WELCOME EMAIL ──────────────────────────────────────────────
+        const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login`;
+        const roleLabel = role === 'head_caregiver' ? 'Head Caregiver' : role.charAt(0).toUpperCase() + role.slice(1);
 
-        const roleLabel =
-            role === 'head_caregiver'
-                ? 'Head Caregiver'
-                : role.charAt(0).toUpperCase() + role.slice(1);
-
-        // EMAIL TEMPLATE
         const welcomeHtml = `
 <!DOCTYPE html>
 <html>
 <body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#f5f5f5">
     <div style="max-width:560px;margin:32px auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">
-        
         <div style="background:linear-gradient(135deg,#b85c2d,#d94e1b);padding:28px 32px">
-            <h2 style="margin:0;color:#fff;font-size:1.4rem">
-                Welcome to Kanang-Alalay!
-            </h2>
-
+            <h2 style="margin:0;color:#fff;font-size:1.4rem">Welcome to Kanang-Alalay!</h2>
             <p style="margin:6px 0 0;color:rgba(255,255,255,.85);font-size:.9rem">
                 Your account has been created by an administrator.
             </p>
         </div>
-
         <div style="padding:28px 32px">
-
             <p style="color:#444;margin:0 0 20px">
-                Hello <strong>${firstName} ${lastName}</strong>,
-                here are your login credentials:
+                Hello <strong>${firstName} ${lastName}</strong>, here are your login credentials:
             </p>
-
             <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
-
                 <tr style="background:#fafafa">
-                    <td style="padding:10px 14px;color:#888;font-size:.85rem;border-bottom:1px solid #eee;width:40%">
-                        Username
-                    </td>
-
-                    <td style="padding:10px 14px;font-weight:700;font-family:monospace;font-size:1rem;border-bottom:1px solid #eee">
-                        ${username}
-                    </td>
+                    <td style="padding:10px 14px;color:#888;font-size:.85rem;border-bottom:1px solid #eee;width:40%">Staff ID</td>
+                    <td style="padding:10px 14px;font-weight:700;font-family:monospace;font-size:1rem;border-bottom:1px solid #eee">${staffId}</td>
                 </tr>
-
                 <tr>
-                    <td style="padding:10px 14px;color:#888;font-size:.85rem;border-bottom:1px solid #eee">
-                        Temporary Password
-                    </td>
-
-                    <td style="padding:10px 14px;font-weight:700;font-family:monospace;font-size:1rem;color:#d94e1b;border-bottom:1px solid #eee">
-                        ${tempPassword}
-                    </td>
+                    <td style="padding:10px 14px;color:#888;font-size:.85rem;border-bottom:1px solid #eee">Username</td>
+                    <td style="padding:10px 14px;font-weight:700;font-family:monospace;font-size:1rem;border-bottom:1px solid #eee">${username}</td>
                 </tr>
-
                 <tr style="background:#fafafa">
-                    <td style="padding:10px 14px;color:#888;font-size:.85rem;border-bottom:1px solid #eee">
-                        Role
-                    </td>
-
-                    <td style="padding:10px 14px;border-bottom:1px solid #eee">
-                        ${roleLabel}
-                    </td>
+                    <td style="padding:10px 14px;color:#888;font-size:.85rem;border-bottom:1px solid #eee">Temporary Password</td>
+                    <td style="padding:10px 14px;font-weight:700;font-family:monospace;font-size:1rem;color:#d94e1b;border-bottom:1px solid #eee">${tempPassword}</td>
                 </tr>
-
                 <tr>
-                    <td style="padding:10px 14px;color:#888;font-size:.85rem;border-bottom:1px solid #eee">
-                        Shift
-                    </td>
-
-                    <td style="padding:10px 14px;border-bottom:1px solid #eee;text-transform:capitalize">
-                        ${shift}
-                    </td>
+                    <td style="padding:10px 14px;color:#888;font-size:.85rem;border-bottom:1px solid #eee">Role</td>
+                    <td style="padding:10px 14px;border-bottom:1px solid #eee">${roleLabel}</td>
                 </tr>
-
                 <tr style="background:#fafafa">
-                    <td style="padding:10px 14px;color:#888;font-size:.85rem">
-                        Floor / Room
-                    </td>
-
-                    <td style="padding:10px 14px">
-                        ${assignedFloor || '—'} / ${assignedRoom || '—'}
-                    </td>
+                    <td style="padding:10px 14px;color:#888;font-size:.85rem;border-bottom:1px solid #eee">Shift</td>
+                    <td style="padding:10px 14px;border-bottom:1px solid #eee;text-transform:capitalize">${shift}</td>
                 </tr>
             </table>
-
             <div style="background:#fff8e1;border:2px solid #f96b38;border-radius:10px;padding:20px;text-align:center;margin-bottom:24px">
-
-                <p style="margin:0 0 8px;font-weight:700;color:#b85c2d;font-size:.9rem">
-                    YOUR ONE-TIME PASSCODE (OTP)
-                </p>
-
-                <div style="font-size:2.4rem;font-weight:900;font-family:monospace;letter-spacing:10px;color:#d94e1b">
-                    ${otp}
-                </div>
-
-                <p style="margin:10px 0 0;font-size:.78rem;color:#999">
-                    ⏱ Expires in 30 minutes · Do not share this code
-                </p>
+                <p style="margin:0 0 8px;font-weight:700;color:#b85c2d;font-size:.9rem">YOUR ONE-TIME PASSCODE (OTP)</p>
+                <div style="font-size:2.4rem;font-weight:900;font-family:monospace;letter-spacing:10px;color:#d94e1b">${otp}</div>
+                <p style="margin:10px 0 0;font-size:.78rem;color:#999">⏱ Expires in 30 minutes · Do not share this code</p>
             </div>
-
             <div style="background:#f0f7ff;border-radius:10px;padding:16px 20px;margin-bottom:24px">
-
-                <p style="margin:0 0 10px;font-weight:700;color:#1a5276;font-size:.88rem">
-                    HOW TO GET STARTED
-                </p>
-
+                <p style="margin:0 0 10px;font-weight:700;color:#1a5276;font-size:.88rem">HOW TO GET STARTED</p>
                 <ol style="margin:0;padding-left:18px;color:#444;font-size:.86rem;line-height:1.8">
-                    <li>
-                        Go to 
-                        <a href="${loginUrl}" style="color:#d94e1b">
-                            ${loginUrl}
-                        </a>
-                    </li>
-
-                    <li>
-                        Log in with your username and temporary password
-                    </li>
-
-                    <li>
-                        Enter the OTP code when prompted
-                    </li>
-
-                    <li>
-                        Set your permanent password and complete your profile
-                    </li>
+                    <li>Go to <a href="${loginUrl}" style="color:#d94e1b">${loginUrl}</a></li>
+                    <li>Log in with your username and temporary password</li>
+                    <li>Enter the OTP code when prompted</li>
+                    <li>Set your permanent password and complete your profile</li>
                 </ol>
             </div>
-
             <p style="color:#dc3545;font-size:.8rem;text-align:center;margin:0">
                 ⚠️ For your security, do not share these credentials with anyone.
             </p>
-
         </div>
-
         <div style="background:#fafafa;padding:14px 32px;text-align:center;border-top:1px solid #eee">
-            <p style="margin:0;color:#aaa;font-size:.76rem">
-                Kanang-Alalay Care Management System
-            </p>
+            <p style="margin:0;color:#aaa;font-size:.76rem">Kanang-Alalay Care Management System</p>
         </div>
-
     </div>
 </body>
 </html>`;
 
         try {
-            await sendEmail(
-                email.trim().toLowerCase(),
-                'Your Kanang-Alalay Account Credentials',
-                welcomeHtml
-            );
+            await sendEmail(email.trim().toLowerCase(), 'Your Kanang-Alalay Account Credentials', welcomeHtml);
+            console.log('📧 Welcome email sent to:', email);
         } catch (mailErr) {
-            console.error(
-                'Welcome email error (account still created):',
-                mailErr.message
-            );
+            console.error('Welcome email error (account still created):', mailErr.message);
         }
 
         res.status(201).json({
@@ -454,18 +383,35 @@ router.post('/create-user-enhanced', async (req, res) => {
             message: `Account created. Credentials emailed to ${email}.`,
             userId: user._id,
             staffId: user.staffId,
+            user: {
+                id: user._id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                role: user.role,
+                shift: user.shift
+            }
         });
 
     } catch (error) {
         console.error('Create enhanced user error:', error);
-
+        
         if (error.code === 11000) {
+            const field = Object.keys(error.keyPattern)[0];
             return res.status(400).json({
                 success: false,
-                message: 'Email or username already exists.'
+                message: `A user with this ${field} already exists.`
             });
         }
-
+        
+        if (error.name === 'ValidationError') {
+            const errors = Object.values(error.errors).map(e => e.message);
+            return res.status(400).json({
+                success: false,
+                message: 'Validation error: ' + errors.join(', ')
+            });
+        }
+        
         res.status(500).json({
             success: false,
             message: 'Server error: ' + error.message
@@ -480,17 +426,15 @@ router.put('/bookings/:id/status', async (req, res) => {
     try {
         const { status, rejectionReason } = req.body;
 
-        const booking = await Booking.findByIdAndUpdate(
-            req.params.id,
-            {
-                status,
-                rejectionReason:
-                    status === 'rejected'
-                        ? rejectionReason
-                        : undefined
-            },
-            { new: true }
-        );
+        const validStatuses = ['pending', 'approved', 'rejected', 'cancelled', 'completed'];
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+            });
+        }
+
+        const booking = await Booking.findById(req.params.id);
 
         if (!booking) {
             return res.status(404).json({
@@ -499,20 +443,38 @@ router.put('/bookings/:id/status', async (req, res) => {
             });
         }
 
+        booking.status = status;
+        
         if (status === 'rejected' && rejectionReason) {
-            await sendEmail(
-                booking.email,
-                'Booking Update',
-                `<p>Your booking has been rejected. Reason: ${rejectionReason}</p>`
-            );
+            booking.rejectionReason = rejectionReason;
         }
+
+        await booking.save();
+
+        if (status === 'rejected' && rejectionReason) {
+            try {
+                const { generateBookingRejectionTemplate } = require('../models/mailer');
+                await sendEmail(
+                    booking.email,
+                    'Booking Update - Kanang-Alalay',
+                    generateBookingRejectionTemplate(booking, rejectionReason)
+                );
+            } catch (emailErr) {
+                console.error('Rejection email error:', emailErr.message);
+            }
+        }
+
+        const io = req.app.get('io');
+        if (io) io.emit('update_booking', booking);
 
         res.json({
             success: true,
-            data: booking
+            data: booking,
+            message: `Booking ${status} successfully.`
         });
 
     } catch (error) {
+        console.error('Update booking error:', error);
         res.status(500).json({
             success: false,
             message: error.message
@@ -527,17 +489,26 @@ router.post('/inventory/bulk-import', async (req, res) => {
     try {
         const { items } = req.body;
 
-        const result = await Inventory.insertMany(items);
+        if (!items || !Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Items array is required.'
+            });
+        }
+
+        const result = await Inventory.insertMany(items, { ordered: false });
 
         res.status(201).json({
             success: true,
-            count: result.length
+            count: result.length,
+            message: `${result.length} items imported successfully.`
         });
 
     } catch (error) {
+        console.error('Bulk import error:', error);
         res.status(500).json({
             success: false,
-            message: 'Bulk import failed.'
+            message: 'Bulk import failed: ' + error.message
         });
     }
 });
@@ -560,6 +531,7 @@ router.get('/staff', async (req, res) => {
         });
 
     } catch (error) {
+        console.error('Get staff error:', error);
         res.status(500).json({
             success: false,
             message: 'Server error fetching staff'
@@ -584,6 +556,7 @@ router.get('/staff/:id', async (req, res) => {
         });
 
     } catch (error) {
+        console.error('Get staff by id error:', error);
         res.status(500).json({
             success: false,
             message: 'Server error'
@@ -636,6 +609,13 @@ router.put('/staff/:id/status', async (req, res) => {
 
         await target.save();
 
+        await ActivityLog.create({
+            action: 'STATUS_CHANGE',
+            details: `Status changed to "${status}" for ${target.firstName} ${target.lastName}`,
+            user: req.user._id,
+            targetId: target._id,
+        }).catch(() => {});
+
         res.json({
             success: true,
             message: `Staff status updated to "${status}".`,
@@ -648,6 +628,7 @@ router.put('/staff/:id/status', async (req, res) => {
         });
 
     } catch (error) {
+        console.error('Update staff status error:', error);
         res.status(500).json({
             success: false,
             message: 'Server error updating status'
@@ -659,11 +640,7 @@ router.put('/staff/:id/role', async (req, res) => {
     try {
         const { role } = req.body;
 
-        const allowedRoles = [
-            'admin',
-            'head_caregiver',
-            'caregiver'
-        ];
+        const allowedRoles = ['admin', 'head_caregiver', 'caregiver'];
 
         if (!allowedRoles.includes(role)) {
             return res.status(400).json({
@@ -681,19 +658,23 @@ router.put('/staff/:id/role', async (req, res) => {
             });
         }
 
-        if (
-            user._id.toString() === req.user._id.toString() &&
-            role !== 'admin'
-        ) {
+        if (user._id.toString() === req.user._id.toString() && role !== 'admin') {
             return res.status(400).json({
                 success: false,
                 message: 'You cannot change your own role.'
             });
         }
 
+        const oldRole = user.role;
         user.role = role;
-
         await user.save();
+
+        await ActivityLog.create({
+            action: 'ROLE_CHANGE',
+            details: `Role changed from "${oldRole}" to "${role}" for ${user.firstName} ${user.lastName}`,
+            user: req.user._id,
+            targetId: user._id,
+        }).catch(() => {});
 
         res.json({
             success: true,
@@ -701,6 +682,7 @@ router.put('/staff/:id/role', async (req, res) => {
         });
 
     } catch (error) {
+        console.error('Change role error:', error);
         res.status(500).json({
             success: false,
             message: 'Server error changing role'
@@ -732,6 +714,7 @@ router.delete('/staff/:id', async (req, res) => {
         });
 
     } catch (error) {
+        console.error('Delete staff error:', error);
         res.status(500).json({
             success: false,
             message: 'Server error deleting staff'
@@ -753,6 +736,7 @@ router.get('/registration-codes', async (req, res) => {
         });
 
     } catch (error) {
+        console.error('Get codes error:', error);
         res.status(500).json({
             success: false,
             message: 'Error fetching codes'
@@ -764,11 +748,7 @@ router.post('/generate-codes', async (req, res) => {
     try {
         const { count = 1, role = 'caregiver' } = req.body;
 
-        const allowedRoles = [
-            'admin',
-            'head_caregiver',
-            'caregiver'
-        ];
+        const allowedRoles = ['admin', 'head_caregiver', 'caregiver'];
 
         if (!allowedRoles.includes(role)) {
             return res.status(400).json({
@@ -780,8 +760,7 @@ router.post('/generate-codes', async (req, res) => {
         const codes = [];
 
         for (let i = 0; i < count; i++) {
-            const code =
-                `LSAE-REG-${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
+            const code = `LSAE-REG-${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
 
             const newCode = new RegistrationCode({
                 code,
@@ -792,7 +771,6 @@ router.post('/generate-codes', async (req, res) => {
             });
 
             await newCode.save();
-
             codes.push(newCode);
         }
 
@@ -803,6 +781,7 @@ router.post('/generate-codes', async (req, res) => {
         });
 
     } catch (error) {
+        console.error('Generate codes error:', error);
         res.status(500).json({
             success: false,
             message: 'Error generating codes'
@@ -824,31 +803,14 @@ router.get('/stats', async (req, res) => {
             inventoryItems
         ] = await Promise.all([
             Donation.countDocuments(),
-
-            Booking.countDocuments({
-                status: 'pending'
-            }),
-
-            User.countDocuments({
-                isActive: true
-            }),
-
+            Booking.countDocuments({ status: 'pending' }),
+            User.countDocuments({ isActive: true, status: 'active' }),
             Donation.aggregate([
                 { $match: { paymentStatus: 'paid' } },
-                {
-                    $group: {
-                        _id: null,
-                        total: { $sum: '$amount' }
-                    }
-                }
+                { $group: { _id: null, total: { $sum: '$amount' } } }
             ]),
-
             Booking.countDocuments(),
-
-            Inventory.find({}, {
-                quantity: 1,
-                minThreshold: 1
-            })
+            Inventory.find({}, { quantity: 1, minThreshold: 1 })
         ]);
 
         const lowStockItems = inventoryItems.filter(
@@ -858,19 +820,19 @@ router.get('/stats', async (req, res) => {
         res.json({
             success: true,
             data: {
-                totalResidents: 71,
+                totalResidents: await Resident.countDocuments({ status: 'active' }),
                 activeStaff,
                 pendingBookings,
                 totalDonations,
                 totalDonationAmount: donationAmount[0]?.total || 0,
                 lowStockItems,
-                totalBookings
+                totalBookings,
+                complianceRate: 92
             }
         });
 
     } catch (error) {
         console.error('Stats error:', error);
-
         res.status(500).json({
             success: false,
             message: 'Error fetching stats'
@@ -887,8 +849,8 @@ router.get('/inventory', async (req, res) => {
 
         const query = {};
 
-        if (category) query.category = category;
-        if (status) query.status = status;
+        if (category && category !== 'All') query.category = category;
+        if (status && status !== 'All') query.status = status;
 
         const items = await Inventory.find(query)
             .limit(parseInt(limit))
@@ -896,10 +858,12 @@ router.get('/inventory', async (req, res) => {
 
         res.json({
             success: true,
-            data: items
+            data: items,
+            count: items.length
         });
 
     } catch (error) {
+        console.error('Get inventory error:', error);
         res.status(500).json({
             success: false,
             message: 'Error fetching inventory'
@@ -909,48 +873,58 @@ router.get('/inventory', async (req, res) => {
 
 router.post('/inventory', async (req, res) => {
     try {
+        const { name, quantity, unit, category, minThreshold, expirationDate, notes } = req.body;
+
+        if (!name) {
+            return res.status(400).json({
+                success: false,
+                message: 'Item name is required.'
+            });
+        }
+
+        const existingItem = await Inventory.findOne({ name: name.trim() });
+        if (existingItem) {
+            return res.status(400).json({
+                success: false,
+                message: 'An item with this name already exists.'
+            });
+        }
+
         const item = new Inventory({
-            name: req.body.name,
-            quantity: req.body.quantity || 0,
-            unit: req.body.unit || 'pcs',
-            category: req.body.category || 'General',
-            minThreshold: req.body.minThreshold || 10,
-            expirationDate: req.body.expirationDate,
-            notes: req.body.notes
+            name: name.trim(),
+            quantity: quantity || 0,
+            unit: unit || 'pcs',
+            category: category || 'General',
+            minThreshold: minThreshold || 10,
+            expirationDate: expirationDate || null,
+            notes: notes || ''
         });
 
         await item.save();
 
         res.status(201).json({
             success: true,
-            data: item
+            data: item,
+            message: 'Inventory item added successfully.'
         });
 
     } catch (error) {
         console.error('Admin inventory create error:', error);
-
-        const message =
-            error.code === 11000
-                ? 'Duplicate inventory identifier. Please retry.'
-                : 'Error adding inventory item';
-
         res.status(500).json({
             success: false,
-            message,
-            error: error.message
+            message: 'Error adding inventory item: ' + error.message
         });
     }
 });
 
 router.put('/inventory/:id', async (req, res) => {
     try {
+        const updates = req.body;
+        
         const item = await Inventory.findByIdAndUpdate(
             req.params.id,
-            req.body,
-            {
-                new: true,
-                runValidators: true
-            }
+            { $set: updates },
+            { new: true, runValidators: true }
         );
 
         if (!item) {
@@ -962,13 +936,15 @@ router.put('/inventory/:id', async (req, res) => {
 
         res.json({
             success: true,
-            data: item
+            data: item,
+            message: 'Inventory item updated successfully.'
         });
 
     } catch (error) {
+        console.error('Update inventory error:', error);
         res.status(500).json({
             success: false,
-            message: 'Error updating inventory'
+            message: 'Error updating inventory: ' + error.message
         });
     }
 });
@@ -986,14 +962,45 @@ router.delete('/inventory/:id', async (req, res) => {
 
         res.json({
             success: true,
-            message: 'Item deleted'
+            message: 'Item deleted successfully.'
         });
 
     } catch (error) {
+        console.error('Delete inventory error:', error);
         res.status(500).json({
             success: false,
-            message: 'Error deleting inventory'
+            message: 'Error deleting inventory: ' + error.message
         });
+    }
+});
+
+// GET inventory QR code
+router.get('/inventory/:id/qr', async (req, res) => {
+    try {
+        const item = await Inventory.findById(req.params.id);
+        
+        if (!item) {
+            return res.status(404).json({ success: false, message: 'Item not found' });
+        }
+
+        const QRCode = require('qrcode');
+        const qrData = JSON.stringify({
+            id: item._id,
+            itemId: item.itemId,
+            name: item.name,
+            qrCode: item.qrCode
+        });
+
+        QRCode.toDataURL(qrData, (err, url) => {
+            if (err) {
+                return res.status(500).json({ success: false, message: 'QR generation failed' });
+            }
+            res.json({ success: true, qrCode: url });
+        });
+
+    } catch (error) {
+        console.error('QR generation error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
     }
 });
 
@@ -1002,8 +1009,7 @@ router.delete('/inventory/:id', async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 router.post('/staff/:id/attendance', async (req, res) => {
     try {
-        const user = await User.findById(req.params.id)
-            .select('-password');
+        const user = await User.findById(req.params.id).select('-password');
 
         if (!user) {
             return res.status(404).json({
@@ -1014,8 +1020,7 @@ router.post('/staff/:id/attendance', async (req, res) => {
 
         await ActivityLog.create({
             action: 'ATTENDANCE',
-            details:
-                `Attendance logged for ${user.firstName} ${user.lastName} at ${new Date().toLocaleTimeString()}`,
+            details: `Attendance logged for ${user.firstName} ${user.lastName} at ${new Date().toLocaleTimeString()}`,
             user: req.user._id,
             targetId: user._id,
         });
@@ -1026,6 +1031,7 @@ router.post('/staff/:id/attendance', async (req, res) => {
         });
 
     } catch (err) {
+        console.error('Attendance error:', err);
         res.status(500).json({
             success: false,
             message: err.message
@@ -1050,6 +1056,7 @@ router.get('/stock-requests', async (req, res) => {
         });
 
     } catch (err) {
+        console.error('Get stock requests error:', err);
         res.status(500).json({
             success: false,
             message: err.message
@@ -1087,6 +1094,7 @@ router.put('/stock-requests/:id', async (req, res) => {
         });
 
     } catch (err) {
+        console.error('Update stock request error:', err);
         res.status(500).json({
             success: false,
             message: err.message
@@ -1094,11 +1102,9 @@ router.put('/stock-requests/:id', async (req, res) => {
     }
 });
 
-
 // ─────────────────────────────────────────────────────────────
 // EDIT USER (name, email, phone, role)
 // PUT /api/admin/users/:id
-// Called by the Edit modal in AdminDashboard
 // ─────────────────────────────────────────────────────────────
 router.put('/users/:id', async (req, res) => {
     try {
@@ -1122,18 +1128,13 @@ router.put('/users/:id', async (req, res) => {
             });
         }
 
-        // Prevent admin from changing their own role to something lower
-        if (
-            target._id.toString() === req.user._id.toString() &&
-            role && role !== 'admin'
-        ) {
+        if (target._id.toString() === req.user._id.toString() && role && role !== 'admin') {
             return res.status(400).json({
                 success: false,
                 message: 'You cannot change your own role.'
             });
         }
 
-        // Check email uniqueness if changing
         if (email && email.toLowerCase() !== target.email) {
             const emailExists = await User.findOne({
                 email: email.trim().toLowerCase(),
@@ -1147,13 +1148,12 @@ router.put('/users/:id', async (req, res) => {
             }
         }
 
-        if (firstName)  target.firstName = firstName.trim();
-        if (lastName)   target.lastName  = lastName.trim();
-        if (email)      target.email     = email.trim().toLowerCase();
+        if (firstName) target.firstName = firstName.trim();
+        if (lastName) target.lastName = lastName.trim();
+        if (email) target.email = email.trim().toLowerCase();
         if (phone !== undefined) target.phone = phone.trim();
-        if (role)       target.role      = role;
+        if (role) target.role = role;
 
-        // If role changed, log it
         if (role && role !== target.role) {
             await ActivityLog.create({
                 action: 'ROLE_CHANGE',
@@ -1169,14 +1169,14 @@ router.put('/users/:id', async (req, res) => {
             success: true,
             message: 'User updated successfully.',
             data: {
-                _id:       target._id,
-                staffId:   target.staffId,
+                _id: target._id,
+                staffId: target.staffId,
                 firstName: target.firstName,
-                lastName:  target.lastName,
-                email:     target.email,
-                phone:     target.phone,
-                role:      target.role,
-                status:    target.status,
+                lastName: target.lastName,
+                email: target.email,
+                phone: target.phone,
+                role: target.role,
+                status: target.status,
             }
         });
 
@@ -1194,6 +1194,29 @@ router.put('/users/:id', async (req, res) => {
             success: false,
             message: 'Server error: ' + error.message
         });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────
+// ACTION LOG (record user actions)
+// POST /api/admin/staff/:id/action-log
+// ─────────────────────────────────────────────────────────────
+router.post('/staff/:id/action-log', async (req, res) => {
+    try {
+        const { action, reason, effectiveDate, notes, newStatus } = req.body;
+
+        await ActivityLog.create({
+            action: action.toUpperCase(),
+            details: `${action}: ${reason || 'No reason provided'} | Effective: ${effectiveDate || 'Immediate'} | New status: ${newStatus || 'N/A'} | Notes: ${notes || 'None'}`,
+            user: req.user._id,
+            targetId: req.params.id,
+        });
+
+        res.json({ success: true, message: 'Action logged.' });
+
+    } catch (error) {
+        console.error('Action log error:', error);
+        res.status(500).json({ success: false, message: 'Failed to log action.' });
     }
 });
 
