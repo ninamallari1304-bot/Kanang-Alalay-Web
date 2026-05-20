@@ -285,9 +285,9 @@ const StaffRosterTab = ({ staff = [], onRefresh }) => {
                     </div>
                     
                     <div class="report-info">
-                        <span>📅 Date: ${new Date().toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                        <span>⏰ Time: ${new Date().toLocaleTimeString('en-PH')}</span>
-                        <span>👥 Total Active Staff: ${staffWithShifts.length}</span>
+                        <span>Date: ${new Date().toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                        <span>Time: ${new Date().toLocaleTimeString('en-PH')}</span>
+                        <span>Total Active Staff: ${staffWithShifts.length}</span>
                     </div>
                     
                     <table>
@@ -339,14 +339,14 @@ const StaffRosterTab = ({ staff = [], onRefresh }) => {
                     className={viewMode === 'shifts' ? 'btn-primary-sm' : 'btn-outline-sm'}
                     style={{ padding: '8px 16px', borderRadius: 8, cursor: 'pointer' }}
                 >
-                    📊 Shift Cards View
+                    Shift Cards View
                 </button>
                 <button 
                     onClick={() => setViewMode('table')}
                     className={viewMode === 'table' ? 'btn-primary-sm' : 'btn-outline-sm'}
                     style={{ padding: '8px 16px', borderRadius: 8, cursor: 'pointer' }}
                 >
-                    📋 Table View
+                    Table View
                 </button>
             </div>
             
@@ -403,7 +403,7 @@ const StaffRosterTab = ({ staff = [], onRefresh }) => {
                 >
                     {ROLES.map(r => (
                         <option key={r} value={r}>
-                            {r === 'all' ? '👥 All Roles' : `👤 ${ROLE_LABEL[r]}`}
+                            {r === 'all' ? 'All Roles' : ` ${ROLE_LABEL[r]}`}
                         </option>
                     ))}
                 </select>
@@ -508,7 +508,7 @@ const StaffRosterTab = ({ staff = [], onRefresh }) => {
                                         <tr key={m._id} style={{ borderBottom: '1px solid #E8D6CC' }}>
                                             <td style={{ padding: '14px 16px' }}>
                                                 <strong style={{ fontSize: '0.95rem' }}>{m.firstName} {m.lastName}</strong>
-                                                <div style={{ fontSize: 11, color: '#7A5C4E', marginTop: 4 }}>🆔 {m.staffId || m._id?.slice(-6) || '—'}</div>
+                                                <div style={{ fontSize: 11, color: '#7A5C4E', marginTop: 4 }}>{m.staffId || m._id?.slice(-6) || '—'}</div>
                                             </td>
                                             <td style={{ padding: '14px 16px' }}>
                                                 <span style={{

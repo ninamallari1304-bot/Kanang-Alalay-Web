@@ -9,6 +9,220 @@ const PER_PAGE = 10;
 const STATUSES = ['all', 'pending', 'approved', 'rejected', 'completed'];
 const PURPOSES = ['All', 'Outreach Program', 'Food Donation', 'Medical Mission', 'Facility Visit'];
 
+const STATUS_COLORS = {
+    pending:   { bg: '#FFF8E1', color: '#E65100', dot: '#ffc107' },
+    approved:  { bg: '#E8F5E9', color: '#1E7D56', dot: '#28a745' },
+    rejected:  { bg: '#FFF0F0', color: '#C0392B', dot: '#dc3545' },
+    completed: { bg: '#E3F2FD', color: '#0277BD', dot: '#17a2b8' },
+    urgent:    { bg: '#FFE0E0', color: '#B71C1C', dot: '#dc3545' },
+};
+
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DAY_NAMES   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+// ─── Calendar Component ───────────────────────────────────────────────────────
+const BookingCalendar = ({ bookings, onSelectBooking }) => {
+    const today = new Date();
+    const [calYear,  setCalYear]  = useState(today.getFullYear());
+    const [calMonth, setCalMonth] = useState(today.getMonth());
+
+    const prevMonth = () => {
+        if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
+        else setCalMonth(m => m - 1);
+    };
+    const nextMonth = () => {
+        if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); }
+        else setCalMonth(m => m + 1);
+    };
+    const goToToday = () => { setCalYear(today.getFullYear()); setCalMonth(today.getMonth()); };
+
+    // Build calendar grid
+    const firstDay = new Date(calYear, calMonth, 1).getDay();
+    const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+    const cells = [];
+    for (let i = 0; i < firstDay; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+    // Map bookings to dates
+    const bookingMap = {};
+    bookings.forEach(b => {
+        if (!b.visitDate) return;
+        const d = new Date(b.visitDate);
+        if (d.getFullYear() === calYear && d.getMonth() === calMonth) {
+            const key = d.getDate();
+            if (!bookingMap[key]) bookingMap[key] = [];
+            bookingMap[key].push(b);
+        }
+    });
+
+    const isToday = (day) =>
+        day === today.getDate() && calMonth === today.getMonth() && calYear === today.getFullYear();
+
+    // Status legend counts for this month
+    const monthBookings = bookings.filter(b => {
+        if (!b.visitDate) return false;
+        const d = new Date(b.visitDate);
+        return d.getFullYear() === calYear && d.getMonth() === calMonth;
+    });
+
+    const legendCounts = STATUSES.filter(s => s !== 'all').map(s => ({
+        status: s,
+        count: monthBookings.filter(b => b.status === s).length,
+    }));
+
+    return (
+        <div style={{ marginBottom: 24 }}>
+            <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid #E8D6CC', overflow: 'hidden', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
+
+                {/* Calendar header */}
+                <div style={{ padding: '16px 20px', borderBottom: '1.5px solid #E8D6CC', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#FFF8F3', flexWrap: 'wrap', gap: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <FaCalendarAlt style={{ color: '#b85c2d', fontSize: '1rem' }} />
+                        <h5 style={{ margin: 0, fontFamily: "'Playfair Display', serif", color: '#1A0A00', fontSize: '1rem' }}>
+                            Admission &amp; Booking — {MONTH_NAMES[calMonth]} {calYear}
+                        </h5>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        {/* Legend */}
+                        {legendCounts.map(({ status, count }) => count > 0 && (
+                            <span key={status} style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 5,
+                                padding: '3px 10px', borderRadius: 99,
+                                background: STATUS_COLORS[status]?.bg || '#f5f5f5',
+                                color: STATUS_COLORS[status]?.color || '#555',
+                                fontSize: '.72rem', fontWeight: 700,
+                            }}>
+                                <span style={{ width: 7, height: 7, borderRadius: '50%', background: STATUS_COLORS[status]?.dot || '#999', display: 'inline-block' }} />
+                                {status.charAt(0).toUpperCase() + status.slice(1)} ({count})
+                            </span>
+                        ))}
+                        <button
+                            onClick={() => handleExportPDF && handleExportPDF('bookings')}
+                            style={{ padding: '5px 12px', borderRadius: 8, border: '1.5px solid #E8D6CC', background: '#fff', color: '#b85c2d', fontWeight: 700, fontSize: '.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                        >
+                            <FaDownload size={11} /> Export PDF
+                        </button>
+                    </div>
+                </div>
+
+                {/* Month nav */}
+                <div style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #E8D6CC' }}>
+                    <button onClick={prevMonth} style={{ padding: '6px 12px', borderRadius: 8, border: '1.5px solid #E8D6CC', background: '#FFF8F3', cursor: 'pointer', color: '#7A5C4E', display: 'flex', alignItems: 'center' }}>
+                        <FaChevronLeft size={12} />
+                    </button>
+                    <button onClick={goToToday} style={{ padding: '6px 14px', borderRadius: 8, border: '1.5px solid #b85c2d', background: '#FFF8F3', cursor: 'pointer', color: '#b85c2d', fontWeight: 700, fontSize: '.8rem' }}>
+                        Today
+                    </button>
+                    {/* Year quick-select */}
+                    <select
+                        value={calYear}
+                        onChange={e => setCalYear(Number(e.target.value))}
+                        style={{ padding: '5px 10px', borderRadius: 8, border: '1.5px solid #E8D6CC', background: '#FFF8F3', color: '#1A0A00', fontSize: '.82rem', cursor: 'pointer' }}
+                    >
+                        {Array.from({ length: 6 }, (_, i) => today.getFullYear() - 2 + i).map(y => (
+                            <option key={y} value={y}>{y}</option>
+                        ))}
+                    </select>
+                    {/* Month quick-select */}
+                    <select
+                        value={calMonth}
+                        onChange={e => setCalMonth(Number(e.target.value))}
+                        style={{ padding: '5px 10px', borderRadius: 8, border: '1.5px solid #E8D6CC', background: '#FFF8F3', color: '#1A0A00', fontSize: '.82rem', cursor: 'pointer' }}
+                    >
+                        {MONTH_NAMES.map((m, i) => <option key={i} value={i}>{m}</option>)}
+                    </select>
+                    <button onClick={nextMonth} style={{ padding: '6px 12px', borderRadius: 8, border: '1.5px solid #E8D6CC', background: '#FFF8F3', cursor: 'pointer', color: '#7A5C4E', display: 'flex', alignItems: 'center' }}>
+                        <FaChevronRight size={12} />
+                    </button>
+                    <span style={{ marginLeft: 'auto', fontSize: '.78rem', color: '#7A5C4E' }}>
+                        {monthBookings.length} booking{monthBookings.length !== 1 ? 's' : ''} this month
+                    </span>
+                </div>
+
+                {/* Day headers */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid #E8D6CC' }}>
+                    {DAY_NAMES.map(d => (
+                        <div key={d} style={{ padding: '8px 6px', textAlign: 'center', fontSize: '.72rem', fontWeight: 700, color: '#7A5C4E', textTransform: 'uppercase', letterSpacing: '.05em', background: '#FFF8F3' }}>
+                            {d}
+                        </div>
+                    ))}
+                </div>
+
+                {/* Calendar cells */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                    {cells.map((day, idx) => {
+                        const dayBookings = day ? (bookingMap[day] || []) : [];
+                        const isTodayCell = isToday(day);
+                        return (
+                            <div
+                                key={idx}
+                                style={{
+                                    minHeight: 84,
+                                    padding: '6px',
+                                    borderRight: '1px solid #F0E6DE',
+                                    borderBottom: '1px solid #F0E6DE',
+                                    background: !day ? '#FAFAFA' : isTodayCell ? '#FFF3EC' : '#fff',
+                                    position: 'relative',
+                                    verticalAlign: 'top',
+                                }}
+                            >
+                                {day && (
+                                    <>
+                                        <div style={{
+                                            width: 26, height: 26, borderRadius: '50%',
+                                            background: isTodayCell ? '#b85c2d' : 'transparent',
+                                            color: isTodayCell ? '#fff' : '#1A0A00',
+                                            fontWeight: isTodayCell ? 700 : 500,
+                                            fontSize: '.82rem',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            marginBottom: 3,
+                                        }}>
+                                            {day}
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                            {dayBookings.slice(0, 3).map((b, bi) => {
+                                                const sc = STATUS_COLORS[b.status] || STATUS_COLORS.pending;
+                                                return (
+                                                    <div
+                                                        key={bi}
+                                                        onClick={() => onSelectBooking && onSelectBooking(b)}
+                                                        title={`${b.name} — ${b.purpose} (${b.status})`}
+                                                        style={{
+                                                            padding: '2px 6px',
+                                                            borderRadius: 5,
+                                                            background: sc.bg,
+                                                            color: sc.color,
+                                                            fontSize: '.65rem',
+                                                            fontWeight: 600,
+                                                            cursor: 'pointer',
+                                                            whiteSpace: 'nowrap',
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis',
+                                                            maxWidth: '100%',
+                                                            borderLeft: `3px solid ${sc.dot}`,
+                                                        }}
+                                                    >
+                                                        {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
+                                                    </div>
+                                                );
+                                            })}
+                                            {dayBookings.length > 3 && (
+                                                <div style={{ fontSize: '.62rem', color: '#7A5C4E', fontWeight: 600, paddingLeft: 2 }}>
+                                                    +{dayBookings.length - 3} more
+                                                </div>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const BookingManagementTab = ({ bookings, updateBookingStatus, handleViewDetails, handleEditBooking, handleExportPDF }) => {
     const [search, setSearch]         = useState('');
     const [statusFilter, setStatus]   = useState('all');
@@ -84,9 +298,16 @@ const BookingManagementTab = ({ bookings, updateBookingStatus, handleViewDetails
     const inp = { padding: '8px 12px', border: '1.5px solid #E8D6CC', borderRadius: 9, fontSize: '.85rem', background: '#FFF8F3', color: '#1A0A00', outline: 'none', fontFamily: "'DM Sans', sans-serif" };
 
     return (
+        <div>
+            {/* ── Full Calendar ── */}
+            <BookingCalendar
+                bookings={bookings}
+                onSelectBooking={(b) => handleViewDetails && handleViewDetails('booking', b)}
+            />
+
         <div className="card-white">
             <div className="card-header">
-                <h5>Booking Management</h5>
+                <h5>All Bookings</h5>
                 <div style={{ display: 'flex', gap: 8 }}>
                     <button className="btn-outline-sm" onClick={handlePrint}><FaPrint /> Print</button>
                     <button className="btn-primary-sm" onClick={() => handleExportPDF('bookings')}><FaDownload /> Export PDF</button>
@@ -178,6 +399,7 @@ const BookingManagementTab = ({ bookings, updateBookingStatus, handleViewDetails
                     )}
                 </>
             )}
+        </div>
         </div>
     );
 };

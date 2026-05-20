@@ -299,29 +299,160 @@ const ReportsSection = ({ stats = {}, bookings = [], donations = [], staff = [],
 
 // ─── Main OverviewTab ─────────────────────────────────────────────────────────
 const OverviewTab = ({ stats, activities, setActiveSection, bookings = [], donations = [], staff = [], inventory = [] }) => {
+    const totalDonationAmount = donations
+        .filter(d => d.paymentStatus === 'paid')
+        .reduce((s, d) => s + (d.amount || 0), 0);
+
+    const activeStaffCount = staff.filter(s => {
+        const st = s.status || (s.isActive ? 'active' : 'pending');
+        return st === 'active';
+    }).length;
+
+    const statCards = [
+        {
+            bg: '#b85c2d',
+            icon: <FaUsers />,
+            val: stats.totalResidents || 71,
+            label: 'Total Residents',
+            section: null,
+        },
+        {
+            bg: '#28a745',
+            icon: <FaUserMd />,
+            val: activeStaffCount,
+            label: 'Active Staff',
+            section: 'roster',
+        },
+        {
+            bg: '#17a2b8',
+            icon: <FaCalendarCheck />,
+            val: stats.pendingBookings,
+            label: 'Pending Bookings',
+            section: 'booking',
+        },
+        {
+            bg: '#6f42c1',
+            icon: <FaMoneyBillWave />,
+            val: `₱${totalDonationAmount.toLocaleString()}`,
+            label: 'Total Donations',
+            section: 'donation',
+        },
+        {
+            bg: '#dc3545',
+            icon: <FaExclamationTriangle />,
+            val: stats.lowStockItems || inventory.filter(i => i.quantity <= (i.minThreshold ?? 10)).length,
+            label: 'Low Stock Items',
+            section: 'inventory',
+        },
+        {
+            bg: '#ffc107',
+            icon: <FaChartBar />,
+            val: `${stats.complianceRate || 92}%`,
+            label: 'Compliance Rate',
+            section: null,
+        },
+    ];
+
     return (
         <div className="overview-content">
-            <div className="stats-grid">
-                <div className="stat-card clickable" onClick={() => setActiveSection('users')}>
-                    <div className="stat-icon" style={{ background: '#b85c2d' }}><FaUsers /></div>
-                    <div className="stat-info">
-                        <h3>{stats.staffOnDuty}</h3><p>Staff On Duty</p>
+
+            {/* ── 6 Stat Cards ── */}
+            <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginBottom: 24 }}>
+                {statCards.map((s, i) => (
+                    <div
+                        key={i}
+                        className={`stat-card ${s.section ? 'clickable' : ''}`}
+                        onClick={() => s.section && setActiveSection(s.section)}
+                        style={{ cursor: s.section ? 'pointer' : 'default' }}
+                    >
+                        <div className="stat-icon" style={{ background: s.bg }}>{s.icon}</div>
+                        <div className="stat-info">
+                            <h3>{s.val}</h3><p>{s.label}</p>
+                        </div>
                     </div>
+                ))}
+            </div>
+
+            {/* ── Recent Bookings + Recent Donations ── */}
+            <div className="content-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
+                {/* Recent Bookings */}
+                <div className="card-white" style={{ background: '#fff', borderRadius: 16, padding: 0, overflow: 'hidden' }}>
+                    <div className="card-header" style={{ padding: '16px 20px', borderBottom: '1px solid #E8D6CC', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <h5 style={{ margin: 0 }}>Recent Bookings</h5>
+                        <button
+                            className="btn-view-all"
+                            onClick={() => setActiveSection('booking')}
+                            style={{ background: 'none', border: 'none', color: '#F96B38', cursor: 'pointer', fontWeight: 600, fontSize: '.82rem' }}
+                        >
+                            View All →
+                        </button>
+                    </div>
+                    {bookings.length === 0 ? (
+                        <div className="no-data" style={{ padding: '40px', textAlign: 'center', color: '#7A5C4E', fontStyle: 'italic' }}>No bookings yet.</div>
+                    ) : (
+                        <table className="custom-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr style={{ background: '#FFF8F3' }}>
+                                    <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: '.78rem', color: '#7A5C4E', textTransform: 'uppercase', letterSpacing: '.05em' }}>Name</th>
+                                    <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: '.78rem', color: '#7A5C4E', textTransform: 'uppercase', letterSpacing: '.05em' }}>Date</th>
+                                    <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: '.78rem', color: '#7A5C4E', textTransform: 'uppercase', letterSpacing: '.05em' }}>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {bookings.slice(0, 5).map(b => (
+                                    <tr key={b._id} style={{ borderBottom: '1px solid #E8D6CC' }}>
+                                        <td style={{ padding: '10px 16px', fontWeight: 500 }}>{b.name}</td>
+                                        <td style={{ padding: '10px 16px', color: '#7A5C4E', fontSize: '.84rem' }}>{new Date(b.visitDate).toLocaleDateString()}</td>
+                                        <td style={{ padding: '10px 16px' }}>
+                                            <span className={`status ${b.status}`} style={{ padding: '3px 10px', borderRadius: 20, fontSize: '.72rem', fontWeight: 600 }}>{b.status}</span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
                 </div>
-                <div className="stat-card clickable" onClick={() => setActiveSection('bookings')}>
-                    <div className="stat-icon" style={{ background: '#17a2b8' }}><FaCalendarCheck /></div>
-                    <div className="stat-info">
-                        <h3>{stats.pendingBookings}</h3><p>Pending Bookings</p>
+
+                {/* Recent Donations */}
+                <div className="card-white" style={{ background: '#fff', borderRadius: 16, padding: 0, overflow: 'hidden' }}>
+                    <div className="card-header" style={{ padding: '16px 20px', borderBottom: '1px solid #E8D6CC', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <h5 style={{ margin: 0 }}>Recent Donations</h5>
+                        <button
+                            className="btn-view-all"
+                            onClick={() => setActiveSection('donation')}
+                            style={{ background: 'none', border: 'none', color: '#F96B38', cursor: 'pointer', fontWeight: 600, fontSize: '.82rem' }}
+                        >
+                            View All →
+                        </button>
                     </div>
-                </div>
-                <div className="stat-card clickable" onClick={() => setActiveSection('inventory')}>
-                    <div className="stat-icon" style={{ background: '#dc3545' }}><FaExclamationTriangle /></div>
-                    <div className="stat-info">
-                        <h3>{stats.lowStockItems}</h3><p>Low Stock Items</p>
-                    </div>
+                    {donations.length === 0 ? (
+                        <div className="no-data" style={{ padding: '40px', textAlign: 'center', color: '#7A5C4E', fontStyle: 'italic' }}>No donations yet.</div>
+                    ) : (
+                        <table className="custom-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr style={{ background: '#FFF8F3' }}>
+                                    <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: '.78rem', color: '#7A5C4E', textTransform: 'uppercase', letterSpacing: '.05em' }}>Donor</th>
+                                    <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: '.78rem', color: '#7A5C4E', textTransform: 'uppercase', letterSpacing: '.05em' }}>Amount</th>
+                                    <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: '.78rem', color: '#7A5C4E', textTransform: 'uppercase', letterSpacing: '.05em' }}>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {donations.slice(0, 5).map(d => (
+                                    <tr key={d._id} style={{ borderBottom: '1px solid #E8D6CC' }}>
+                                        <td style={{ padding: '10px 16px', fontWeight: 500 }}>{d.donorName}</td>
+                                        <td style={{ padding: '10px 16px', color: '#28a745', fontWeight: 600 }}>₱{d.amount?.toLocaleString()}</td>
+                                        <td style={{ padding: '10px 16px' }}>
+                                            <span className={`status ${d.paymentStatus}`} style={{ padding: '3px 10px', borderRadius: 20, fontSize: '.72rem', fontWeight: 600 }}>{d.paymentStatus}</span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
                 </div>
             </div>
 
+            {/* ── Recent Activity Feed ── */}
             <div className="card-white">
                 <div className="card-header">
                     <h5>Recent Activity Feed</h5>
@@ -342,7 +473,7 @@ const OverviewTab = ({ stats, activities, setActiveSection, bookings = [], donat
                 </div>
             </div>
 
-            {/* Reports & Analytics embedded below */}
+            {/* ── Reports & Analytics ── */}
             <ReportsSection
                 stats={stats}
                 bookings={bookings}
