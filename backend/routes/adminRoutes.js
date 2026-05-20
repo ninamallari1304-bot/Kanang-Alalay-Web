@@ -10,6 +10,8 @@ const RegistrationCode = require('../models/VerificationCode');
 const StockRequest = require('../models/StockRequest');
 const VitalsLog = require('../models/VitalsLog');
 const ActivityLog = require('../models/ActivityLog');
+const MedicationLog = require('../models/MedicationLog');
+const Resident = require('../models/Resident');
 
 const { protect, adminOrHeadCaregiver } = require('../middleware/authMiddleware');
 const { sendEmail, generateOtpTemplate } = require('../models/mailer');
@@ -188,6 +190,8 @@ router.post('/create-user', async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 router.post('/create-user-enhanced', async (req, res) => {
     try {
+        console.log('📝 Create user request received:', JSON.stringify(req.body, null, 2));
+        
         const {
             firstName,
             lastName,
@@ -257,6 +261,8 @@ router.post('/create-user-enhanced', async (req, res) => {
 
         // Generate username from email (ensure uniqueness)
         let username = email.split('@')[0].toLowerCase();
+        // Remove special characters from username
+        username = username.replace(/[^a-z0-9]/g, '');
         let usernameAttempt = username;
         let counter = 1;
         
@@ -297,6 +303,7 @@ router.post('/create-user-enhanced', async (req, res) => {
         });
 
         await user.save();
+        console.log('✅ User created successfully:', user._id);
 
         // ── SEND WELCOME EMAIL ──────────────────────────────────────────────
         const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login`;
@@ -366,6 +373,7 @@ router.post('/create-user-enhanced', async (req, res) => {
 
         try {
             await sendEmail(email.trim().toLowerCase(), 'Your Kanang-Alalay Account Credentials', welcomeHtml);
+            console.log('📧 Welcome email sent to:', email);
         } catch (mailErr) {
             console.error('Welcome email error (account still created):', mailErr.message);
         }
@@ -387,14 +395,23 @@ router.post('/create-user-enhanced', async (req, res) => {
 
     } catch (error) {
         console.error('Create enhanced user error:', error);
-
+        
         if (error.code === 11000) {
+            const field = Object.keys(error.keyPattern)[0];
             return res.status(400).json({
                 success: false,
-                message: 'Email or username already exists.'
+                message: `A user with this ${field} already exists.`
             });
         }
-
+        
+        if (error.name === 'ValidationError') {
+            const errors = Object.values(error.errors).map(e => e.message);
+            return res.status(400).json({
+                success: false,
+                message: 'Validation error: ' + errors.join(', ')
+            });
+        }
+        
         res.status(500).json({
             success: false,
             message: 'Server error: ' + error.message
@@ -434,7 +451,6 @@ router.put('/bookings/:id/status', async (req, res) => {
 
         await booking.save();
 
-        // Send email notification (non-blocking)
         if (status === 'rejected' && rejectionReason) {
             try {
                 const { generateBookingRejectionTemplate } = require('../models/mailer');
@@ -593,7 +609,6 @@ router.put('/staff/:id/status', async (req, res) => {
 
         await target.save();
 
-        // Log activity
         await ActivityLog.create({
             action: 'STATUS_CHANGE',
             details: `Status changed to "${status}" for ${target.firstName} ${target.lastName}`,
@@ -654,7 +669,6 @@ router.put('/staff/:id/role', async (req, res) => {
         user.role = role;
         await user.save();
 
-        // Log activity
         await ActivityLog.create({
             action: 'ROLE_CHANGE',
             details: `Role changed from "${oldRole}" to "${role}" for ${user.firstName} ${user.lastName}`,
@@ -806,7 +820,7 @@ router.get('/stats', async (req, res) => {
         res.json({
             success: true,
             data: {
-                totalResidents: 71,
+                totalResidents: await Resident.countDocuments({ status: 'active' }),
                 activeStaff,
                 pendingBookings,
                 totalDonations,
@@ -1114,7 +1128,6 @@ router.put('/users/:id', async (req, res) => {
             });
         }
 
-        // Prevent admin from changing their own role to something lower
         if (target._id.toString() === req.user._id.toString() && role && role !== 'admin') {
             return res.status(400).json({
                 success: false,
@@ -1122,7 +1135,6 @@ router.put('/users/:id', async (req, res) => {
             });
         }
 
-        // Check email uniqueness if changing
         if (email && email.toLowerCase() !== target.email) {
             const emailExists = await User.findOne({
                 email: email.trim().toLowerCase(),
@@ -1142,7 +1154,6 @@ router.put('/users/:id', async (req, res) => {
         if (phone !== undefined) target.phone = phone.trim();
         if (role) target.role = role;
 
-        // If role changed, log it
         if (role && role !== target.role) {
             await ActivityLog.create({
                 action: 'ROLE_CHANGE',
