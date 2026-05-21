@@ -899,7 +899,31 @@ const HeadCaregiverDashboard = () => {
     const fetchCaregivers = useCallback(async () => {
         const r = await doFetch('/head-caregiver/caregivers');
         if (r.success) {
-            setCaregivers(r.data || []);
+            const caregiverList = r.data || [];
+            if (caregiverList.length > 0) {
+                setCaregivers(caregiverList);
+                return;
+            }
+        }
+
+        const staffR = await doFetch('/admin/staff');
+        if (staffR.success) {
+            const staff = staffR.staff || staffR.data || [];
+            setCaregivers(staff
+                .filter(member =>
+                    ['caregiver', 'head_caregiver'].includes(member.role) &&
+                    !['terminated', 'deactivated'].includes(member.status)
+                )
+                .map(member => ({
+                    _id: member._id,
+                    name: `${member.firstName || ''} ${member.lastName || ''}`.trim(),
+                    firstName: member.firstName || '',
+                    lastName: member.lastName || '',
+                    role: member.role,
+                    email: member.email,
+                    staffId: member.staffId,
+                    status: member.status
+                })));
         }
     }, [doFetch]);
 
