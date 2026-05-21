@@ -11,6 +11,44 @@ const { protect } = require('../middleware/authMiddleware');
 
 router.use(protect);
 
+function requireHeadCaregiver(req, res) {
+    if (req.user?.role !== 'head_caregiver') {
+        res.status(403).json({
+            success: false,
+            message: 'Only a head caregiver can assign caregivers to residents.'
+        });
+        return false;
+    }
+    return true;
+}
+
+function shapeResident(r) {
+    return {
+        _id: r._id,
+        residentId: r.residentId,
+        name: `${r.firstName} ${r.lastName}`.trim(),
+        firstName: r.firstName,
+        lastName: r.lastName,
+        nickname: r.nickname || '',
+        age: r.age,
+        gender: r.gender,
+        room: r.roomNumber,
+        floor: r.floor || '',
+        bed: r.bed || '',
+        conditions: (r.medicalConditions || []).map(c => c.name || c),
+        alertLevel: r.alertLevel || 'stable',
+        medicationOverdue: r.medicationOverdue || false,
+        overdueMed: r.overdueMed || '',
+        overdueAt: r.overdueAt || null,
+        nextMed: r.nextMed || '',
+        primaryCaregiver: r.primaryCaregiver,
+        primaryCaregiverName: r.primaryCaregiverName,
+        primaryCaregiverId: r.primaryCaregiverId,
+        assignedCaregiver: r.assignedCaregiver,
+        status: r.status,
+    };
+}
+
 function shapeLog(l) {
     const r = l.residentId;
     const m = l.medicationId;
@@ -272,6 +310,55 @@ router.put('/residents/:id', async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 // LOG VITAL SIGNS
 // ─────────────────────────────────────────────────────────────
+router.patch('/residents/:id/assign-caregiver', async (req, res) => {
+    try {
+        if (!requireHeadCaregiver(req, res)) return;
+
+        const { caregiverId } = req.body;
+        if (!caregiverId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Caregiver is required.'
+            });
+        }
+
+        const [resident, caregiver] = await Promise.all([
+            Resident.findById(req.params.id),
+            User.findOne({
+                _id: caregiverId,
+                role: 'caregiver',
+                status: { $nin: ['terminated', 'deactivated'] }
+            })
+        ]);
+
+        if (!resident) {
+            return res.status(404).json({ success: false, message: 'Resident not found.' });
+        }
+        if (!caregiver) {
+            return res.status(404).json({ success: false, message: 'Caregiver not found.' });
+        }
+
+        const caregiverName = `${caregiver.firstName} ${caregiver.lastName}`.trim();
+        resident.primaryCaregiver = caregiverName;
+        resident.primaryCaregiverName = caregiverName;
+        resident.primaryCaregiverId = caregiver._id;
+        resident.assignedCaregiver = caregiverName;
+        resident.assignedNurse = caregiverName;
+        await resident.save();
+
+        const updated = await Resident.findById(resident._id)
+            .populate('primaryCaregiverId', 'firstName lastName role');
+
+        res.json({
+            success: true,
+            data: shapeResident(updated),
+            message: `${caregiverName} assigned to ${updated.firstName} ${updated.lastName}`.trim()
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 router.post('/residents/:id/vitals', async (req, res) => {
     try {
         const { bloodPressure, heartRate, temperature, oxygenSat, weight, notes } = req.body;

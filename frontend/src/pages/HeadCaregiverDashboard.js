@@ -425,6 +425,78 @@ const VitalsModal = ({ resident, onClose, doFetch, toast }) => {
 // ════════════════════════════════════════════════════════════
 //  MODAL: View Full Profile
 // ════════════════════════════════════════════════════════════
+const AssignCaregiverModal = ({ resident, caregivers, onClose, onSaved, doFetch, toast, fetchCaregivers }) => {
+    const currentCaregiverId = typeof resident.primaryCaregiverId === 'object'
+        ? resident.primaryCaregiverId?._id
+        : resident.primaryCaregiverId;
+    const [caregiverId, setCaregiverId] = useState(currentCaregiverId || '');
+    const [saving, setSaving] = useState(false);
+    const residentName = resident.name || [resident.firstName, resident.lastName].filter(Boolean).join(' ') || 'Resident';
+    const availableCaregivers = caregivers.filter(c => c.role === 'caregiver');
+
+    useEffect(() => {
+        if (fetchCaregivers) fetchCaregivers();
+    }, [fetchCaregivers]);
+
+    const submit = async () => {
+        if (!caregiverId) {
+            toast('Please select a caregiver.', 'error');
+            return;
+        }
+
+        setSaving(true);
+        const r = await doFetch(`/head-caregiver/residents/${resident._id}/assign-caregiver`, {
+            method: 'PATCH',
+            body: JSON.stringify({ caregiverId })
+        });
+        setSaving(false);
+
+        if (r.success) {
+            onSaved(r.data);
+            toast(r.message || `Caregiver assigned to ${residentName}.`);
+            onClose();
+        } else {
+            toast(r.message || 'Failed to assign caregiver.', 'error');
+        }
+    };
+
+    return (
+        <div className="modal-overlay">
+            <div className="registration-modal modal-md">
+                <MHeader icon={<FaUserMd />} title={`Assign Caregiver - ${residentName}`} onClose={onClose} />
+                <div className="modal-body">
+                    <Field label="Current Caregiver">
+                        <input
+                            className="form-input"
+                            value={resident.primaryCaregiverName || resident.primaryCaregiver || 'Unassigned'}
+                            disabled
+                        />
+                    </Field>
+                    <Field label="Caregiver" required>
+                        <select className="form-input" value={caregiverId} onChange={e => setCaregiverId(e.target.value)}>
+                            <option value="">Select a caregiver</option>
+                            {availableCaregivers.map(c => (
+                                <option key={c._id} value={c._id}>
+                                    {c.firstName} {c.lastName} ({c.staffId || 'Caregiver'})
+                                </option>
+                            ))}
+                        </select>
+                        {availableCaregivers.length === 0 && (
+                            <small className="field-hint" style={{ color: 'var(--d-orange-dk)' }}>
+                                No caregiver accounts found. Add a caregiver in admin first.
+                            </small>
+                        )}
+                    </Field>
+                    <div className="modal-footer">
+                        <button className="btn-outline-sm" onClick={onClose}>Cancel</button>
+                        <SaveBtn saving={saving} label="Assign Caregiver" onClick={submit} disabled={!caregiverId || availableCaregivers.length === 0} />
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const ProfileModal = ({ resident, schedule, onClose }) => {
     const resName = resident.name || [resident.firstName, resident.lastName].filter(Boolean).join(' ') || 'Resident';
     const todayMeds = (schedule || []).filter(l =>
@@ -1168,35 +1240,41 @@ const HeadCaregiverDashboard = () => {
                                         )}
                                     </div>
                                     <div className="res-action-icons">
-                                        {allDone ? (
+                                        {allDone && (
                                             <span className="res-completed-icon" title="All medications completed for today">
                                                 <FaCheckCircle /> Done
                                             </span>
-                                        ) : (
-                                            <div className="res-action-icons-group">
-                                                <button 
-                                                    className="res-action-icon" 
-                                                    onClick={() => setModal({type:'profile',data:r})}
-                                                    title="View Profile"
-                                                >
-                                                    <FaEye />
-                                                </button>
-                                                <button 
-                                                    className="res-action-icon" 
-                                                    onClick={() => setModal({type:'vitals',data:r})}
-                                                    title="Log Vitals"
-                                                >
-                                                    <FaHeartbeat />
-                                                </button>
-                                                <button 
-                                                    className="res-action-icon" 
-                                                    onClick={() => setModal({type:'history',data:r})}
-                                                    title="Medication History"
-                                                >
-                                                    <FaPills />
-                                                </button>
-                                            </div>
                                         )}
+                                        <div className="res-action-icons-group">
+                                            <button
+                                                className="res-action-icon"
+                                                onClick={() => setModal({type:'profile',data:r})}
+                                                title="View Profile"
+                                            >
+                                                <FaEye />
+                                            </button>
+                                            <button
+                                                className="res-action-icon"
+                                                onClick={() => setModal({type:'vitals',data:r})}
+                                                title="Log Vitals"
+                                            >
+                                                <FaHeartbeat />
+                                            </button>
+                                            <button
+                                                className="res-action-icon"
+                                                onClick={() => setModal({type:'history',data:r})}
+                                                title="Medication History"
+                                            >
+                                                <FaPills />
+                                            </button>
+                                            <button
+                                                className="res-action-icon"
+                                                onClick={() => setModal({type:'assignCaregiver',data:r})}
+                                                title="Assign Caregiver"
+                                            >
+                                                <FaUserMd />
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                                 {r.medicationOverdue && (
@@ -1484,6 +1562,15 @@ const HeadCaregiverDashboard = () => {
                 fetchCaregivers={fetchCaregivers}
             />}
             {modal?.type === 'profile' && <ProfileModal onClose={() => setModal(null)} resident={modal.data} schedule={schedule} />}
+            {modal?.type === 'assignCaregiver' && <AssignCaregiverModal
+                onClose={() => setModal(null)}
+                resident={modal.data}
+                caregivers={caregivers}
+                fetchCaregivers={fetchCaregivers}
+                doFetch={doFetch}
+                toast={toast}
+                onSaved={updated => setResidents(p => p.map(r => r._id === updated._id ? updated : r))}
+            />}
             {modal?.type === 'vitals' && <VitalsModal onClose={() => setModal(null)} resident={modal.data} doFetch={doFetch} toast={toast} />}
             {modal?.type === 'history' && <HistoryModal onClose={() => setModal(null)} resident={modal.data} doFetch={doFetch} />}
             {modal?.type === 'addSchedule' && <AddScheduleModal onClose={() => setModal(null)} residents={residents} medications={medications} onSaved={l => setSchedule(p => [...p, l])} doFetch={doFetch} toast={toast} defaultResident={modal.data ? { _id: modal.data.residentId } : null} />}
