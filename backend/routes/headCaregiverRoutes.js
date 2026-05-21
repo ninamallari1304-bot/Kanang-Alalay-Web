@@ -76,6 +76,53 @@ function shapeLog(l) {
     };
 }
 
+function parseVitalNumber(value, label, min, max, errors) {
+    if (value === undefined || value === null) return null;
+    const normalized = String(value).trim();
+    if (normalized === '') return null;
+    const number = Number(normalized);
+    if (!Number.isFinite(number)) {
+        errors.push(`${label} must be a number.`);
+        return null;
+    }
+    if (number < min || number > max) {
+        errors.push(`${label} must be between ${min} and ${max}.`);
+        return null;
+    }
+    return number;
+}
+
+function validateVitalsInput(body) {
+    const errors = [];
+    const bloodPressure = String(body.bloodPressure || '').trim();
+    const notes = String(body.notes || '').trim();
+
+    if (bloodPressure) {
+        if (!/^\d{2,3}\/\d{2,3}$/.test(bloodPressure)) {
+            errors.push('Blood pressure must be in format 120/80.');
+        } else {
+            const [systolic, diastolic] = bloodPressure.split('/').map(Number);
+            if (systolic < 60 || systolic > 250) errors.push('Systolic blood pressure must be between 60 and 250.');
+            if (diastolic < 30 || diastolic > 150) errors.push('Diastolic blood pressure must be between 30 and 150.');
+            if (systolic <= diastolic) errors.push('Systolic blood pressure must be higher than diastolic.');
+        }
+    }
+
+    const vitals = {
+        bloodPressure,
+        heartRate: parseVitalNumber(body.heartRate, 'Heart rate', 20, 300, errors),
+        temperature: parseVitalNumber(body.temperature, 'Temperature', 30, 45, errors),
+        oxygenSat: parseVitalNumber(body.oxygenSat, 'Oxygen saturation', 50, 100, errors),
+        weight: parseVitalNumber(body.weight, 'Weight', 1, 300, errors),
+        notes,
+    };
+
+    if (notes.length > 500) errors.push('Notes must be 500 characters or fewer.');
+    const hasAnyVital = bloodPressure || vitals.heartRate !== null || vitals.temperature !== null || vitals.oxygenSat !== null || vitals.weight !== null;
+    if (!hasAnyVital) errors.push('Please provide at least one vital sign.');
+
+    return { errors, vitals };
+}
 async function autoMarkOverdue(logs) {
     const now = new Date();
     const toUpdate = logs.filter(l =>
@@ -361,28 +408,27 @@ router.patch('/residents/:id/assign-caregiver', async (req, res) => {
 
 router.post('/residents/:id/vitals', async (req, res) => {
     try {
-        const { bloodPressure, heartRate, temperature, oxygenSat, weight, notes } = req.body;
-
         const resident = await Resident.findById(req.params.id);
         if (!resident) return res.status(404).json({ success: false, message: 'Resident not found.' });
+
+        const { errors, vitals: cleanVitals } = validateVitalsInput(req.body || {});
+        if (errors.length) {
+            return res.status(400).json({ success: false, message: errors[0], errors });
+        }
 
         const vitals = new VitalsLog({
             residentId: req.params.id,
             loggedBy: req.user._id,
-            bloodPressure: bloodPressure || '',
-            heartRate: heartRate ? +heartRate : null,
-            temperature: temperature ? +temperature : null,
-            oxygenSat: oxygenSat ? +oxygenSat : null,
-            weight: weight ? +weight : null,
-            notes: notes || '',
+            ...cleanVitals,
         });
         await vitals.save();
 
         let alertLevel = resident.alertLevel || 'stable';
-        if ((+temperature > 38.5) || (+heartRate > 100) || (+oxygenSat < 94)) {
+        const { heartRate, temperature, oxygenSat } = cleanVitals;
+        if ((temperature !== null && temperature > 38.5) || (heartRate !== null && heartRate > 100) || (oxygenSat !== null && oxygenSat < 94)) {
             alertLevel = 'alert';
         }
-        if ((+temperature > 39.5) || (+heartRate > 120) || (+oxygenSat < 90)) {
+        if ((temperature !== null && temperature > 39.5) || (heartRate !== null && heartRate > 120) || (oxygenSat !== null && oxygenSat < 90)) {
             alertLevel = 'critical';
         }
         if (alertLevel !== resident.alertLevel) {
@@ -394,8 +440,6 @@ router.post('/residents/:id/vitals', async (req, res) => {
         res.status(500).json({ success: false, message: err.message });
     }
 });
-
-// ─────────────────────────────────────────────────────────────
 // GET VITALS HISTORY
 // ─────────────────────────────────────────────────────────────
 router.get('/residents/:id/vitals', async (req, res) => {

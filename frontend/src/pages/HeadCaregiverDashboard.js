@@ -363,13 +363,28 @@ const VitalsModal = ({ resident, onClose, doFetch, toast }) => {
         if (f.bloodPressure && !/^\d{2,3}\/\d{2,3}$/.test(f.bloodPressure.trim())) {
             setVitalsErr('Blood pressure must be in format 120/80.'); return;
         }
+        if (f.bloodPressure) {
+            const [systolic, diastolic] = f.bloodPressure.trim().split('/').map(Number);
+            if (systolic < 60 || systolic > 250) { setVitalsErr('Systolic blood pressure must be between 60-250.'); return; }
+            if (diastolic < 30 || diastolic > 150) { setVitalsErr('Diastolic blood pressure must be between 30-150.'); return; }
+            if (systolic <= diastolic) { setVitalsErr('Systolic blood pressure must be higher than diastolic.'); return; }
+        }
         if (f.heartRate && (+f.heartRate < 20 || +f.heartRate > 300)) { setVitalsErr('Heart rate must be between 20–300 bpm.'); return; }
         if (f.temperature && (+f.temperature < 30 || +f.temperature > 45)) { setVitalsErr('Temperature must be between 30–45 °C.'); return; }
         if (f.oxygenSat && (+f.oxygenSat < 50 || +f.oxygenSat > 100)) { setVitalsErr('Oxygen saturation must be between 50–100%.'); return; }
-        if (f.weight && (+f.weight < 1 || +f.weight > 300)) { setVitalsErr('Weight must be between 1–300 kg.'); return; }
+        if (f.weight && (+f.weight < 1 || +f.weight > 300)) { setVitalsErr('Weight must be between 1-300 kg.'); return; }
+        if (f.notes.length > 500) { setVitalsErr('Notes must be 500 characters or fewer.'); return; }
         setVitalsErr('');
         setSaving(true);
-        const r = await doFetch(`/head-caregiver/residents/${resident._id}/vitals`, { method: 'POST', body: JSON.stringify(f) });
+        const payload = {
+            bloodPressure: f.bloodPressure.trim(),
+            heartRate: f.heartRate.trim(),
+            temperature: f.temperature.trim(),
+            oxygenSat: f.oxygenSat.trim(),
+            weight: f.weight.trim(),
+            notes: f.notes.trim(),
+        };
+        const r = await doFetch(`/head-caregiver/residents/${resident._id}/vitals`, { method: 'POST', body: JSON.stringify(payload) });
         setSaving(false);
         if (r.success) { toast(`Vitals logged for ${resident.name || resident.firstName || 'resident'}.`); onClose(); }
         else toast(r.message || 'Failed.', 'error');
@@ -389,28 +404,28 @@ const VitalsModal = ({ resident, onClose, doFetch, toast }) => {
                     )}
                     <div className="form-grid-2">
                         <Field label="Blood Pressure (mmHg)">
-                            <input className="form-input" value={f.bloodPressure} placeholder="e.g. 120/80"
+                            <input className="form-input" value={f.bloodPressure} placeholder="e.g. 120/80" inputMode="numeric" maxLength="7"
                                 onChange={e => {
                                     let val = e.target.value.replace(/[^0-9/]/g, '');
                                     if (val.length === 3 && !val.includes('/')) { val = val + '/'; }
-                                    setField('bloodPressure', val);
+                                    setField('bloodPressure', val.slice(0, 7));
                                 }} />
                         </Field>
                         <Field label="Heart Rate (bpm)">
-                            <input type="number" className="form-input" value={f.heartRate} onChange={e => setField('heartRate', e.target.value)} placeholder="e.g. 72" />
+                            <input type="number" min="20" max="300" className="form-input" value={f.heartRate} onChange={e => setField('heartRate', e.target.value)} placeholder="e.g. 72" />
                         </Field>
                         <Field label="Temperature (°C)">
-                            <input type="number" step="0.1" className="form-input" value={f.temperature} onChange={e => setField('temperature', e.target.value)} placeholder="e.g. 36.5" />
+                            <input type="number" min="30" max="45" step="0.1" className="form-input" value={f.temperature} onChange={e => setField('temperature', e.target.value)} placeholder="e.g. 36.5" />
                         </Field>
                         <Field label="Oxygen Saturation (%)">
-                            <input type="number" className="form-input" value={f.oxygenSat} onChange={e => setField('oxygenSat', e.target.value)} placeholder="e.g. 98" />
+                            <input type="number" min="50" max="100" className="form-input" value={f.oxygenSat} onChange={e => setField('oxygenSat', e.target.value)} placeholder="e.g. 98" />
                         </Field>
                         <Field label="Weight (kg)">
-                            <input type="number" step="0.1" className="form-input" value={f.weight} onChange={e => setField('weight', e.target.value)} placeholder="e.g. 55" />
+                            <input type="number" min="1" max="300" step="0.1" className="form-input" value={f.weight} onChange={e => setField('weight', e.target.value)} placeholder="e.g. 55" />
                         </Field>
                     </div>
                     <Field label="Notes">
-                        <textarea rows={3} className="form-input" value={f.notes} onChange={e => setField('notes', e.target.value)} placeholder="Observations or remarks…" />
+                        <textarea rows={3} maxLength="500" className="form-input" value={f.notes} onChange={e => setField('notes', e.target.value)} placeholder="Observations or remarks…" />
                     </Field>
                     <div className="modal-footer">
                         <button className="btn-outline-sm" onClick={onClose}>Cancel</button>
@@ -704,7 +719,7 @@ const AddScheduleModal = ({ residents, medications, onClose, onSaved, doFetch, t
                         </Field>
                     </div>
                     <Field label="Notes">
-                        <textarea rows={3} className="form-input" value={f.notes} onChange={e => setField('notes', e.target.value)} placeholder="Special instructions…" />
+                        <textarea rows={3} maxLength="500" className="form-input" value={f.notes} onChange={e => setField('notes', e.target.value)} placeholder="Special instructions…" />
                     </Field>
                     <div className="modal-footer">
                         <button className="btn-outline-sm" onClick={onClose}>Cancel</button>
@@ -751,7 +766,7 @@ const EditScheduleModal = ({ log, onClose, onSaved, doFetch, toast }) => {
                         <input className="form-input" value={f.dosage} onChange={e => setField('dosage', e.target.value)} placeholder="e.g. 1 tablet" />
                     </Field>
                     <Field label="Notes">
-                        <textarea rows={3} className="form-input" value={f.notes} onChange={e => setField('notes', e.target.value)} />
+                        <textarea rows={3} maxLength="500" className="form-input" value={f.notes} onChange={e => setField('notes', e.target.value)} />
                     </Field>
                     <div className="modal-footer">
                         <button className="btn-outline-sm" onClick={onClose}>Cancel</button>
