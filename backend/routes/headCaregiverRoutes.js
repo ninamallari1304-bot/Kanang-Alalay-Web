@@ -45,6 +45,8 @@ function shapeResident(r) {
         primaryCaregiverName: r.primaryCaregiverName,
         primaryCaregiverId: r.primaryCaregiverId,
         assignedCaregiver: r.assignedCaregiver,
+        latestVitals: r.latestVitals || null,
+        vitalLogs: r.vitalLogs || [],
         status: r.status,
     };
 }
@@ -123,6 +125,40 @@ function validateVitalsInput(body) {
 
     return { errors, vitals };
 }
+
+function escapeRegex(value) {
+    return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizeId(value) {
+    if (!value) return '';
+    if (typeof value === 'object') return String(value._id || value.id || '');
+    return String(value);
+}
+
+function getCaregiverName(caregiver) {
+    return `${caregiver.firstName || ''} ${caregiver.lastName || ''}`.trim();
+}
+
+async function findAssignableCaregiver(caregiverId) {
+    const id = normalizeId(caregiverId);
+    if (!id) return null;
+    const query = {
+        role: /^caregiver$/i,
+        status: { $nin: ['terminated', 'deactivated', 'Terminated', 'Deactivated'] }
+    };
+    if (User.db.base.Types.ObjectId.isValid(id)) {
+        return User.findOne({ _id: id, ...query });
+    }
+    return User.findOne({
+        ...query,
+        $or: [
+            { staffId: id },
+            { email: new RegExp(`^${escapeRegex(id)}$`, 'i') },
+            { username: new RegExp(`^${escapeRegex(id)}$`, 'i') }
+        ]
+    });
+}
 async function autoMarkOverdue(logs) {
     const now = new Date();
     const toUpdate = logs.filter(l =>
@@ -144,8 +180,8 @@ router.get('/caregivers', async (req, res) => {
     try {
         const caregivers = await User.find(
             { 
-                role: 'caregiver',
-                status: { $nin: ['terminated', 'deactivated'] }
+                role: /^caregiver$/i,
+                status: { $nin: ['terminated', 'deactivated', 'Terminated', 'Deactivated'] }
             },
             'firstName lastName role email staffId status'
         ).sort({ firstName: 1 });
@@ -212,17 +248,17 @@ router.post('/residents', async (req, res) => {
         
         // PRIORITY 1: Use primaryCaregiverId if provided (this is the preferred method)
         if (primaryCaregiverId) {
-            const caregiver = await User.findOne({ _id: primaryCaregiverId, role: 'caregiver', status: { $nin: ['terminated', 'deactivated'] } });
+            const caregiver = await findAssignableCaregiver(primaryCaregiverId);
             if (caregiver) {
-                finalPrimaryCaregiverName = `${caregiver.firstName} ${caregiver.lastName}`;
+                finalPrimaryCaregiverName = getCaregiverName(caregiver);
                 finalPrimaryCaregiverId = caregiver._id;
             }
         }
         // PRIORITY 2: Fall back to primaryCaregiver as ID string
         else if (primaryCaregiver && primaryCaregiver !== '') {
-            const caregiver = await User.findOne({ _id: primaryCaregiver, role: 'caregiver', status: { $nin: ['terminated', 'deactivated'] } });
+            const caregiver = await findAssignableCaregiver(primaryCaregiver);
             if (caregiver) {
-                finalPrimaryCaregiverName = `${caregiver.firstName} ${caregiver.lastName}`;
+                finalPrimaryCaregiverName = getCaregiverName(caregiver);
                 finalPrimaryCaregiverId = caregiver._id;
             }
         }
@@ -297,12 +333,12 @@ router.put('/residents/:id', async (req, res) => {
         
         // If caregiver changed, update the name and ID
         if (primaryCaregiver) {
-            const caregiver = await User.findOne({ _id: primaryCaregiver, role: 'caregiver', status: { $nin: ['terminated', 'deactivated'] } });
+            const caregiver = await findAssignableCaregiver(primaryCaregiver);
                 if (!caregiver) return res.status(400).json({ success: false, message: 'Selected caregiver was not found.' });
             if (caregiver) {
-                update.primaryCaregiver = `${caregiver.firstName} ${caregiver.lastName}`;
+                update.primaryCaregiver = getCaregiverName(caregiver);
                 update.primaryCaregiverId = caregiver._id;
-                update.primaryCaregiverName = `${caregiver.firstName} ${caregiver.lastName}`;
+                update.primaryCaregiverName = getCaregiverName(caregiver);
             }
         }
         
@@ -332,11 +368,7 @@ async function assignCaregiverToResident(req, res) {
 
         const [resident, caregiver] = await Promise.all([
             Resident.findById(req.params.id),
-            User.findOne({
-                _id: caregiverId,
-                role: 'caregiver',
-                status: { $nin: ['terminated', 'deactivated'] }
-            })
+            findAssignableCaregiver(caregiverId)
         ]);
 
         if (!resident) {
@@ -346,7 +378,7 @@ async function assignCaregiverToResident(req, res) {
             return res.status(404).json({ success: false, message: 'Caregiver not found.' });
         }
 
-        const caregiverName = `${caregiver.firstName} ${caregiver.lastName}`.trim();
+        const caregiverName = getCaregiverName(caregiver);
         const updated = await Resident.findByIdAndUpdate(
             resident._id,
             {
@@ -389,6 +421,15 @@ router.post('/residents/:id/vitals', async (req, res) => {
         });
         await vitals.save();
 
+        const vitalSnapshot = {
+            ...cleanVitals,
+            loggedAt: vitals.createdAt || new Date(),
+            loggedBy: req.user._id,
+        };
+        resident.latestVitals = vitalSnapshot;
+        resident.vitalLogs = resident.vitalLogs || [];
+        resident.vitalLogs.push(vitalSnapshot);
+
         let alertLevel = resident.alertLevel || 'stable';
         const { heartRate, temperature, oxygenSat } = cleanVitals;
         if ((temperature !== null && temperature > 38.5) || (heartRate !== null && heartRate > 100) || (oxygenSat !== null && oxygenSat < 94)) {
@@ -397,9 +438,8 @@ router.post('/residents/:id/vitals', async (req, res) => {
         if ((temperature !== null && temperature > 39.5) || (heartRate !== null && heartRate > 120) || (oxygenSat !== null && oxygenSat < 90)) {
             alertLevel = 'critical';
         }
-        if (alertLevel !== resident.alertLevel) {
-            await Resident.findByIdAndUpdate(req.params.id, { alertLevel });
-        }
+        resident.alertLevel = alertLevel;
+        await resident.save();
 
         res.status(201).json({ success: true, data: vitals });
     } catch (err) {
