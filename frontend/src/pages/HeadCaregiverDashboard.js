@@ -14,10 +14,16 @@ import {
 import '../styles/Dashboard.css';
 import '../styles/NurseDashboard.css';
 
-const API = process.env.REACT_APP_API_URL ||
-    (process.env.NODE_ENV === 'production'
+const getApiUrl = () => {
+    const fallback = process.env.NODE_ENV === 'production'
         ? 'https://kanang-alalay-backend.onrender.com/api'
-        : 'http://localhost:5000/api');
+        : 'http://localhost:5000/api';
+    const raw = process.env.REACT_APP_API_URL || fallback;
+    const trimmed = raw.replace(/\/+$/, '');
+    return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+};
+
+const API = getApiUrl();
 
 // ─── Status maps ─────────────────────────────────────────────────────────────
 const STATUS_COLOR = {
@@ -57,6 +63,7 @@ const useFetch = () => useCallback(async (endpoint, opts = {}) => {
     const token = localStorage.getItem('token');
     try {
         const r = await fetch(`${API}${endpoint}`, {
+            credentials: 'include',
             ...opts,
             headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }), ...opts.headers },
         });
@@ -351,7 +358,7 @@ const AddResidentModal = ({ onClose, onSaved, doFetch, toast, caregivers, fetchC
 // ════════════════════════════════════════════════════════════
 //  MODAL: Log Vital Signs
 // ════════════════════════════════════════════════════════════
-const VitalsModal = ({ resident, onClose, doFetch, toast }) => {
+const VitalsModal = ({ resident, onClose, onSaved, doFetch, toast }) => {
     const [f, setF] = useState({ bloodPressure: '', heartRate: '', temperature: '', oxygenSat: '', weight: '', notes: '' });
     const [saving, setSaving] = useState(false);
     const [vitalsErr, setVitalsErr] = useState('');
@@ -386,7 +393,7 @@ const VitalsModal = ({ resident, onClose, doFetch, toast }) => {
         };
         const r = await doFetch(`/head-caregiver/residents/${resident._id}/vitals`, { method: 'POST', body: JSON.stringify(payload) });
         setSaving(false);
-        if (r.success) { toast(`Vitals logged for ${resident.name || resident.firstName || 'resident'}.`); onClose(); }
+        if (r.success) { toast('Vitals logged for ' + (resident.name || resident.firstName || 'resident') + '.'); if (onSaved) onSaved(r.data); onClose(); }
         else toast(r.message || 'Failed.', 'error');
     };
 
@@ -461,7 +468,7 @@ const AssignCaregiverModal = ({ resident, caregivers, onClose, onSaved, doFetch,
 
         setSaving(true);
         const r = await doFetch(`/head-caregiver/residents/${resident._id}/assign-caregiver`, {
-            method: 'PATCH',
+            method: 'PUT',
             body: JSON.stringify({ caregiverId })
         });
         setSaving(false);
@@ -1594,7 +1601,7 @@ const HeadCaregiverDashboard = () => {
             {/* Modals */}
             {modal?.type === 'addResident' && <AddResidentModal
                 onClose={() => setModal(null)}
-                onSaved={r => { setResidents(p => [...p, r]); }}
+                onSaved={r => { setResidents(p => [...p, r]); loadAll(); }}
                 doFetch={doFetch}
                 toast={toast}
                 caregivers={caregivers}
@@ -1608,9 +1615,9 @@ const HeadCaregiverDashboard = () => {
                 fetchCaregivers={fetchCaregivers}
                 doFetch={doFetch}
                 toast={toast}
-                onSaved={updated => setResidents(p => p.map(r => r._id === updated._id ? updated : r))}
+                onSaved={updated => { setResidents(p => p.map(r => r._id === updated._id ? updated : r)); loadAll(); }}
             />}
-            {modal?.type === 'vitals' && <VitalsModal onClose={() => setModal(null)} resident={modal.data} doFetch={doFetch} toast={toast} />}
+            {modal?.type === 'vitals' && <VitalsModal onClose={() => setModal(null)} onSaved={loadAll} resident={modal.data} doFetch={doFetch} toast={toast} />}
             {modal?.type === 'history' && <HistoryModal onClose={() => setModal(null)} resident={modal.data} doFetch={doFetch} />}
             {modal?.type === 'addSchedule' && <AddScheduleModal onClose={() => setModal(null)} residents={residents} medications={medications} onSaved={l => setSchedule(p => [...p, l])} doFetch={doFetch} toast={toast} defaultResident={modal.data ? { _id: modal.data.residentId } : null} />}
             {modal?.type === 'editSchedule' && <EditScheduleModal onClose={() => setModal(null)} log={modal.data} onSaved={u => setSchedule(p => p.map(l => l._id === u._id ? { ...l, ...u } : l))} doFetch={doFetch} toast={toast} />}

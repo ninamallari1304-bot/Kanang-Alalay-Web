@@ -177,29 +177,7 @@ router.get('/residents', async (req, res) => {
             .populate('primaryCaregiverId', 'firstName lastName role')
             .sort({ roomNumber: 1 });
         
-        const shaped = residents.map(r => ({
-            _id: r._id,
-            residentId: r.residentId,
-            name: `${r.firstName} ${r.lastName}`.trim(),
-            firstName: r.firstName,
-            lastName: r.lastName,
-            nickname: r.nickname || '',
-            age: r.age,
-            gender: r.gender,
-            room: r.roomNumber,
-            floor: r.floor || '',
-            bed: r.bed || '',
-            conditions: (r.medicalConditions || []).map(c => c.name || c),
-            alertLevel: r.alertLevel || 'stable',
-            medicationOverdue: r.medicationOverdue || false,
-            overdueMed: r.overdueMed || '',
-            overdueAt: r.overdueAt || null,
-            nextMed: r.nextMed || '',
-            primaryCaregiver: r.primaryCaregiver,
-            primaryCaregiverName: r.primaryCaregiverName,
-            primaryCaregiverId: r.primaryCaregiverId,
-            status: r.status,
-        }));
+        const shaped = residents.map(shapeResident);
         res.json({ success: true, data: shaped, count: shaped.length });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -234,7 +212,7 @@ router.post('/residents', async (req, res) => {
         
         // PRIORITY 1: Use primaryCaregiverId if provided (this is the preferred method)
         if (primaryCaregiverId) {
-            const caregiver = await User.findById(primaryCaregiverId);
+            const caregiver = await User.findOne({ _id: primaryCaregiverId, role: 'caregiver', status: { $nin: ['terminated', 'deactivated'] } });
             if (caregiver) {
                 finalPrimaryCaregiverName = `${caregiver.firstName} ${caregiver.lastName}`;
                 finalPrimaryCaregiverId = caregiver._id;
@@ -242,7 +220,7 @@ router.post('/residents', async (req, res) => {
         }
         // PRIORITY 2: Fall back to primaryCaregiver as ID string
         else if (primaryCaregiver && primaryCaregiver !== '') {
-            const caregiver = await User.findById(primaryCaregiver);
+            const caregiver = await User.findOne({ _id: primaryCaregiver, role: 'caregiver', status: { $nin: ['terminated', 'deactivated'] } });
             if (caregiver) {
                 finalPrimaryCaregiverName = `${caregiver.firstName} ${caregiver.lastName}`;
                 finalPrimaryCaregiverId = caregiver._id;
@@ -253,6 +231,10 @@ router.post('/residents', async (req, res) => {
             finalPrimaryCaregiverName = primaryCaregiverName;
         }
         
+        if ((primaryCaregiverId || primaryCaregiver) && !finalPrimaryCaregiverId) {
+            return res.status(400).json({ success: false, message: 'Selected caregiver was not found.' });
+        }
+
         // Process conditions - handle both string arrays and object arrays
         let processedConditions = [];
         if (conditions && Array.isArray(conditions)) {
@@ -293,29 +275,7 @@ router.post('/residents', async (req, res) => {
         const savedResident = await Resident.findById(resident._id)
             .populate('primaryCaregiverId', 'firstName lastName role');
         
-        const shaped = {
-            _id: savedResident._id,
-            residentId: savedResident.residentId,
-            name: `${savedResident.firstName} ${savedResident.lastName}`.trim(),
-            firstName: savedResident.firstName,
-            lastName: savedResident.lastName,
-            nickname: savedResident.nickname,
-            age: savedResident.age,
-            gender: savedResident.gender,
-            room: savedResident.roomNumber,
-            floor: savedResident.floor || '',
-            bed: savedResident.bed || '',
-            conditions: (savedResident.medicalConditions || []).map(c => c.name || c),
-            alertLevel: savedResident.alertLevel || 'stable',
-            medicationOverdue: savedResident.medicationOverdue || false,
-            overdueMed: savedResident.overdueMed || '',
-            overdueAt: savedResident.overdueAt || null,
-            nextMed: savedResident.nextMed || '',
-            primaryCaregiver: savedResident.primaryCaregiver,
-            primaryCaregiverName: savedResident.primaryCaregiverName,
-            primaryCaregiverId: savedResident.primaryCaregiverId,
-            status: savedResident.status,
-        };
+        const shaped = shapeResident(savedResident);
         
         res.status(201).json({ success: true, data: shaped });
     } catch (err) {
@@ -337,7 +297,8 @@ router.put('/residents/:id', async (req, res) => {
         
         // If caregiver changed, update the name and ID
         if (primaryCaregiver) {
-            const caregiver = await User.findById(primaryCaregiver);
+            const caregiver = await User.findOne({ _id: primaryCaregiver, role: 'caregiver', status: { $nin: ['terminated', 'deactivated'] } });
+                if (!caregiver) return res.status(400).json({ success: false, message: 'Selected caregiver was not found.' });
             if (caregiver) {
                 update.primaryCaregiver = `${caregiver.firstName} ${caregiver.lastName}`;
                 update.primaryCaregiverId = caregiver._id;
@@ -357,7 +318,7 @@ router.put('/residents/:id', async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 // LOG VITAL SIGNS
 // ─────────────────────────────────────────────────────────────
-router.patch('/residents/:id/assign-caregiver', async (req, res) => {
+async function assignCaregiverToResident(req, res) {
     try {
         if (!requireHeadCaregiver(req, res)) return;
 
@@ -386,15 +347,17 @@ router.patch('/residents/:id/assign-caregiver', async (req, res) => {
         }
 
         const caregiverName = `${caregiver.firstName} ${caregiver.lastName}`.trim();
-        resident.primaryCaregiver = caregiverName;
-        resident.primaryCaregiverName = caregiverName;
-        resident.primaryCaregiverId = caregiver._id;
-        resident.assignedCaregiver = caregiverName;
-        resident.assignedNurse = caregiverName;
-        await resident.save();
-
-        const updated = await Resident.findById(resident._id)
-            .populate('primaryCaregiverId', 'firstName lastName role');
+        const updated = await Resident.findByIdAndUpdate(
+            resident._id,
+            {
+                primaryCaregiver: caregiverName,
+                primaryCaregiverName: caregiverName,
+                primaryCaregiverId: caregiver._id,
+                assignedCaregiver: caregiverName,
+                assignedNurse: caregiverName,
+            },
+            { new: true, runValidators: true }
+        ).populate('primaryCaregiverId', 'firstName lastName role');
 
         res.json({
             success: true,
@@ -404,7 +367,10 @@ router.patch('/residents/:id/assign-caregiver', async (req, res) => {
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
-});
+}
+
+router.patch('/residents/:id/assign-caregiver', assignCaregiverToResident);
+router.put('/residents/:id/assign-caregiver', assignCaregiverToResident);
 
 router.post('/residents/:id/vitals', async (req, res) => {
     try {
