@@ -311,10 +311,10 @@ const AddResidentModal = ({ onClose, onSaved, doFetch, toast, caregivers, fetchC
                             onChange={e => setField('primaryCaregiverId', e.target.value)}>
                             <option value="">— Select a caregiver —</option>
                             {caregivers
-                                .filter(c => c.role === 'caregiver' || c.role === 'head_caregiver')
+                                .filter(c => c.role === 'caregiver')
                                 .map(c => (
                                     <option key={c._id} value={c._id}>
-                                        {c.firstName} {c.lastName} ({c.role === 'head_caregiver' ? 'Head' : 'Caregiver'})
+                                        {c.firstName} {c.lastName} (Caregiver)
                                     </option>
                                 ))}
                         </select>
@@ -324,13 +324,13 @@ const AddResidentModal = ({ onClose, onSaved, doFetch, toast, caregivers, fetchC
                                 Assigned to: {selectedCaregiverName}
                             </small>
                         )}
-                        {!f.primaryCaregiverId && caregivers.filter(c => c.role === 'caregiver' || c.role === 'head_caregiver').length === 0 && (
+                        {!f.primaryCaregiverId && caregivers.filter(c => c.role === 'caregiver').length === 0 && (
                             <small className="field-hint" style={{ color: 'var(--d-orange-dk)' }}>
                                 <FaExclamationTriangle style={{ marginRight: 4 }} />
                                 No caregiver accounts found. Please register a caregiver first in User Management.
                             </small>
                         )}
-                        {!f.primaryCaregiverId && caregivers.filter(c => c.role === 'caregiver' || c.role === 'head_caregiver').length > 0 && (
+                        {!f.primaryCaregiverId && caregivers.filter(c => c.role === 'caregiver').length > 0 && (
                             <small className="field-hint">
                                 <FaUserMd style={{ marginRight: 4 }} />
                                 Optional — can be assigned later.
@@ -911,7 +911,7 @@ const HeadCaregiverDashboard = () => {
             const staff = staffR.staff || staffR.data || [];
             setCaregivers(staff
                 .filter(member =>
-                    ['caregiver', 'head_caregiver'].includes(member.role) &&
+                    member.role === 'caregiver' &&
                     !['terminated', 'deactivated'].includes(member.status)
                 )
                 .map(member => ({

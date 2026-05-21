@@ -97,7 +97,7 @@ router.get('/caregivers', async (req, res) => {
     try {
         const caregivers = await User.find(
             { 
-                role: { $in: ['caregiver', 'head_caregiver'] },
+                role: 'caregiver',
                 status: { $nin: ['terminated', 'deactivated'] }
             },
             'firstName lastName role email staffId status'
