@@ -17,7 +17,7 @@ import '../styles/NurseDashboard.css';
 const getApiUrl = () => {
     const fallback = process.env.NODE_ENV === 'production'
         ? 'https://kanang-alalay-backend.onrender.com/api'
-        : 'http://localhost:5001/api';
+        : 'http://localhost:5000/api';
     const raw = process.env.REACT_APP_API_URL || fallback;
     const trimmed = raw.replace(/\/+$/, '');
     return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
@@ -320,7 +320,7 @@ const AddResidentModal = ({ onClose, onSaved, doFetch, toast, caregivers, fetchC
                             onChange={e => setField('primaryCaregiverId', e.target.value)}>
                             <option value="">— Select a caregiver —</option>
                             {caregivers
-                                .filter(c => c.role === 'caregiver')
+                                .filter(c => String(c.role || '').toLowerCase() === 'caregiver')
                                 .map(c => (
                                     <option key={c._id} value={c._id}>
                                         {c.firstName} {c.lastName} (Caregiver)
@@ -333,13 +333,13 @@ const AddResidentModal = ({ onClose, onSaved, doFetch, toast, caregivers, fetchC
                                 Assigned to: {selectedCaregiverName}
                             </small>
                         )}
-                        {!f.primaryCaregiverId && caregivers.filter(c => c.role === 'caregiver').length === 0 && (
+                        {!f.primaryCaregiverId && caregivers.filter(c => String(c.role || '').toLowerCase() === 'caregiver').length === 0 && (
                             <small className="field-hint" style={{ color: 'var(--d-orange-dk)' }}>
                                 <FaExclamationTriangle style={{ marginRight: 4 }} />
                                 No caregiver accounts found. Please register a caregiver first in User Management.
                             </small>
                         )}
-                        {!f.primaryCaregiverId && caregivers.filter(c => c.role === 'caregiver').length > 0 && (
+                        {!f.primaryCaregiverId && caregivers.filter(c => String(c.role || '').toLowerCase() === 'caregiver').length > 0 && (
                             <small className="field-hint">
                                 <FaUserMd style={{ marginRight: 4 }} />
                                 Optional — can be assigned later.
@@ -456,7 +456,7 @@ const AssignCaregiverModal = ({ resident, caregivers, onClose, onSaved, doFetch,
     const [caregiverId, setCaregiverId] = useState(currentCaregiverId || '');
     const [saving, setSaving] = useState(false);
     const residentName = resident.name || [resident.firstName, resident.lastName].filter(Boolean).join(' ') || 'Resident';
-    const availableCaregivers = caregivers.filter(c => c.role === 'caregiver');
+    const availableCaregivers = caregivers.filter(c => String(c.role || '').toLowerCase() === 'caregiver');
 
     useEffect(() => {
         if (fetchCaregivers) fetchCaregivers();
@@ -935,8 +935,8 @@ const HeadCaregiverDashboard = () => {
             const staff = staffR.staff || staffR.data || [];
             setCaregivers(staff
                 .filter(member =>
-                    member.role === 'caregiver' &&
-                    !['terminated', 'deactivated'].includes(member.status)
+                    String(member.role || '').toLowerCase() === 'caregiver' &&
+                    !['terminated', 'deactivated'].includes(String(member.status || '').toLowerCase())
                 )
                 .map(member => ({
                     _id: member._id,

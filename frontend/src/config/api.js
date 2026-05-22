@@ -3,7 +3,7 @@ const getApiUrl = () => {
   const fallback =
     process.env.NODE_ENV === 'production'
       ? 'https://kanang-alalay-backend.onrender.com/api'
-      : 'http://localhost:5001/api';
+      : 'http://localhost:5000/api';
   const raw = process.env.REACT_APP_API_URL || fallback;
   const trimmed = raw.replace(/\/+$/, '');
   return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;

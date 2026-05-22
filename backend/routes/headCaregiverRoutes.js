@@ -345,9 +345,19 @@ router.put('/residents/:id', async (req, res) => {
             const caregiver = await findAssignableCaregiver(primaryCaregiver);
                 if (!caregiver) return res.status(400).json({ success: false, message: 'Selected caregiver was not found.' });
             if (caregiver) {
-                update.primaryCaregiver = getCaregiverName(caregiver);
+                const caregiverName = getCaregiverName(caregiver);
+                update.primaryCaregiver = caregiverName;
                 update.primaryCaregiverId = caregiver._id;
-                update.primaryCaregiverName = getCaregiverName(caregiver);
+                update.primaryCaregiverName = caregiverName;
+                update.assignedCaregiver = caregiverName;
+                update.assignedNurse = caregiverName;
+                update.assignedStaff = {
+                    primaryCaregiver: caregiverName,
+                    primaryCaregiverName: caregiverName,
+                    primaryCaregiverId: caregiver._id,
+                    assignedCaregiver: caregiverName,
+                    assignedNurse: caregiverName,
+                };
             }
         }
         
