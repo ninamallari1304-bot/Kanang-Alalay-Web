@@ -325,6 +325,9 @@ router.post('/residents', async (req, res) => {
         res.status(201).json({ success: true, data: shaped });
     } catch (err) {
         console.error('Create resident error:', err);
+        if (err.code === 11000) {
+            return res.status(400).json({ success: false, message: 'A resident with this ID already exists. Please try again.' });
+        }
         res.status(500).json({ success: false, message: err.message });
     }
 });
