@@ -18,14 +18,21 @@ router.get('/', protect, async (req, res) => {
 // GET /api/residents/assigned  — residents assigned to logged-in user
 router.get('/assigned', protect, async (req, res) => {
     try {
-        const userName = `${req.user.firstName} ${req.user.lastName}`;
-        const residents = await Resident.find({
-            status: 'active',
-            $or: [
-                { assignedNurse: userName },
-                { assignedCaregiver: userName }
-            ]
-        }).sort({ roomNumber: 1 });
+        const userName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim();
+        const query = ['admin', 'head_caregiver'].includes(req.user.role)
+            ? { status: 'active' }
+            : {
+                status: 'active',
+                $or: [
+                    { primaryCaregiverId: req.user._id },
+                    { primaryCaregiverName: userName },
+                    { primaryCaregiver: userName },
+                    { assignedNurse: userName },
+                    { assignedCaregiver: userName }
+                ]
+            };
+
+        const residents = await Resident.find(query).sort({ roomNumber: 1 });
         res.json({ success: true, data: residents, count: residents.length });
     } catch (error) {
         console.error(error);
