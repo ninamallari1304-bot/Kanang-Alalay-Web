@@ -21,6 +21,11 @@ const assignedResidentQuery = (user) => {
       { primaryCaregiver: userName },
       { assignedCaregiver: userName },
       { assignedNurse: userName },
+      { 'assignedStaff.primaryCaregiverId': user._id },
+      { 'assignedStaff.primaryCaregiverName': userName },
+      { 'assignedStaff.primaryCaregiver': userName },
+      { 'assignedStaff.assignedCaregiver': userName },
+      { 'assignedStaff.assignedNurse': userName },
     ],
   };
 };

@@ -64,6 +64,13 @@ const residentSchema = new mongoose.Schema({
     primaryCaregiver: { type: String, default: '' },
     primaryCaregiverName: { type: String, default: '' },
     primaryCaregiverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    assignedStaff: {
+        primaryCaregiverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+        primaryCaregiverName: { type: String, default: '' },
+        primaryCaregiver: { type: String, default: '' },
+        assignedCaregiver: { type: String, default: '' },
+        assignedNurse: { type: String, default: '' }
+    },
 
     // ── Admission ─────────────────────────────────────────────────────────────
     latestVitals: {

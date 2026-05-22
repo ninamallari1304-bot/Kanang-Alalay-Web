@@ -17,7 +17,7 @@ import '../styles/NurseDashboard.css';
 const getApiUrl = () => {
     const fallback = process.env.NODE_ENV === 'production'
         ? 'https://kanang-alalay-backend.onrender.com/api'
-        : 'http://localhost:5000/api';
+        : 'http://localhost:5001/api';
     const raw = process.env.REACT_APP_API_URL || fallback;
     const trimmed = raw.replace(/\/+$/, '');
     return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
@@ -67,7 +67,9 @@ const useFetch = () => useCallback(async (endpoint, opts = {}) => {
             ...opts,
             headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }), ...opts.headers },
         });
-        return await r.json();
+        const text = await r.text();
+        const data = text ? JSON.parse(text) : {};
+        return r.ok ? data : { success: false, message: data.message || data.error || `Request failed (${r.status})` };
     } catch (e) { return { success: false, message: e.message }; }
 }, []);
 
@@ -149,7 +151,7 @@ const AddResidentModal = ({ onClose, onSaved, doFetch, toast, caregivers, fetchC
         setSaving(true);
         
         // Find selected caregiver to get their name
-        const selectedCaregiver = caregivers.find(c => c._id === f.primaryCaregiverId);
+        const selectedCaregiver = caregivers.find(c => String(c._id) === String(f.primaryCaregiverId));
         
         const r = await doFetch('/head-caregiver/residents', {
             method: 'POST',
@@ -166,7 +168,7 @@ const AddResidentModal = ({ onClose, onSaved, doFetch, toast, caregivers, fetchC
                 alertLevel: f.alertLevel,
                 admissionDate: f.admissionDate,
                 conditions: f.conditions ? f.conditions.split(',').map(c => ({ name: c.trim() })).filter(c => c.name) : [],
-                primaryCaregiverId: f.primaryCaregiverId || null,  // Send as ObjectId reference
+                primaryCaregiverId: f.primaryCaregiverId || '',  // Send as ObjectId reference
                 primaryCaregiver: selectedCaregiver ? `${selectedCaregiver.firstName} ${selectedCaregiver.lastName}` : '',  // Store name for display
                 primaryCaregiverName: selectedCaregiver ? `${selectedCaregiver.firstName} ${selectedCaregiver.lastName}` : '',
             })
@@ -182,7 +184,7 @@ const AddResidentModal = ({ onClose, onSaved, doFetch, toast, caregivers, fetchC
     };
 
     // Find selected caregiver
-    const selectedCaregiver = caregivers.find(c => c._id === f.primaryCaregiverId);
+    const selectedCaregiver = caregivers.find(c => String(c._id) === String(f.primaryCaregiverId));
     const selectedCaregiverName = selectedCaregiver ? `${selectedCaregiver.firstName} ${selectedCaregiver.lastName}` : '';
 
     return (

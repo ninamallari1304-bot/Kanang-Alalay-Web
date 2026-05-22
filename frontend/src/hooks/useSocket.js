@@ -3,7 +3,7 @@ import { useEffect, useRef, useCallback } from 'react';
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL ||
     (process.env.NODE_ENV === 'production'
         ? 'https://kanang-alalay-backend.onrender.com'
-        : 'http://localhost:5000');
+        : 'http://localhost:5001');
 
 export const useSocket = () => {
     const socketRef = useRef(null);

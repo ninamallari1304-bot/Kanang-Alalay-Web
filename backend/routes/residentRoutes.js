@@ -28,7 +28,12 @@ router.get('/assigned', protect, async (req, res) => {
                     { primaryCaregiverName: userName },
                     { primaryCaregiver: userName },
                     { assignedNurse: userName },
-                    { assignedCaregiver: userName }
+                    { assignedCaregiver: userName },
+                    { 'assignedStaff.primaryCaregiverId': req.user._id },
+                    { 'assignedStaff.primaryCaregiverName': userName },
+                    { 'assignedStaff.primaryCaregiver': userName },
+                    { 'assignedStaff.assignedNurse': userName },
+                    { 'assignedStaff.assignedCaregiver': userName }
                 ]
             };
 

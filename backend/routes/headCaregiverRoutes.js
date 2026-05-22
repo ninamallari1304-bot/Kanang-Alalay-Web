@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const Resident = require('../models/Resident');
 const Medication = require('../models/Medication');
 const MedicationLog = require('../models/MedicationLog');
@@ -44,7 +45,8 @@ function shapeResident(r) {
         primaryCaregiver: r.primaryCaregiver,
         primaryCaregiverName: r.primaryCaregiverName,
         primaryCaregiverId: r.primaryCaregiverId,
-        assignedCaregiver: r.assignedCaregiver,
+        assignedCaregiver: r.assignedCaregiver || r.assignedStaff?.assignedCaregiver || '',
+        assignedStaff: r.assignedStaff || {},
         latestVitals: r.latestVitals || null,
         vitalLogs: r.vitalLogs || [],
         status: r.status,
@@ -147,7 +149,7 @@ async function findAssignableCaregiver(caregiverId) {
         role: /^caregiver$/i,
         status: { $nin: ['terminated', 'deactivated', 'Terminated', 'Deactivated'] }
     };
-    if (User.db.base.Types.ObjectId.isValid(id)) {
+    if (mongoose.Types.ObjectId.isValid(id)) {
         return User.findOne({ _id: id, ...query });
     }
     return User.findOne({
@@ -304,6 +306,13 @@ router.post('/residents', async (req, res) => {
             primaryCaregiverName: finalPrimaryCaregiverName,
             assignedNurse: finalPrimaryCaregiverName || (primaryCaregiver ? 'Assigned' : `${req.user.firstName} ${req.user.lastName}`),
             assignedCaregiver: finalPrimaryCaregiverName,
+            assignedStaff: {
+                primaryCaregiver: finalPrimaryCaregiverName,
+                primaryCaregiverName: finalPrimaryCaregiverName,
+                primaryCaregiverId: finalPrimaryCaregiverId,
+                assignedCaregiver: finalPrimaryCaregiverName,
+                assignedNurse: finalPrimaryCaregiverName,
+            },
         });
         await resident.save();
 
@@ -387,6 +396,13 @@ async function assignCaregiverToResident(req, res) {
                 primaryCaregiverId: caregiver._id,
                 assignedCaregiver: caregiverName,
                 assignedNurse: caregiverName,
+                assignedStaff: {
+                    primaryCaregiver: caregiverName,
+                    primaryCaregiverName: caregiverName,
+                    primaryCaregiverId: caregiver._id,
+                    assignedCaregiver: caregiverName,
+                    assignedNurse: caregiverName,
+                },
             },
             { new: true, runValidators: true }
         ).populate('primaryCaregiverId', 'firstName lastName role');
