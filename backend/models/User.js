@@ -72,7 +72,7 @@ const userSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Auto-generate staffId before saving
-userSchema.pre('save', async function(next) {
+userSchema.pre('save', async function() {
     if (!this.staffId) {
         const year = new Date().getFullYear();
         const prefixMap = {
@@ -84,16 +84,14 @@ userSchema.pre('save', async function(next) {
         const count = await mongoose.model('User').countDocuments({ role: this.role });
         this.staffId = `${prefix}-${year}-${String(count + 1).padStart(4, '0')}`;
     }
-    next();
 });
 
-userSchema.pre('save', async function(next) {
+userSchema.pre('save', async function() {
     if (!this.isModified('password') || this.password.startsWith('$2a$') || this.password.startsWith('$2b$') || this.password.startsWith('$2y$')) {
-        return next();
+        return;
     }
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
-    next();
 });
 
 userSchema.methods.comparePassword = async function (candidatePassword) {
